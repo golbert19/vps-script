@@ -242,9 +242,14 @@ systemctl daemon-reload
 systemctl enable udpgw
 systemctl restart udpgw
 
+# Limpiar instalador temporal
 rm -f "$0"
+
 clear
 echo -e "\033[38;5;208m┌─────────────────────────────────────────────────┐\033[0m"
 echo -e "\033[38;5;208m│\033[1;32m     INSTALACIÓN V4.5 LTS COMPLETADA CON ÉXITO   \033[38;5;208m│\033[0m"
 echo -e "\033[38;5;208m└─────────────────────────────────────────────────┘\033[0m"
-echo -e "\033[1;37mEscribe el comando \033[1;36mmenu\033[1;37m para abrir el panel.\033[0m"
+sleep 2
+
+# Lanzar el menú principal de forma automática inmediatamente termina
+menu

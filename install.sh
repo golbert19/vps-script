@@ -28,23 +28,28 @@ if [[ "$RESPUESTA" != "VALID" ]]; then
     exit 1
 fi
 
-echo -e "\033[1;32m[✔] Key autorizada. Descargando módulos core...\033[0m"
+echo -e "\033[1;32m[✔] Key autorizada. Preparando entorno del sistema...\033[0m"
 sleep 2
 
-# Llamado a los módulos core
-bash <(curl -s "${REPO_URL}/core/setup_zivpn.sh")
-bash <(curl -s "${REPO_URL}/core/setup_hysteria.sh")
+# 1. Actualizar repositorios e instalar dependencias primero para evitar fallos de red/paquetes
+apt update -y && apt upgrade -y
+echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
+echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
+apt install -y python3 curl wget net-tools stunnel4 openssl jq iptables iptables-persistent unzip psmisc dropbear git socat
 
-# Descargar archivos base y core desde GitHub
+echo -e "\033[1;32m[✔] Descargando componentes y módulos core...\033[0m"
+
+# 2. Descargar archivos base y core desde GitHub antes de ejecutarlos
 wget -O "$DIR/proxy.py" "$REPO_URL/core/proxy.py"
 wget -O "$DIR/limiter.sh" "$REPO_URL/core/limiter.sh"
 wget -O /usr/local/bin/menu "$REPO_URL/menu.sh"
 chmod +x "$DIR/proxy.py" "$DIR/limiter.sh" /usr/local/bin/menu
 
-apt update -y && apt upgrade -y
-apt install -y python3 curl wget net-tools stunnel4 openssl jq iptables iptables-persistent unzip psmisc dropbear git socat
+# 3. Llamado seguro a los módulos core externos ya con las dependencias instaladas
+bash <(curl -s "${REPO_URL}/core/setup_zivpn.sh")
+bash <(curl -s "${REPO_URL}/core/setup_hysteria.sh")
 
-# Configurar puertos proxy HTTP (80), BHTTP (8080) y HCR Plain (8180)
+# 4. Configurar puertos proxy HTTP (80), BHTTP (8080) y HCR Plain (8180)
 for PORT in 80 8080 8180; do
 cat <<EOF > /etc/systemd/system/proxy-http-${PORT}.service
 [Unit]
@@ -66,7 +71,7 @@ EOF
     systemctl restart proxy-http-${PORT}.service
 done
 
-# Configuración de UDP Custom Oficial con rango masivo (1-65535) en puerto 7300
+# 5. Configuración de UDP Custom Oficial con rango masivo (1-65535) en puerto 7300
 mkdir -p /root/udp
 wget -O /root/udp/udp-custom "https://github.com/http-custom/udp-custom/releases/download/1.0.1/udp-custom-linux-amd64" 2>/dev/null
 chmod +x /root/udp/udp-custom

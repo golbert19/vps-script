@@ -25,6 +25,167 @@ dibujar_barra() {
     local entero=${porcentaje%.*}
     [[ -z "$entero" ]] && entero=0
     local llenos=$(( entero * 20 / 100 ))
+    [[ $llenos -gt 20 ]] && llenos=20 [[$llenos -lt 0 ]] && llenos=0
+    local vacios=$(( 20 - llenos ))
+
+    local barra="${CYAN}"
+    for ((i=0; i<llenos; i++)); do barra+="|"; done
+    barra+="${GRAY}"
+    for ((i=0; i<vacios; i++)); do barra+="|"; done
+    barra+="${NC}"
+    echo -ne "$barra"
+}
+
+estado_servicio() {
+    if systemctl is-active --quiet "$1"; then
+        echo -ne "${CYAN}[${GREEN}ON${CYAN}]${NC}"
+    else
+        echo -ne "${CYAN}[${RED}OFF${CYAN}]${NC}"
+    fi
+}
+
+menu_banner() {
+    clear
+    echo -e "${ORANGE}┌─────────────────────────────────────────────────┐${NC}"
+    echo -e "${ORANGE}│${WHITE}           CONFIGURAR BANNER SSH / DROPBEAR      ${ORANGE}│${NC}"
+    echo -e "${ORANGE}└─────────────────────────────────────────────────┘${NC}"
+    echo -e "${CYAN}Banner actual (/etc/issue.net):${NC}"
+    cat /etc/issue.net 2>/dev/null || echo "Sin banner configurado."
+    echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+    echo -e "Escribe tu nuevo banner personalizado."
+    echo -e "Para finalizar y guardar, presiona Enter y escribe ${GREEN}EOF${NC} en una nueva línea:"
+    echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+    
+    cat << 'EOF' > /etc/issue.net
+===================================================
+             ⚡ GOLBERT VPS - PREMIUM ⚡             
+===================================================
+- Uso autorizado solo para clientes registrados.
+- Prohibido el Torrent y abusos del servidor.
+===================================================
+EOF
+
+    if ! grep -q "Banner /etc/issue.net" /etc/ssh/sshd_config; then
+        echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config
+        systemctl restart ssh
+    fi
+    
+    if grep -q "DROPBEAR_BANNER" /etc/default/dropbear; then
+        sed -i 's|DROPBEAR_BANNER=.*|DROPBEAR_BANNER="/etc/issue.net"|g' /etc/default/dropbear
+    else
+        echo 'DROPBEAR_BANNER="/etc/issue.net"' >> /etc/default/dropbear
+    fi
+    systemctl restart dropbear
+
+    echo -e "${GREEN}[✔] Banner configurado y aplicado correctamente.${NC}"
+    sleep 2
+}
+
+menu_ssh() {
+    clear
+    IP=$(curl -s --max-time 3 ipv4.icanhazip.com || hostname -I | awk '{print $1}')
+    DOMAIN=$(cat "$DIR/domain" 2>/dev/null \vert{}\vert{} echo "$IP")
+    NS_DOMAIN=$(cat "$DIR/ns_domain" 2>/dev/null || echo "Sin configurar")
+    PUB_KEY=$(cat "$DIR/server.pub" 2>/dev/null || echo "No generada")
+
+    echo -e "${ORANGE}┌─────────────────────────────────────────────────┐${NC}"
+    echo -e "${ORANGE}│${WHITE}              GESTIÓN SSH & TÚNELES              ${ORANGE}│${NC}"
+    echo -e "${ORANGE}└─────────────────────────────────────────────────┘${NC}"
+    echo -e "${CYAN}[01]${WHITE} Crear Usuario SSH / Dropbear / Proxy / DNSTT"
+    echo -e "${CYAN}[02]${WHITE} Eliminar Usuario SSH"
+    echo -e "${CYAN}[03]${WHITE} Renovar Usuario SSH"
+    echo -e "${CYAN}[04]${WHITE} Ver Usuarios Conectados"
+    echo -e "${CYAN}[0]${WHITE} Volver al Panel Principal"
+    echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+    read -p "Seleccione una opción: " subop
+
+    case $subop in
+        1|01)
+            clear
+            echo -e "${CYAN}=== CREAR CUENTA MULTIPROTOCOLO ===${NC}"
+            read -p "Usuario: " user
+            if [[ -z "$user" ]] \vert{}\vert{} id "$user" &>/dev/null; then
+                echo -e "${RED}Usuario inválido o ya existente.${NC}"; sleep 2; return
+            fi
+            read -p "Contraseña: " pass
+            read -p "Días de duración: " dias
+            read -p "Límite de conexiones: " limite
+
+            exp_date=$(date -d "+$dias days" +"%Y-%m-%d")
+            useradd -e "$exp_date" -M -s /bin/false "$user"
+            echo "$user:$pass" | chpasswd
+            echo "$user|$pass\vert{}$exp_date|$limite" >> "$DB_USERS"
+
+            if [[ -f /etc/hysteria/config.yaml ]]; then
+                systemctl restart hysteria &>/dev/null
+            fi
+
+            clear
+            echo -e "${ORANGE}┌─────────────────────────────────────────────────┐${NC}"
+            echo -e "${ORANGE}│${GREEN}            CUENTA SSH CREADA CON ÉXITO          ${ORANGE}│${NC}"
+            echo -e "${ORANGE}└─────────────────────────────────────────────────┘${NC}"
+            echo -e "${CYAN}IP / Dominio   :${WHITE} $IP / $DOMAIN"
+            echo -e "${CYAN}Usuario        :${WHITE}$user"
+            echo -e "${CYAN}Contraseña     :${WHITE}$pass"
+            echo -e "${CYAN}Puerto SSH     :${WHITE} 22"
+            echo -e "${CYAN}Dropbear Ports :${WHITE} 143, 109"
+            echo -e "${CYAN}Proxy / WS     :${WHITE} 80, 8080 (BHTTP), 8180 (HCR)"
+            echo -e "${CYAN}TLS / SSL      :${WHITE} 443"
+            echo -e "${CYAN}ZIVPN UDP      :${WHITE} 20000-29999"
+            echo -e "${CYAN}UDPGW BadVPN   :${WHITE} 7300 (UDP Custom 1-65535)"
+            echo -e "${CYAN}Nameserver NS  :${WHITE}$NS_DOMAIN"
+            echo -e "${CYAN}Public Key DNS :${WHITE}$PUB_KEY"
+            echo -e "${CYAN}Expiración     :${WHITE} $exp_date (Límite: $limite)"
+            echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+            echo -e "${CYAN}Payload HTTP Proxy -> SSH:${NC}"
+            echo -e "${WHITE}GET / HTTP/1.1[crlf]Host: $DOMAIN[crlf]Upgrade: websocket[crlf][crlf]${NC}"
+            echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+            read -p "Presione ENTER para continuar..."
+            ;;
+        2|02)
+            read -p "Usuario a eliminar: " user
+            pkill -u "$user" 2>/dev/null
+            userdel -f "$user" 2>/dev/null
+            sed -i "/^$user\b/d" "$DB_USERS"
+            echo -e "${GREEN}Usuario eliminado.${NC}"; sleep 2
+            ;;
+        3|03)
+            read -p "Usuario a renovar: " user
+            if ! id "$user" &>/dev/null; then
+                echo -e "${RED}El usuario no existe.${NC}"; sleep 2; return
+            fi
+            read -p "Nuevos días de vigencia: " dias
+            exp_date=$(date -d "+$dias days" +"%Y-%m-%d")
+            chage -E "$exp_date" "$user"
+            awk -F'|' -v u="$user" -v e="$exp_date" 'BEGIN{OFS="|"} $1==u{$3=e}1' "$DB_USERS" > /tmp/db_u && mv /tmp/db_u "$DB_USERS"
+            echo -e "${GREEN}Usuario renovado hasta $exp_date.${NC}"; sleep 2
+#!/bin/bash
+
+ORANGE='\033[38;5;208m'
+CYAN='\033[1;36m'
+WHITE='\033[1;37m'
+GREEN='\033[1;32m'
+RED='\033[1;31m'
+GRAY='\033[1;30m'
+BG_RED='\033[41;1;37m'
+NC='\033[0m'
+
+DIR="/etc/vps-manager"
+DB_USERS="$DIR/users.db"
+DB_VMESS="$DIR/vmess.db"
+DB_VLESS="$DIR/vless.db"
+DB_TROJAN="$DIR/trojan.db"
+DB_SS="$DIR/ss.db"
+XRAY_CFG="/usr/local/etc/xray/config.json"
+
+mkdir -p "$DIR"
+touch "$DB_USERS" "$DB_VMESS" "$DB_VLESS" "$DB_TROJAN" "$DB_SS"
+
+dibujar_barra() {
+    local porcentaje=$1
+    local entero=${porcentaje%.*}
+    [[ -z "$entero" ]] && entero=0
+    local llenos=$(( entero * 20 / 100 ))
     [[ $llenos -gt 20 ]] && llenos=20
     [[ $llenos -lt 0 ]] && llenos=0
     local vacios=$(( 20 - llenos ))
@@ -45,6 +206,43 @@ estado_servicio() {
     fi
 }
 
+menu_banner() {
+    clear
+    echo -e "${ORANGE}┌─────────────────────────────────────────────────┐${NC}"
+    echo -e "${ORANGE}│${WHITE}           CONFIGURAR BANNER SSH / DROPBEAR      ${ORANGE}│${NC}"
+    echo -e "${ORANGE}└─────────────────────────────────────────────────┘${NC}"
+    echo -e "${CYAN}Banner actual (/etc/issue.net):${NC}"
+    cat /etc/issue.net 2>/dev/null || echo "Sin banner configurado."
+    echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+    echo -e "Escribe tu nuevo banner personalizado."
+    echo -e "Para finalizar y guardar, presiona Enter y escribe ${GREEN}EOF${NC} en una nueva línea:"
+    echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+    
+    cat << 'EOF' > /etc/issue.net
+===================================================
+             ⚡ GOLBERT VPS - PREMIUM ⚡             
+===================================================
+- Uso autorizado solo para clientes registrados.
+- Prohibido el Torrent y abusos del servidor.
+===================================================
+EOF
+
+    if ! grep -q "Banner /etc/issue.net" /etc/ssh/sshd_config; then
+        echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config
+        systemctl restart ssh
+    fi
+    
+    if grep -q "DROPBEAR_BANNER" /etc/default/dropbear; then
+        sed -i 's|DROPBEAR_BANNER=.*|DROPBEAR_BANNER="/etc/issue.net"|g' /etc/default/dropbear
+    else
+        echo 'DROPBEAR_BANNER="/etc/issue.net"' >> /etc/default/dropbear
+    fi
+    systemctl restart dropbear
+
+    echo -e "${GREEN}[✔] Banner configurado y aplicado correctamente.${NC}"
+    sleep 2
+}
+
 menu_ssh() {
     clear
     IP=$(curl -s --max-time 3 ipv4.icanhazip.com || hostname -I | awk '{print $1}')
@@ -55,7 +253,7 @@ menu_ssh() {
     echo -e "${ORANGE}┌─────────────────────────────────────────────────┐${NC}"
     echo -e "${ORANGE}│${WHITE}              GESTIÓN SSH & TÚNELES              ${ORANGE}│${NC}"
     echo -e "${ORANGE}└─────────────────────────────────────────────────┘${NC}"
-    echo -e "${CYAN}[01]${WHITE} Crear Usuario SSH / Proxy HTTP / SSL / DNSTT"
+    echo -e "${CYAN}[01]${WHITE} Crear Usuario SSH / Dropbear / Proxy / DNSTT"
     echo -e "${CYAN}[02]${WHITE} Eliminar Usuario SSH"
     echo -e "${CYAN}[03]${WHITE} Renovar Usuario SSH"
     echo -e "${CYAN}[04]${WHITE} Ver Usuarios Conectados"
@@ -80,8 +278,7 @@ menu_ssh() {
             echo "$user:$pass" | chpasswd
             echo "$user|$pass|$exp_date|$limite" >> "$DB_USERS"
 
-            if [[ -f /etc/hysteria/config.json ]]; then
-                jq --arg auth "$pass" '.auth.config += [$auth] | .auth.config |= unique' /etc/hysteria/config.json > /tmp/hys.json 2>/dev/null && mv /tmp/hys.json /etc/hysteria/config.json
+            if [[ -f /etc/hysteria/config.yaml ]]; then
                 systemctl restart hysteria &>/dev/null
             fi
 
@@ -93,15 +290,16 @@ menu_ssh() {
             echo -e "${CYAN}Usuario        :${WHITE} $user"
             echo -e "${CYAN}Contraseña     :${WHITE} $pass"
             echo -e "${CYAN}Puerto SSH     :${WHITE} 22"
-            echo -e "${CYAN}Proxy HTTP     :${WHITE} 80, 8080, 8989"
-            echo -e "${CYAN}TLS/SSL        :${WHITE} 443"
-            echo -e "${CYAN}Hysteria UDP   :${WHITE} 36712 (Obfs: golbertvps)"
-            echo -e "${CYAN}UDPGW BadVPN   :${WHITE} 7300"
+            echo -e "${CYAN}Dropbear Ports :${WHITE} 143, 109"
+            echo -e "${CYAN}Proxy / WS     :${WHITE} 80, 8080 (BHTTP), 8180 (HCR)"
+            echo -e "${CYAN}TLS / SSL      :${WHITE} 443"
+            echo -e "${CYAN}ZIVPN UDP      :${WHITE} 20000-29999"
+            echo -e "${CYAN}UDPGW BadVPN   :${WHITE} 7300 (UDP Custom 1-65535)"
             echo -e "${CYAN}Nameserver NS  :${WHITE} $NS_DOMAIN"
             echo -e "${CYAN}Public Key DNS :${WHITE} $PUB_KEY"
             echo -e "${CYAN}Expiración     :${WHITE} $exp_date (Límite: $limite)"
             echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
-            echo -e "${CYAN}Payload HTTP Proxy -> SSH (Custom Payload):${NC}"
+            echo -e "${CYAN}Payload HTTP Proxy -> SSH:${NC}"
             echo -e "${WHITE}GET / HTTP/1.1[crlf]Host: $DOMAIN[crlf]Upgrade: websocket[crlf][crlf]${NC}"
             echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
             read -p "Presione ENTER para continuar..."
@@ -156,6 +354,9 @@ menu_xray_proto() {
     if [[ "$xop" == "1" || "$xop" == "01" ]]; then
         read -p "Alias / Usuario: " user
         read -p "Días de duración: " dias
+        read -p "Seleccionar Puerto (80 NoTLS / 443 TLS): " puerto_xray
+        [[ -z "$puerto_xray" ]] && puerto_xray="80"
+
         uuid=$(cat /proc/sys/kernel/random/uuid)
         exp_date=$(date -d "+$dias days" +"%Y-%m-%d")
         echo "$user|$uuid|$exp_date" >> "$db_file"
@@ -167,19 +368,22 @@ menu_xray_proto() {
             systemctl restart xray 2>/dev/null
         fi
 
+        path_ws="/vmess"
+        [[ "$puerto_xray" == "443" ]] && path_ws="/vmess-tls"
+
         json_vmess=$(cat <<EOF
 {
   "v": "2",
   "ps": "$user",
   "add": "$DOMAIN",
-  "port": "8880",
+  "port": "$puerto_xray",
   "id": "$uuid",
   "aid": "0",
   "net": "ws",
   "type": "none",
   "host": "$DOMAIN",
-  "path": "/vmess",
-  "tls": "none"
+  "path": "$path_ws",
+  "tls": "$([[ "$puerto_xray" == "443" ]] && echo "tls" || echo "none")"
 }
 EOF
 )
@@ -192,7 +396,7 @@ EOF
         echo -e "${CYAN}Usuario :${WHITE} $user"
         echo -e "${CYAN}UUID    :${WHITE} $uuid"
         echo -e "${CYAN}Host    :${WHITE} $DOMAIN"
-        echo -e "${CYAN}Puerto  :${WHITE} 8880 (WS /vmess)"
+        echo -e "${CYAN}Puerto  :${WHITE} $puerto_xray (WS $path_ws)"
         echo -e "${CYAN}Expira  :${WHITE} $exp_date"
         echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
         echo -e "${CYAN}Enlace VMess:${NC}"
@@ -245,10 +449,11 @@ menu_panel_vps() {
     echo -e "${ORANGE}│${WHITE}            AJUSTES DEL SERVIDOR VPS             ${ORANGE}│${NC}"
     echo -e "${ORANGE}└─────────────────────────────────────────────────┘${NC}"
     echo -e "${CYAN}[01]${WHITE} Configurar Dominio y Nameserver (SlowDNS)"
-    echo -e "${CYAN}[02]${WHITE} Actualizar Script desde GitHub (Panel/Proxy)"
-    echo -e "${CYAN}[03]${WHITE} Reiniciar Todos los Servicios"
-    echo -e "${CYAN}[04]${WHITE} Limpiar Memoria RAM y Caché"
-    echo -e "${CYAN}[05]${WHITE} Reiniciar VPS (Reboot)"
+    echo -e "${CYAN}[02]${WHITE} Configurar Banner SSH / Dropbear"
+    echo -e "${CYAN}[03]${WHITE} Actualizar Script desde GitHub (Panel/Proxy)"
+    echo -e "${CYAN}[04]${WHITE} Reiniciar Todos los Servicios"
+    echo -e "${CYAN}[05]${WHITE} Limpiar Memoria RAM y Caché"
+    echo -e "${CYAN}[06]${WHITE} Reiniciar VPS (Reboot)"
     echo -e "${CYAN}[0] ${WHITE} Volver"
     echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
     read -p "Seleccione una opción: " pop
@@ -278,25 +483,28 @@ EOF
             echo -e "${GREEN}Dominios y SlowDNS actualizados.${NC}"; sleep 2
             ;;
         2|02)
+            menu_banner
+            ;;
+        3|03)
             echo -e "${CYAN}[*] Actualizando archivos desde GitHub...${NC}"
             REPO_URL="https://raw.githubusercontent.com/golbert19/vps-script/main"
             wget -O "$DIR/proxy.py" "$REPO_URL/proxy.py" &>/dev/null
             wget -O "$DIR/limiter.sh" "$REPO_URL/limiter.sh" &>/dev/null
             wget -O /usr/local/bin/menu "$REPO_URL/menu.sh" &>/dev/null
             chmod +x "$DIR/proxy.py" "$DIR/limiter.sh" /usr/local/bin/menu
-            systemctl restart proxy-http-80 proxy-http-8080 proxy-http-8989 vps-limiter &>/dev/null
+            systemctl restart proxy-http-80 proxy-http-8080 proxy-http-8180 vps-limiter &>/dev/null
             echo -e "${GREEN}[✔] ¡Script actualizado con éxito!${NC}"
             sleep 2
             ;;
-        3|03)
-            systemctl restart ssh stunnel4 proxy-http-80 proxy-http-8080 proxy-http-8989 dnstt xray hysteria udpgw vps-limiter 2>/dev/null
+        4|04)
+            systemctl restart ssh dropbear stunnel4 proxy-http-80 proxy-http-8080 proxy-http-8180 dnstt xray hysteria zivpn udpgw vps-limiter 2>/dev/null
             echo -e "${GREEN}Servicios reiniciados correctamente.${NC}"; sleep 2
             ;;
-        4|04)
+        5|05)
             sync; echo 3 > /proc/sys/vm/drop_caches
             echo -e "${GREEN}Memoria RAM optimizada.${NC}"; sleep 2
             ;;
-        5|05)
+        6|06)
             reboot
             ;;
     esac
@@ -326,11 +534,7 @@ while true; do
     BAR_RAM=$(dibujar_barra "$RAM_PCT")
 
     ST_XRAY=$(estado_servicio xray)
-    if systemctl list-unit-files | grep -q haproxy; then
-        ST_HAPROXY=$(estado_servicio haproxy)
-    else
-        ST_HAPROXY=$(estado_servicio proxy-http-80)
-    fi
+    ST_HAPROXY=$(estado_servicio proxy-http-80)
     ST_SSH=$(estado_servicio ssh)
 
     CNT_SSH=$(grep -c '|' "$DB_USERS" 2>/dev/null || echo 0)
@@ -353,7 +557,7 @@ while true; do
     echo -e "${CYAN}CPU     :${WHITE} [${BAR_CPU} ${WHITE}${CPU_USAGE}%]  Cores: ${CPU_CORES}${NC}"
     echo -e "${CYAN}RAM     :${WHITE} [${BAR_RAM} ${WHITE}${RAM_USED}M/${RAM_TOTAL}M] Libre: ${RAM_FREE}M${NC}"
     echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
-    echo -e "${WHITE}SERVICIOS: ${CYAN}XRAY:${ST_XRAY}  ${CYAN}HAPROXY:${ST_HAPROXY}  ${CYAN}SSH:${ST_SSH}${NC}"
+    echo -e "${WHITE}SERVICIOS: ${CYAN}XRAY:${ST_XRAY}  ${CYAN}PROXY:${ST_HAPROXY}  ${CYAN}SSH:${ST_SSH}${NC}"
     echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
     echo -e "${CYAN}CUENTAS  : SSH:${CNT_SSH}  VM:${CNT_VM}  VL:${CNT_VL}  TR:${CNT_TR}  SS:${CNT_SS}${NC}"
     echo -e "${CYAN}ESTADO   : ON SSH:${ON_SSH}  VMESS:${ON_VMESS}  VLESS:${ON_VLESS}${NC}"

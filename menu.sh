@@ -25,7 +25,8 @@ dibujar_barra() {
     local entero=${porcentaje%.*}
     [[ -z "$entero" ]] && entero=0
     local llenos=$(( entero * 20 / 100 ))
-    [[ $llenos -gt 20 ]] && llenos=20 [[$llenos -lt 0 ]] && llenos=0
+    [[ $llenos -gt 20 ]] && llenos=20
+    [[ $llenos -lt 0 ]] && llenos=0
     local vacios=$(( 20 - llenos ))
 
     local barra="${CYAN}"
@@ -47,7 +48,7 @@ estado_servicio() {
 menu_ssh() {
     clear
     IP=$(curl -s --max-time 3 ipv4.icanhazip.com || hostname -I | awk '{print $1}')
-    DOMAIN=$(cat "$DIR/domain" 2>/dev/null \vert{}\vert{} echo "$IP")
+    DOMAIN=$(cat "$DIR/domain" 2>/dev/null || echo "$IP")
     NS_DOMAIN=$(cat "$DIR/ns_domain" 2>/dev/null || echo "Sin configurar")
     PUB_KEY=$(cat "$DIR/server.pub" 2>/dev/null || echo "No generada")
 
@@ -58,7 +59,7 @@ menu_ssh() {
     echo -e "${CYAN}[02]${WHITE} Eliminar Usuario SSH"
     echo -e "${CYAN}[03]${WHITE} Renovar Usuario SSH"
     echo -e "${CYAN}[04]${WHITE} Ver Usuarios Conectados"
-    echo -e "${CYAN}[0]${WHITE} Volver al Panel Principal"
+    echo -e "${CYAN}[0] ${WHITE} Volver al Panel Principal"
     echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
     read -p "Seleccione una opción: " subop
 
@@ -67,7 +68,7 @@ menu_ssh() {
             clear
             echo -e "${CYAN}=== CREAR CUENTA MULTIPROTOCOLO ===${NC}"
             read -p "Usuario: " user
-            if [[ -z "$user" ]] \vert{}\vert{} id "$user" &>/dev/null; then
+            if [[ -z "$user" ]] || id "$user" &>/dev/null; then
                 echo -e "${RED}Usuario inválido o ya existente.${NC}"; sleep 2; return
             fi
             read -p "Contraseña: " pass
@@ -77,7 +78,7 @@ menu_ssh() {
             exp_date=$(date -d "+$dias days" +"%Y-%m-%d")
             useradd -e "$exp_date" -M -s /bin/false "$user"
             echo "$user:$pass" | chpasswd
-            echo "$user|$pass\vert{}$exp_date|$limite" >> "$DB_USERS"
+            echo "$user|$pass|$exp_date|$limite" >> "$DB_USERS"
 
             if [[ -f /etc/hysteria/config.json ]]; then
                 jq --arg auth "$pass" '.auth.config += [$auth] | .auth.config |= unique' /etc/hysteria/config.json > /tmp/hys.json 2>/dev/null && mv /tmp/hys.json /etc/hysteria/config.json
@@ -89,15 +90,15 @@ menu_ssh() {
             echo -e "${ORANGE}│${GREEN}            CUENTA SSH CREADA CON ÉXITO          ${ORANGE}│${NC}"
             echo -e "${ORANGE}└─────────────────────────────────────────────────┘${NC}"
             echo -e "${CYAN}IP / Dominio   :${WHITE} $IP / $DOMAIN"
-            echo -e "${CYAN}Usuario        :${WHITE}$user"
-            echo -e "${CYAN}Contraseña     :${WHITE}$pass"
+            echo -e "${CYAN}Usuario        :${WHITE} $user"
+            echo -e "${CYAN}Contraseña     :${WHITE} $pass"
             echo -e "${CYAN}Puerto SSH     :${WHITE} 22"
             echo -e "${CYAN}Proxy HTTP     :${WHITE} 80, 8080, 8989"
             echo -e "${CYAN}TLS/SSL        :${WHITE} 443"
             echo -e "${CYAN}Hysteria UDP   :${WHITE} 36712 (Obfs: golbertvps)"
             echo -e "${CYAN}UDPGW BadVPN   :${WHITE} 7300"
-            echo -e "${CYAN}Nameserver NS  :${WHITE}$NS_DOMAIN"
-            echo -e "${CYAN}Public Key DNS :${WHITE}$PUB_KEY"
+            echo -e "${CYAN}Nameserver NS  :${WHITE} $NS_DOMAIN"
+            echo -e "${CYAN}Public Key DNS :${WHITE} $PUB_KEY"
             echo -e "${CYAN}Expiración     :${WHITE} $exp_date (Límite: $limite)"
             echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
             echo -e "${CYAN}Payload HTTP Proxy -> SSH (Custom Payload):${NC}"
@@ -130,7 +131,7 @@ menu_ssh() {
             while IFS='|' read -r u p e l; do
                 [[ -z "$u" ]] && continue
                 c=$(ps -u "$u" 2>/dev/null | grep sshd | wc -l)
-                printf "${WHITE}\%-18s \%-15s \%-15s${NC}\n" "$u" "$c/$l" "$e"
+                printf "${WHITE}%-18s %-15s %-15s${NC}\n" "$u" "$c/$l" "$e"
             done < "$DB_USERS"
             echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
             read -p "Presione ENTER para volver..."
@@ -146,18 +147,18 @@ menu_xray_proto() {
     echo -e "${ORANGE}┌─────────────────────────────────────────────────┐${NC}"
     echo -e "${ORANGE}│${WHITE}              GESTIÓN PROTOCOLO ${proto^^}            ${ORANGE}│${NC}"
     echo -e "${ORANGE}└─────────────────────────────────────────────────┘${NC}"
-    echo -e "${CYAN}[01]${WHITE} Crear cuenta${proto^^}"
-    echo -e "${CYAN}[02]${WHITE} Eliminar cuenta${proto^^}"
-    echo -e "${CYAN}[0]${WHITE} Volver"
+    echo -e "${CYAN}[01]${WHITE} Crear cuenta ${proto^^}"
+    echo -e "${CYAN}[02]${WHITE} Eliminar cuenta ${proto^^}"
+    echo -e "${CYAN}[0] ${WHITE} Volver"
     echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
     read -p "Seleccione una opción: " xop
 
-    if [[ "$xop" == "1" \vert{}\vert{} "$xop" == "01" ]]; then
+    if [[ "$xop" == "1" || "$xop" == "01" ]]; then
         read -p "Alias / Usuario: " user
         read -p "Días de duración: " dias
         uuid=$(cat /proc/sys/kernel/random/uuid)
         exp_date=$(date -d "+$dias days" +"%Y-%m-%d")
-        echo "$user\vert{}$uuid|$exp_date" >> "$db_file"
+        echo "$user|$uuid|$exp_date" >> "$db_file"
 
         if [[ -f "$XRAY_CFG" ]]; then
             jq --arg uuid "$uuid" --arg email "$user" \
@@ -186,23 +187,23 @@ EOF
 
         clear
         echo -e "${ORANGE}┌─────────────────────────────────────────────────┐${NC}"
-        echo -e "${ORANGE}│${GREEN}            CUENTA${proto^^} CREADA CON ÉXITO        ${ORANGE}│${NC}"
+        echo -e "${ORANGE}│${GREEN}            CUENTA ${proto^^} CREADA CON ÉXITO        ${ORANGE}│${NC}"
         echo -e "${ORANGE}└─────────────────────────────────────────────────┘${NC}"
-        echo -e "${CYAN}Usuario :${WHITE}$user"
-        echo -e "${CYAN}UUID    :${WHITE}$uuid"
-        echo -e "${CYAN}Host    :${WHITE}$DOMAIN"
+        echo -e "${CYAN}Usuario :${WHITE} $user"
+        echo -e "${CYAN}UUID    :${WHITE} $uuid"
+        echo -e "${CYAN}Host    :${WHITE} $DOMAIN"
         echo -e "${CYAN}Puerto  :${WHITE} 8880 (WS /vmess)"
-        echo -e "${CYAN}Expira  :${WHITE}$exp_date"
+        echo -e "${CYAN}Expira  :${WHITE} $exp_date"
         echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
         echo -e "${CYAN}Enlace VMess:${NC}"
         echo -e "${WHITE}$link_vmess${NC}"
         echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
         read -p "Presione ENTER para volver..."
-    elif [[ "$xop" == "2" \vert{}\vert{} "$xop" == "02" ]]; then
+    elif [[ "$xop" == "2" || "$xop" == "02" ]]; then
         read -p "Usuario a eliminar: " user
-        sed -i "/^$user\Vert{}/d" "$db_file"
+        sed -i "/^$user\|/d" "$db_file"
         if [[ -f "$XRAY_CFG" ]]; then
-            jq --arg email "$user" 'del(.inbounds[0].settings.clients[] \vert{} select(.email == $email))' \
+            jq --arg email "$user" 'del(.inbounds[0].settings.clients[] | select(.email == $email))' \
                "$XRAY_CFG" > /tmp/xray.json 2>/dev/null && mv /tmp/xray.json "$XRAY_CFG"
             systemctl restart xray 2>/dev/null
         fi
@@ -215,7 +216,7 @@ menu_checkuser() {
     echo -e "${ORANGE}┌─────────────────────────────────────────────────┐${NC}"
     echo -e "${ORANGE}│${WHITE}              CHECKUSER & LIMITADOR              ${ORANGE}│${NC}"
     echo -e "${ORANGE}└─────────────────────────────────────────────────┘${NC}"
-    echo -e "${CYAN}Estado Limitador :${WHITE}$(systemctl is-active vps-limiter)"
+    echo -e "${CYAN}Estado Limitador :${WHITE} $(systemctl is-active vps-limiter)"
     echo -e "${CYAN}Últimos eventos  :${NC}"
     tail -n 10 /var/log/vps-limiter.log 2>/dev/null || echo -e "${WHITE}Sin registros recientes.${NC}"
     echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
@@ -248,7 +249,7 @@ menu_panel_vps() {
     echo -e "${CYAN}[03]${WHITE} Reiniciar Todos los Servicios"
     echo -e "${CYAN}[04]${WHITE} Limpiar Memoria RAM y Caché"
     echo -e "${CYAN}[05]${WHITE} Reiniciar VPS (Reboot)"
-    echo -e "${CYAN}[0]${WHITE} Volver"
+    echo -e "${CYAN}[0] ${WHITE} Volver"
     echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
     read -p "Seleccione una opción: " pop
     case $pop in
@@ -278,4 +279,105 @@ EOF
             ;;
         2|02)
             echo -e "${CYAN}[*] Actualizando archivos desde GitHub...${NC}"
-            REPO_URL="
+            REPO_URL="https://raw.githubusercontent.com/golbert19/vps-script/main"
+            wget -O "$DIR/proxy.py" "$REPO_URL/proxy.py" &>/dev/null
+            wget -O "$DIR/limiter.sh" "$REPO_URL/limiter.sh" &>/dev/null
+            wget -O /usr/local/bin/menu "$REPO_URL/menu.sh" &>/dev/null
+            chmod +x "$DIR/proxy.py" "$DIR/limiter.sh" /usr/local/bin/menu
+            systemctl restart proxy-http-80 proxy-http-8080 proxy-http-8989 vps-limiter &>/dev/null
+            echo -e "${GREEN}[✔] ¡Script actualizado con éxito!${NC}"
+            sleep 2
+            ;;
+        3|03)
+            systemctl restart ssh stunnel4 proxy-http-80 proxy-http-8080 proxy-http-8989 dnstt xray hysteria udpgw vps-limiter 2>/dev/null
+            echo -e "${GREEN}Servicios reiniciados correctamente.${NC}"; sleep 2
+            ;;
+        4|04)
+            sync; echo 3 > /proc/sys/vm/drop_caches
+            echo -e "${GREEN}Memoria RAM optimizada.${NC}"; sleep 2
+            ;;
+        5|05)
+            reboot
+            ;;
+    esac
+}
+
+while true; do
+    clear
+
+    OS_NAME=$(grep -w "PRETTY_NAME" /etc/os-release | cut -d= -f2 | tr -d '"')
+    UPTIME_STR=$(uptime -p | sed 's/^up //')
+    IP_ADDR=$(curl -s --max-time 2 ipv4.icanhazip.com || hostname -I | awk '{print $1}')
+    DOM_ADDR=$(cat "$DIR/domain" 2>/dev/null || echo "$IP_ADDR")
+
+    DISK_TOTAL=$(df -h / | awk 'NR==2 {print $2}')
+    DISK_USED=$(df -h / | awk 'NR==2 {print $3}')
+    DISK_FREE=$(df -h / | awk 'NR==2 {print $4}')
+
+    CPU_CORES=$(nproc)
+    CPU_USAGE=$(top -bn1 | awk '/Cpu\(s\)/ {printf "%.1f", 100 - $8}')
+    [[ -z "$CPU_USAGE" ]] && CPU_USAGE="5.0"
+    BAR_CPU=$(dibujar_barra "$CPU_USAGE")
+
+    RAM_TOTAL=$(free -m | awk '/Mem:/ {print $2}')
+    RAM_USED=$(free -m | awk '/Mem:/ {print $3}')
+    RAM_FREE=$(free -m | awk '/Mem:/ {print $4}')
+    RAM_PCT=$(( RAM_USED * 100 / (RAM_TOTAL > 0 ? RAM_TOTAL : 1) ))
+    BAR_RAM=$(dibujar_barra "$RAM_PCT")
+
+    ST_XRAY=$(estado_servicio xray)
+    if systemctl list-unit-files | grep -q haproxy; then
+        ST_HAPROXY=$(estado_servicio haproxy)
+    else
+        ST_HAPROXY=$(estado_servicio proxy-http-80)
+    fi
+    ST_SSH=$(estado_servicio ssh)
+
+    CNT_SSH=$(grep -c '|' "$DB_USERS" 2>/dev/null || echo 0)
+    CNT_VM=$(grep -c '|' "$DB_VMESS" 2>/dev/null || echo 0)
+    CNT_VL=$(grep -c '|' "$DB_VLESS" 2>/dev/null || echo 0)
+    CNT_TR=$(grep -c '|' "$DB_TROJAN" 2>/dev/null || echo 0)
+    CNT_SS=$(grep -c '|' "$DB_SS" 2>/dev/null || echo 0)
+
+    ON_SSH=$(ps aux | grep "\[priv\]" | wc -l)
+    ON_VMESS=0
+    ON_VLESS=0
+
+    echo -e "${ORANGE}┌─────────────────────────────────────────────────┐${NC}"
+    echo -e "${ORANGE}│            🦅  ${WHITE}PANEL DE CONTROL VPS${ORANGE}  🦅           │${NC}"
+    echo -e "${ORANGE}└─────────────────────────────────────────────────┘${NC}"
+    echo -e "${CYAN}OS      :${WHITE} $OS_NAME${NC}"
+    echo -e "${CYAN}UPTIME  :${WHITE} $UPTIME_STR${NC}"
+    echo -e "${CYAN}IP/DOM  :${WHITE} $IP_ADDR / $DOM_ADDR${NC}"
+    echo -e "${CYAN}DISCO   :${WHITE} Total ${DISK_TOTAL}    Uso ${DISK_USED}    Libre ${DISK_FREE}${NC}"
+    echo -e "${CYAN}CPU     :${WHITE} [${BAR_CPU} ${WHITE}${CPU_USAGE}%]  Cores: ${CPU_CORES}${NC}"
+    echo -e "${CYAN}RAM     :${WHITE} [${BAR_RAM} ${WHITE}${RAM_USED}M/${RAM_TOTAL}M] Libre: ${RAM_FREE}M${NC}"
+    echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+    echo -e "${WHITE}SERVICIOS: ${CYAN}XRAY:${ST_XRAY}  ${CYAN}HAPROXY:${ST_HAPROXY}  ${CYAN}SSH:${ST_SSH}${NC}"
+    echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+    echo -e "${CYAN}CUENTAS  : SSH:${CNT_SSH}  VM:${CNT_VM}  VL:${CNT_VL}  TR:${CNT_TR}  SS:${CNT_SS}${NC}"
+    echo -e "${CYAN}ESTADO   : ON SSH:${ON_SSH}  VMESS:${ON_VMESS}  VLESS:${ON_VLESS}${NC}"
+    echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+    echo -e "${CYAN}[01]${WHITE} SSH & OVPN        ${CYAN}[06]${WHITE} TELEGRAM NOTIFY${NC}"
+    echo -e "${CYAN}[02]${WHITE} VMESS             ${CYAN}[07]${WHITE} MENÚ BOT SERVER${NC}"
+    echo -e "${CYAN}[03]${WHITE} VLESS             ${CYAN}[08]${WHITE} MENÚ EXTRAS${NC}"
+    echo -e "${CYAN}[04]${WHITE} TROJAN            ${CYAN}[09]${WHITE} PANEL VPS${NC}"
+    echo -e "${CYAN}[05]${WHITE} CHECKUSER         ${CYAN}[x] ${WHITE} SALIR${NC}"
+    echo ""
+    echo -e "   ${BG_RED}           VERSIÓN SCRIPT: V4.5 LTS            ${NC}"
+    echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+    echo -ne "${WHITE}Seleccione una opción: ${NC}"
+    read opcion
+
+    case $opcion in
+        1|01) menu_ssh ;;
+        2|02) menu_xray_proto "vmess" "$DB_VMESS" ;;
+        3|03) menu_xray_proto "vless" "$DB_VLESS" ;;
+        4|04) menu_xray_proto "trojan" "$DB_TROJAN" ;;
+        5|05) menu_checkuser ;;
+        6|06|7|07) menu_telegram ;;
+        8|08|9|09) menu_panel_vps ;;
+        x|X|0) clear; exit 0 ;;
+        *) echo -e "\n${RED}Opción inválida${NC}"; sleep 1 ;;
+    esac
+done

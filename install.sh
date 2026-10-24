@@ -67,7 +67,7 @@ wget -O "$DIR/limiter.sh" "$REPO_URL/limiter.sh"
 wget -O /usr/local/bin/menu "$REPO_URL/menu.sh"
 chmod +x "$DIR/proxy.py" "$DIR/limiter.sh" /usr/local/bin/menu
 
-# 1. Servicios Proxy HTTP y E-Proxy unificados (Puertos 80, 8080 y 8989)
+# 1. Servicios Proxy HTTP y E-Proxy (Puertos 80, 8080 y 8989)
 for PORT in 80 8080 8989; do
 cat <<EOF > /etc/systemd/system/proxy-http-${PORT}.service
 [Unit]
@@ -129,19 +129,19 @@ sed -i 's/ENABLED=0/ENABLED=1/g' /etc/default/stunnel4 2>/dev/null
 systemctl enable stunnel4
 systemctl restart stunnel4
 
-# 4. Servicio DNSTT (SlowDNS)
+# 4. Servicio DNSTT (SlowDNS) - Corregido y Asegurado
 wget -O /usr/local/bin/dnstt-server "https://raw.githubusercontent.com/bugfloyd/dnstt-deploy/main/bin/dnstt-server-linux-amd64"
 chmod +x /usr/local/bin/dnstt-server
 /usr/local/bin/dnstt-server -gen-key -privkey-file "$DIR/server.key" -pubkey-file "$DIR/server.pub"
 
-sed -i 's/#DNSStubListener=yes/DNSStubListener=no/g' /etc/systemd/resolved.conf
-sed -i 's/DNSStubListener=yes/DNSStubListener=no/g' /etc/systemd/resolved.conf
-systemctl restart systemd-resolved
+systemctl stop systemd-resolved 2>/dev/null
+systemctl disable systemd-resolved 2>/dev/null
 rm -f /etc/resolv.conf
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
 echo "nameserver 1.1.1.1" >> /etc/resolv.conf
 
 iptables -I INPUT -p udp --dport 5300 -j ACCEPT
+iptables -I INPUT -p udp --dport 53 -j ACCEPT
 iptables -t nat -I PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 5300
 netfilter-persistent save
 
@@ -164,8 +164,9 @@ systemctl daemon-reload
 systemctl enable dnstt
 systemctl restart dnstt
 
-# 5. Servicio V2Ray / Xray (VMess WebSocket en Puerto 8880)
+# 5. Servicio V2Ray / Xray (Instalación limpia y robusta en Puerto 8880)
 bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+mkdir -p /usr/local/etc/xray
 cat <<EOF > /usr/local/etc/xray/config.json
 {
   "log": { "loglevel": "warning" },

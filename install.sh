@@ -56,7 +56,7 @@ echo "$NS_DOMAIN" > "$DIR/ns_domain"
 apt update -y && apt upgrade -y
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
 echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
-apt install -y python3 curl wget net-tools stunnel4 openssl jq iptables iptables-persistent unzip psmisc dropbear
+apt install -y python3 curl wget net-tools stunnel4 openssl jq iptables iptables-persistent unzip psmisc dropbear git
 
 sed -i 's/#Port 22/Port 22/g' /etc/ssh/sshd_config
 sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
@@ -71,7 +71,6 @@ cat << 'EOF' > /etc/issue.net
 - Prohibido el Torrent y abusos del servidor.
 ===================================================
 EOF
-sed -i 's|#Banner none|Banner /etc/issue.net|g' /etc/ssh/sshd_config
 if ! grep -q "Banner /etc/issue.net" /etc/ssh/sshd_config; then
     echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config
 fi
@@ -90,7 +89,7 @@ wget -O "$DIR/limiter.sh" "$REPO_URL/limiter.sh"
 wget -O /usr/local/bin/menu "$REPO_URL/menu.sh"
 chmod +x "$DIR/proxy.py" "$DIR/limiter.sh" /usr/local/bin/menu
 
-# 1. Servicios Proxy HTTP, WS, BHTTP (80) y HCR (8180)
+# 1. Servicios Proxy HTTP, WS, BHTTP (80, 8080) y HCR (8180)
 for PORT in 80 8080 8180; do
 cat <<EOF > /etc/systemd/system/proxy-http-${PORT}.service
 [Unit]
@@ -176,7 +175,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/dnstt-server -udp :5300 -privkey-file /etc/vps-manager/server.key ${NS_DOMAIN} 127.0.0.1:22
+ExecStart=/usr/local/bin/dnstt-server -udp :5300 -privkey-file "$DIR/server.key" ${NS_DOMAIN} 127.0.0.1:22
 Restart=always
 RestartSec=3
 
@@ -258,7 +257,7 @@ systemctl daemon-reload
 systemctl enable zivpn 2>/dev/null || true
 systemctl restart zivpn 2>/dev/null || true
 
-# 7. Servicio Hysteria2 (Puerto dinámico / Random)
+# 7. Hysteria2 (Puerto 36712)
 mkdir -p /etc/hysteria
 wget -O /usr/local/bin/hysteria "https://github.com/apernet/hysteria/releases/download/v2.2.1/hysteria-linux-amd64"
 chmod +x /usr/local/bin/hysteria
@@ -297,25 +296,46 @@ systemctl daemon-reload
 systemctl enable hysteria
 systemctl restart hysteria
 
-# 8. Servicio BadVPN UDPGW (Puerto 7300 para UDP Custom 1-65535)
-wget -O /usr/bin/badvpn-udpgw "https://raw.githubusercontent.com/daybreakersx/premscript/master/badvpn-udpgw64"
-chmod +x /usr/bin/badvpn-udpgw
-cat <<EOF > /etc/systemd/system/udpgw.service
+# 8. UDP Custom Oficial con Soporte Rango masivo (1-65535) en Puerto 7300
+mkdir -p /root/udp
+wget -O /root/udp/udp-custom "https://github.com/http-custom/udp-custom/releases/download/1.0.1/udp-custom-linux-amd64" 2>/dev/null
+chmod +x /root/udp/udp-custom
+
+cat <<EOF > /root/udp/config.json
+{
+  "listen": ":7300",
+  "range": "1-65535",
+  "stream_buffer": 65535,
+  "receive_buffer": 65535,
+  "auth": {
+    "mode": "passwords"
+  }
+}
+EOF
+
+cat <<EOF > /etc/systemd/system/udp-custom.service
 [Unit]
-Description=BadVPN UDPGW 7300
+Description=UDP Custom Server by GolbertVPS (1-65535)
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/badvpn-udpgw --listen-addr 127.0.0.1:7300 --max-clients 1000 --max-connections-for-client 100
-Restart=always
+Type=simple
 User=root
+WorkingDirectory=/root/udp
+ExecStart=/root/udp/udp-custom server -c /root/udp/config.json
+Restart=always
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
 EOF
+
 systemctl daemon-reload
-systemctl enable udpgw
-systemctl restart udpgw
+systemctl enable udp-custom
+systemctl restart udp-custom
+
+iptables -A INPUT -p udp --dport 1:65535 -j ACCEPT
+netfilter-persistent save
 
 # Limpiar instalador temporal
 rm -f "$0"
@@ -326,5 +346,5 @@ echo -e "\033[38;5;208m│\033[1;32m     INSTALACIÓN V4.5 LTS COMPLETADA CON É
 echo -e "\033[38;5;208m└─────────────────────────────────────────────────┘\033[0m"
 sleep 2
 
-# Lanzar el menú principal de forma automática inmediatamente termina
+# Lanzar el menú principal de forma automática
 menu

@@ -31,6 +31,10 @@ fi
 echo -e "\033[1;32m[✔] Key autorizada. Descargando módulos core...\033[0m"
 sleep 2
 
+# Llamado a los módulos core
+bash <(curl -s "${REPO_URL}/core/setup_zivpn.sh")
+bash <(curl -s "${REPO_URL}/core/setup_hysteria.sh")
+
 # Descargar archivos base y core desde GitHub
 wget -O "$DIR/proxy.py" "$REPO_URL/core/proxy.py"
 wget -O "$DIR/limiter.sh" "$REPO_URL/core/limiter.sh"

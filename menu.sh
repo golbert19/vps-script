@@ -109,7 +109,7 @@ menu_ssh() {
             read -p "Usuario a eliminar: " user
             pkill -u "$user" 2>/dev/null
             userdel -f "$user" 2>/dev/null
-            sed -i "/^$user\vert{}/d" "$DB_USERS"
+            sed -i "/^$user\b/d" "$DB_USERS"
             echo -e "${GREEN}Usuario eliminado.${NC}"; sleep 2
             ;;
         3|03)
@@ -193,5 +193,90 @@ EOF
         echo -e "${CYAN}Host    :${WHITE}$DOMAIN"
         echo -e "${CYAN}Puerto  :${WHITE} 8880 (WS /vmess)"
         echo -e "${CYAN}Expira  :${WHITE}$exp_date"
-        echo -e "${ORANGE}───────────────────────────────────────────────────${
-        
+        echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+        echo -e "${CYAN}Enlace VMess:${NC}"
+        echo -e "${WHITE}$link_vmess${NC}"
+        echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+        read -p "Presione ENTER para volver..."
+    elif [[ "$xop" == "2" \vert{}\vert{} "$xop" == "02" ]]; then
+        read -p "Usuario a eliminar: " user
+        sed -i "/^$user\Vert{}/d" "$db_file"
+        if [[ -f "$XRAY_CFG" ]]; then
+            jq --arg email "$user" 'del(.inbounds[0].settings.clients[] \vert{} select(.email == $email))' \
+               "$XRAY_CFG" > /tmp/xray.json 2>/dev/null && mv /tmp/xray.json "$XRAY_CFG"
+            systemctl restart xray 2>/dev/null
+        fi
+        echo -e "${GREEN}Usuario eliminado.${NC}"; sleep 2
+    fi
+}
+
+menu_checkuser() {
+    clear
+    echo -e "${ORANGE}┌─────────────────────────────────────────────────┐${NC}"
+    echo -e "${ORANGE}│${WHITE}              CHECKUSER & LIMITADOR              ${ORANGE}│${NC}"
+    echo -e "${ORANGE}└─────────────────────────────────────────────────┘${NC}"
+    echo -e "${CYAN}Estado Limitador :${WHITE}$(systemctl is-active vps-limiter)"
+    echo -e "${CYAN}Últimos eventos  :${NC}"
+    tail -n 10 /var/log/vps-limiter.log 2>/dev/null || echo -e "${WHITE}Sin registros recientes.${NC}"
+    echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+    read -p "Presione ENTER para volver..."
+}
+
+menu_telegram() {
+    clear
+    echo -e "${ORANGE}┌─────────────────────────────────────────────────┐${NC}"
+    echo -e "${ORANGE}│${WHITE}           CONFIGURACIÓN BOT TELEGRAM            ${ORANGE}│${NC}"
+    echo -e "${ORANGE}└─────────────────────────────────────────────────┘${NC}"
+    read -p "Ingrese su Bot Token: " token
+    read -p "Ingrese su Chat ID (Admin): " chatid
+    echo "$token" > "$DIR/bot_token"
+    echo "$chatid" > "$DIR/chat_id"
+    curl -s -X POST "https://api.telegram.org/bot${token}/sendMessage" \
+         -d chat_id="${chatid}" \
+         -d text="✅ Panel de Control VPS V4.5 LTS vinculado correctamente." >/dev/null
+    echo -e "${GREEN}Notificaciones de Telegram vinculadas.${NC}"
+    sleep 2
+}
+
+menu_panel_vps() {
+    clear
+    echo -e "${ORANGE}┌─────────────────────────────────────────────────┐${NC}"
+    echo -e "${ORANGE}│${WHITE}            AJUSTES DEL SERVIDOR VPS             ${ORANGE}│${NC}"
+    echo -e "${ORANGE}└─────────────────────────────────────────────────┘${NC}"
+    echo -e "${CYAN}[01]${WHITE} Configurar Dominio y Nameserver (SlowDNS)"
+    echo -e "${CYAN}[02]${WHITE} Actualizar Script desde GitHub (Panel/Proxy)"
+    echo -e "${CYAN}[03]${WHITE} Reiniciar Todos los Servicios"
+    echo -e "${CYAN}[04]${WHITE} Limpiar Memoria RAM y Caché"
+    echo -e "${CYAN}[05]${WHITE} Reiniciar VPS (Reboot)"
+    echo -e "${CYAN}[0]${WHITE} Volver"
+    echo -e "${ORANGE}───────────────────────────────────────────────────${NC}"
+    read -p "Seleccione una opción: " pop
+    case $pop in
+        1|01)
+            read -p "Dominio principal: " dom
+            read -p "Nameserver (NS): " ns
+            echo "$dom" > "$DIR/domain"
+            echo "$ns" > "$DIR/ns_domain"
+            cat <<EOF > /etc/systemd/system/dnstt.service
+[Unit]
+Description=DNSTT SlowDNS Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/dnstt-server -udp :5300 -privkey-file /etc/vps-manager/server.key ${ns} 127.0.0.1:22
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+            systemctl daemon-reload
+            systemctl restart dnstt
+            echo -e "${GREEN}Dominios y SlowDNS actualizados.${NC}"; sleep 2
+            ;;
+        2|02)
+            echo -e "${CYAN}[*] Actualizando archivos desde GitHub...${NC}"
+            REPO_URL="
+            

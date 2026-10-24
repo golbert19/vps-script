@@ -56,22 +56,45 @@ echo "$NS_DOMAIN" > "$DIR/ns_domain"
 apt update -y && apt upgrade -y
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
 echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
-apt install -y python3 curl wget net-tools stunnel4 openssl jq iptables iptables-persistent unzip psmisc
+apt install -y python3 curl wget net-tools stunnel4 openssl jq iptables iptables-persistent unzip psmisc dropbear
 
 sed -i 's/#Port 22/Port 22/g' /etc/ssh/sshd_config
 sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
 systemctl restart ssh
+
+# Configuración de Banner SSH inicial
+cat << 'EOF' > /etc/issue.net
+===================================================
+             ⚡ GOLBERT VPS - PREMIUM ⚡             
+===================================================
+- Uso autorizado solo para clientes registrados.
+- Prohibido el Torrent y abusos del servidor.
+===================================================
+EOF
+sed -i 's|#Banner none|Banner /etc/issue.net|g' /etc/ssh/sshd_config
+if ! grep -q "Banner /etc/issue.net" /etc/ssh/sshd_config; then
+    echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config
+fi
+systemctl restart ssh
+
+# Configuración de Dropbear (Puertos 143 y 109)
+sed -i 's/NO_START=1/NO_START=0/g' /etc/default/dropbear
+sed -i 's/DROPBEAR_PORT=22/DROPBEAR_PORT=143/g' /etc/default/dropbear
+sed -i 's/DROPBEAR_EXTRA_ARGS=/DROPBEAR_EXTRA_ARGS="-p 109"/g' /etc/default/dropbear
+echo 'DROPBEAR_BANNER="/etc/issue.net"' >> /etc/default/dropbear
+systemctl enable dropbear
+systemctl restart dropbear
 
 wget -O "$DIR/proxy.py" "$REPO_URL/proxy.py"
 wget -O "$DIR/limiter.sh" "$REPO_URL/limiter.sh"
 wget -O /usr/local/bin/menu "$REPO_URL/menu.sh"
 chmod +x "$DIR/proxy.py" "$DIR/limiter.sh" /usr/local/bin/menu
 
-# 1. Servicios Proxy HTTP y E-Proxy (Puertos 80, 8080 y 8989)
-for PORT in 80 8080 8989; do
+# 1. Servicios Proxy HTTP, WS, BHTTP (80) y HCR (8180)
+for PORT in 80 8080 8180; do
 cat <<EOF > /etc/systemd/system/proxy-http-${PORT}.service
 [Unit]
-Description=E-Proxy / HTTP Custom Payload Puerto ${PORT}
+Description=Proxy / BHTTP / HCR / WS Puerto ${PORT}
 After=network.target
 
 [Service]
@@ -109,7 +132,7 @@ systemctl daemon-reload
 systemctl enable vps-limiter
 systemctl restart vps-limiter
 
-# 3. Servicio TLS/SSL (Stunnel4 en Puerto 443)
+# 3. Servicio TLS/SSL / TLS WS (Stunnel4 en Puerto 443)
 openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 \
     -subj "/C=PE/ST=Lima/L=Lima/O=GolbertVPS/CN=$DOMAIN" \
     -keyout /etc/stunnel/stunnel.pem -out /etc/stunnel/stunnel.pem
@@ -129,7 +152,7 @@ sed -i 's/ENABLED=0/ENABLED=1/g' /etc/default/stunnel4 2>/dev/null
 systemctl enable stunnel4
 systemctl restart stunnel4
 
-# 4. Servicio DNSTT (SlowDNS) - Corregido y Asegurado
+# 4. Servicio DNSTT (SlowDNS en Puertos 22, 53, 443)
 wget -O /usr/local/bin/dnstt-server "https://raw.githubusercontent.com/bugfloyd/dnstt-deploy/main/bin/dnstt-server-linux-amd64"
 chmod +x /usr/local/bin/dnstt-server
 /usr/local/bin/dnstt-server -gen-key -privkey-file "$DIR/server.key" -pubkey-file "$DIR/server.pub"
@@ -164,55 +187,106 @@ systemctl daemon-reload
 systemctl enable dnstt
 systemctl restart dnstt
 
-# 5. Servicio V2Ray / Xray (Instalación limpia y robusta en Puerto 8880)
+# 5. Servicio V2Ray / Xray (VMess NoTLS en 80 y TLS en 443)
 bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
 mkdir -p /usr/local/etc/xray
 cat <<EOF > /usr/local/etc/xray/config.json
 {
   "log": { "loglevel": "warning" },
-  "inbounds": [{
-    "port": 8880,
-    "protocol": "vmess",
-    "settings": { "clients": [] },
-    "streamSettings": {
-      "network": "ws",
-      "wsSettings": { "path": "/vmess" }
+  "inbounds": [
+    {
+      "port": 80,
+      "protocol": "vmess",
+      "settings": { "clients": [] },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": { "path": "/vmess" }
+      }
+    },
+    {
+      "port": 443,
+      "protocol": "vmess",
+      "settings": { "clients": [] },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [{
+            "certificateFile": "/etc/stunnel/stunnel.pem",
+            "keyFile": "/etc/stunnel/stunnel.pem"
+          }]
+        },
+        "wsSettings": { "path": "/vmess-tls" }
+      }
     }
-  }],
+  ],
   "outbounds": [{ "protocol": "freedom" }]
 }
 EOF
 systemctl enable xray
 systemctl restart xray
 
-# 6. Servicio Hysteria v1 (UDP en Puerto 36712)
-mkdir -p /etc/hysteria
-wget -O /usr/local/bin/hysteria "https://github.com/apernet/hysteria/releases/download/v1.3.5/hysteria-linux-amd64"
-chmod +x /usr/local/bin/hysteria
+# 6. ZIVPN (Puertos 20000-29999 UDP)
+mkdir -p /etc/zivpn
+wget -O /usr/local/bin/zivpn "https://github.com/zahidbd2/zivpn/releases/download/v1.0.8/zivpn-linux-amd64" 2>/dev/null || true
+chmod +x /usr/local/bin/zivpn 2>/dev/null || true
 
-cat <<EOF > /etc/hysteria/config.json
+cat <<EOF > /etc/zivpn/config.json
 {
-  "listen": ":36712",
-  "protocol": "udp",
-  "cert": "/etc/stunnel/stunnel.pem",
-  "key": "/etc/stunnel/stunnel.pem",
-  "obfs": "golbertvps",
-  "auth": {
-    "mode": "passwords",
-    "config": ["golbert123"]
-  }
+  "listen": ":20000",
+  "udp_ports": "20000-29999",
+  "password": "golbertvps"
 }
 EOF
 
-cat <<EOF > /etc/systemd/system/hysteria.service
+cat <<EOF > /etc/systemd/system/zivpn.service
 [Unit]
-Description=Hysteria UDP Server
+Description=ZIVPN UDP Server
 After=network.target
 
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/hysteria server -c /etc/hysteria/config.json
+ExecStart=/usr/local/bin/zivpn -c /etc/zivpn/config.json
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable zivpn 2>/dev/null || true
+systemctl restart zivpn 2>/dev/null || true
+
+# 7. Servicio Hysteria2 (Puerto dinámico / Random)
+mkdir -p /etc/hysteria
+wget -O /usr/local/bin/hysteria "https://github.com/apernet/hysteria/releases/download/v2.2.1/hysteria-linux-amd64"
+chmod +x /usr/local/bin/hysteria
+
+cat <<EOF > /etc/hysteria/config.yaml
+listen: :36712
+tls:
+  cert: /etc/stunnel/stunnel.pem
+  key: /etc/stunnel/stunnel.pem
+auth:
+  type: password
+  password: golbert123
+masquerade:
+  type: proxy
+  proxy:
+    url: https://bing.com
+    rewriteHost: true
+EOF
+
+cat <<EOF > /etc/systemd/system/hysteria.service
+[Unit]
+Description=Hysteria2 Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/hysteria server -c /etc/hysteria/config.yaml
 Restart=always
 RestartSec=3
 
@@ -223,7 +297,7 @@ systemctl daemon-reload
 systemctl enable hysteria
 systemctl restart hysteria
 
-# 7. Servicio BadVPN UDPGW (Puerto 7300)
+# 8. Servicio BadVPN UDPGW (Puerto 7300 para UDP Custom 1-65535)
 wget -O /usr/bin/badvpn-udpgw "https://raw.githubusercontent.com/daybreakersx/premscript/master/badvpn-udpgw64"
 chmod +x /usr/bin/badvpn-udpgw
 cat <<EOF > /etc/systemd/system/udpgw.service

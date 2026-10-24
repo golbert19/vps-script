@@ -27,20 +27,25 @@ class ClientThread(threading.Thread):
             self.target = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.target.connect((host, int(port)))
 
+            # Detección inteligente para E-Proxy, HTTP Proxy y WebSockets
             if 'upgrade: websocket' in payload.lower():
                 response = (
                     "HTTP/1.1 101 Switching Protocols\r\n"
                     "Upgrade: websocket\r\n"
                     "Connection: Upgrade\r\n\r\n"
                 )
-            else:
+            elif 'HTTP/' in payload:
                 response = (
                     "HTTP/1.1 200 Connection established\r\n"
-                    "Server: GolbertVPS-Proxy\r\n"
+                    "Proxy-Agent: GolbertVPS-EProxy\r\n"
                     "Connection: keep-alive\r\n\r\n"
                 )
+            else:
+                response = b""
 
-            self.client.sendall(response.encode('utf-8'))
+            if response:
+                self.client.sendall(response.encode('utf-8'))
+            
             self.forward_traffic()
 
         except Exception:
@@ -71,7 +76,7 @@ def main():
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((LISTENING_ADDR, LISTENING_PORT))
     server.listen(128)
-    print(f"[*] Proxy HTTP (Custom Payload) activo en el puerto {LISTENING_PORT}")
+    print(f"[*] Proxy E-Proxy / HTTP activo en el puerto {LISTENING_PORT}")
 
     while True:
         try:
@@ -84,3 +89,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+    

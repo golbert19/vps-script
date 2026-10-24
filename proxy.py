@@ -18,34 +18,33 @@ class ClientThread(threading.Thread):
 
     def run(self):
         try:
+            # Leer el payload completo enviado por la app (HTTP Injector / E-Proxy)
             payload = self.client.recv(BUFLEN).decode('utf-8', errors='ignore')
             if not payload:
                 self.client.close()
                 return
 
+            # Conectar internamente al puerto SSH local (22)
             host, port = DEFAULT_HOST.split(':')
             self.target = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.target.connect((host, int(port)))
 
-            # Detección inteligente para E-Proxy, HTTP Proxy y WebSockets
-            if 'upgrade: websocket' in payload.lower():
+            # Responder al cliente según lo que solicite el payload
+            if 'upgrade: websocket' in payload.lower() or 'connection: upgrade' in payload.lower():
                 response = (
                     "HTTP/1.1 101 Switching Protocols\r\n"
                     "Upgrade: websocket\r\n"
-                    "Connection: Upgrade\r\n\r\n"
-                )
-            elif 'HTTP/' in payload:
-                response = (
-                    "HTTP/1.1 200 Connection established\r\n"
-                    "Proxy-Agent: GolbertVPS-EProxy\r\n"
-                    "Connection: keep-alive\r\n\r\n"
+                    "Connection: Upgrade\r\n"
+                    "Server: GolbertVPS-Proxy\r\n\r\n"
                 )
             else:
-                response = b""
+                response = (
+                    "HTTP/1.1 200 Connection established\r\n"
+                    "Proxy-Agent: GolbertVPS-Engine\r\n"
+                    "Connection: keep-alive\r\n\r\n"
+                )
 
-            if response:
-                self.client.sendall(response.encode('utf-8'))
-            
+            self.client.sendall(response.encode('utf-8'))
             self.forward_traffic()
 
         except Exception:
@@ -76,7 +75,7 @@ def main():
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((LISTENING_ADDR, LISTENING_PORT))
     server.listen(128)
-    print(f"[*] Proxy E-Proxy / HTTP activo en el puerto {LISTENING_PORT}")
+    print(f"[*] Proxy Multi-Payload activo en el puerto {LISTENING_PORT}")
 
     while True:
         try:

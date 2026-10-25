@@ -82,23 +82,9 @@ menu_revendedores() {
         RES_FILE="/etc/vps-manager/telegram_bot/resellers.txt"
         
         case $ropt in
-            1) 
-                read -p "ID de Telegram del Revendedor: " r_id
-                read -p "Cantidad de Créditos (Cuentas a crear): " r_cred
-                mkdir -p /etc/vps-manager/telegram_bot
-                touch $RES_FILE
-                sed -i "/^$r_id:/d" $RES_FILE
-                echo "$r_id:$r_cred" >> $RES_FILE
-                echo -e "${C_GREEN}[✔] Revendedor $r_id guardado con $r_cred créditos.${C_NC}"
-                sleep 2 ;;
-            2) 
-                read -p "ID de Telegram a eliminar: " r_id
-                sed -i "/^$r_id:/d" $RES_FILE
-                echo -e "${C_RED}[✔] Revendedor eliminado.${C_NC}"; sleep 2 ;;
-            3) 
-                clear; echo -e "${C_YELLOW}📋 LISTA DE REVENDEDORES:${C_NC}"
-                if [ -f "$RES_FILE" ]; then cat "$RES_FILE" | awk -F: '{print " 👤 ID: "$1" -> 💰 Créditos: "$2}'; else echo "No hay revendedores."; fi
-                read -p "Enter..." ;;
+            1) read -p "ID de Telegram del Revendedor: " r_id; read -p "Cantidad de Créditos: " r_cred; mkdir -p /etc/vps-manager/telegram_bot; touch $RES_FILE; sed -i "/^$r_id:/d" $RES_FILE; echo "$r_id:$r_cred" >> $RES_FILE; echo -e "${C_GREEN}[✔] Revendedor $r_id guardado con $r_cred créditos.${C_NC}"; sleep 2 ;;
+            2) read -p "ID de Telegram a eliminar: " r_id; sed -i "/^$r_id:/d" $RES_FILE; echo -e "${C_RED}[✔] Revendedor eliminado.${C_NC}"; sleep 2 ;;
+            3) clear; echo -e "${C_YELLOW}📋 LISTA DE REVENDEDORES:${C_NC}"; if [ -f "$RES_FILE" ]; then cat "$RES_FILE" | awk -F: '{print " 👤 ID: "$1" -> 💰 Créditos: "$2}'; else echo "No hay revendedores."; fi; read -p "Enter..." ;;
             0) break ;;
             *) sleep 1 ;;
         esac
@@ -108,6 +94,7 @@ menu_revendedores() {
 menu_xray_proto() { clear; echo -e "${C_YELLOW}[+] Iniciando Módulo de $1...${C_NC}"; wget -qO /tmp/xray_manager.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/xray_manager.sh && chmod +x /tmp/xray_manager.sh && bash /tmp/xray_manager.sh "$1"; }
 menu_openvpn() { clear; echo -e "${C_YELLOW}[+] Instalando OpenVPN...${C_NC}"; wget -qO /tmp/setup_openvpn.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/setup_openvpn.sh && chmod +x /tmp/setup_openvpn.sh && bash /tmp/setup_openvpn.sh; }
 menu_hcr() { clear; echo -e "${C_YELLOW}[+] Iniciando Gestor HCR...${C_NC}"; wget -qO /tmp/hcr.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/hcr.sh && chmod +x /tmp/hcr.sh && bash /tmp/hcr.sh; }
+menu_udp() { clear; echo -e "${C_YELLOW}[+] Iniciando UDP Custom...${C_NC}"; wget -qO /tmp/udp_custom.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/udp_custom.sh && chmod +x /tmp/udp_custom.sh && bash /tmp/udp_custom.sh; }
 menu_webpanel() { clear; echo -e "${C_YELLOW}[+] Descargando Instalador del Panel Web...${C_NC}"; wget -qO /tmp/webpanel.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/webpanel.sh && chmod +x /tmp/webpanel.sh && bash /tmp/webpanel.sh; }
 menu_puertos() { clear; echo -e "${C_CYAN}╔══════════════════════════════════════════════╗\n║${C_GREEN}         🔍 ESTADO DE PUERTOS Y SERVICIOS     ${C_CYAN}║\n╚══════════════════════════════════════════════╝${C_NC}"; puertos=(22 80 443 53 1194 2081 2083 7300 8080 8880 8181); nombres=("SSH (OpenSSH)" "HTTP / Xray WS" "SSL / VLESS / Trojan" "DNS (SlowDNS)" "OpenVPN TCP" "OpenVPN Web" "Trojan TLS" "BadVPN UDPGW" "BHTTP Custom" "HCR Proxy PRO" "Web Panel UI"); for i in "${!puertos[@]}"; do p=${puertos[$i]}; n=${nombres[$i]}; if ss -lntp 2>/dev/null | grep -q ":$p " || ss -lnup 2>/dev/null | grep -q ":$p "; then echo -e "  🔹 [${C_GREEN}ACTIVO   ${C_NC}] Puerto ${C_YELLOW}$p${C_NC} ➔ $n"; else echo -e "  🔸 [${C_RED}INACTIVO ${C_NC}] Puerto ${C_YELLOW}$p${C_NC} ➔ $n"; fi; done; echo -e "${C_CYAN}────────────────────────────────────────────────${C_NC}"; read -p "Presione Enter para regresar..."; }
 menu_bot() { clear; echo -e "${C_YELLOW}[+] Configurando Bot...${C_NC}"; wget -qO /tmp/bot.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/bot.sh && chmod +x /tmp/bot.sh && bash /tmp/bot.sh; read -p "Enter..."; }
@@ -147,14 +134,15 @@ while true; do
     echo -e "  ${C_YELLOW}4.${C_NC} 🛡️ Menú Xray (VLESS)"
     echo -e "  ${C_YELLOW}5.${C_NC} 🌐 Menú OpenVPN (Web Perfiles)"
     echo -e "  ${C_YELLOW}6.${C_NC} 🚀 Gestor HCR Nativo (Manager Pro)"
+    echo -e "  ${C_YELLOW}7.${C_NC} 🎮 Gestor UDP Custom (Llamadas y Juegos)"
     echo -e "${C_CYAN}╠══════════════════════════════════════════════╣${C_NC}"
     echo -e "${C_PURP}  [ HERRAMIENTAS Y SISTEMA ]${C_NC}"
-    echo -e "  ${C_YELLOW}7.${C_NC} 🔍 Monitor de Puertos (Activos / Inactivos)"
-    echo -e "  ${C_YELLOW}8.${C_NC} ⚙️ Configurar Subdominio VPS y SSL"
-    echo -e "  ${C_YELLOW}9.${C_NC} 🤖 Vincular Bot de Telegram"
-    echo -e "  ${C_YELLOW}10.${C_NC}🌐 Generar Panel Web (Dashboard UI)"
-    echo -e "  ${C_YELLOW}11.${C_NC}🔄 Actualizar Panel (Desde GitHub)"
-    echo -e "  ${C_YELLOW}12.${C_NC}🤖 Activar Auto-Inicio al Loguearse"
+    echo -e "  ${C_YELLOW}8.${C_NC} 🔍 Monitor de Puertos (Activos / Inactivos)"
+    echo -e "  ${C_YELLOW}9.${C_NC} ⚙️ Configurar Subdominio VPS y SSL"
+    echo -e "  ${C_YELLOW}10.${C_NC}🤖 Vincular Bot de Telegram"
+    echo -e "  ${C_YELLOW}11.${C_NC}🌐 Generar Panel Web (Dashboard UI)"
+    echo -e "  ${C_YELLOW}12.${C_NC}🔄 Actualizar Panel (Desde GitHub)"
+    echo -e "  ${C_YELLOW}13.${C_NC}🤖 Activar Auto-Inicio al Loguearse"
     echo -e "${C_CYAN}╠══════════════════════════════════════════════╣${C_NC}"
     echo -e "  ${C_RED}88.${C_NC} ❌ Desinstalar Script   |   ${C_RED}0.${C_NC} 🚪 Salir"
     echo -e "${C_CYAN}╚══════════════════════════════════════════════╝${C_NC}"
@@ -163,7 +151,7 @@ while true; do
 
     case $opcion in
         1) menu_ssh ;; 2) menu_revendedores ;; 3) menu_xray_proto "VMess" ;; 4) menu_xray_proto "VLESS" ;; 5) menu_openvpn ;; 
-        6) menu_hcr ;; 7) menu_puertos ;; 8) menu_dominio ;; 9) menu_bot ;; 10) menu_webpanel ;; 11) menu_update ;; 12) menu_autostart ;; 
+        6) menu_hcr ;; 7) menu_udp ;; 8) menu_puertos ;; 9) menu_dominio ;; 10) menu_bot ;; 11) menu_webpanel ;; 12) menu_update ;; 13) menu_autostart ;; 
         88) uninstall_script ;; 0) clear; exit 0 ;;
         *) echo -e "\n${C_RED}[!] Opción inválida.${C_NC}"; sleep 1 ;;
     esac

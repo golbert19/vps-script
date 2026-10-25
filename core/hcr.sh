@@ -21,72 +21,70 @@ check_status() {
 
 install_hcr_plain() {
     clear
-    echo -e "${C_YELLOW}[+] Instalando Servidor HCR Plain (Puerto 8880)...${C_NC}"
-    apt update -y && apt install -y python3 iptables >/dev/null 2>&1
+    echo -e "${C_GREEN}Instalando HCR Plain en TCP 8880 con perfil 16384 / 8s...${C_NC}"
+    echo -e "${C_GREEN}Descargando hcr-server...${C_NC}"
     
-    # ---------------------------------------------------------
-    # Motor HCR Oficial (Responde handshake de HTTP Custom)
-    # ---------------------------------------------------------
-    cat << 'EOF' > "$HCR_DIR/hcr_core.py"
-import socket
-import threading
+    apt update -y >/dev/null 2>&1
+    apt install -y python3 iptables curl >/dev/null 2>&1
+    cd "$HCR_DIR"
+    
+    # Intento de descarga segura (Máximo 5 segundos de espera para que NO se congele)
+    curl -sL --max-time 5 -o hcr-server "https://raw.githubusercontent.com/ChumoGH/ScriptCGH/main/modulos/hcr-server" || echo ""
+
+    if [ -s hcr-server ]; then
+        chmod +x hcr-server
+        EXEC_CMD="$HCR_DIR/hcr-server -p 8880 -d 127.0.0.1:22"
+    else
+        echo -e "${C_YELLOW}Alerta: Servidor externo caído. Generando Motor HCR Local (Python)...${C_NC}"
+        # Generador de motor HCR Nativo en Python por si falla la descarga
+        cat << 'EOF' > "$HCR_DIR/hcr_bypass.py"
+import socket, threading
 
 PORT = 8880
 SSH_PORT = 22
 
-def handle_client(client_socket):
+def handle(client):
     try:
-        # Leer el saludo del HCR (Handshake) de la app HTTP Custom
-        initial_data = client_socket.recv(8192)
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.connect(('127.0.0.1', SSH_PORT))
         
-        # Enviar la respuesta oficial HCR para aceptar la conexión
-        hcr_response = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"
-        client_socket.sendall(hcr_response)
-
-        # Conectar al puerto SSH real localmente
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.connect(('127.0.0.1', SSH_PORT))
-        
-        if initial_data and not b"HTTP/" in initial_data:
-            server_socket.sendall(initial_data)
-
+        first_data = client.recv(8192)
+        if not first_data:
+            client.close()
+            return
+            
+        if b"HTTP/" in first_data or b"GET " in first_data or b"CONNECT " in first_data:
+            client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            if b"SSH-" in first_data:
+                server.sendall(first_data[first_data.find(b"SSH-"):])
+        else:
+            server.sendall(first_data)
+            
         def forward(src, dst):
             while True:
                 try:
-                    data = src.recv(8192)
-                    if not data: break
-                    dst.sendall(data)
-                except:
-                    break
+                    d = src.recv(8192)
+                    if not d: break
+                    dst.sendall(d)
+                except: break
 
-        t1 = threading.Thread(target=forward, args=(client_socket, server_socket))
-        t2 = threading.Thread(target=forward, args=(server_socket, client_socket))
-        t1.daemon = True
-        t2.daemon = True
-        t1.start()
-        t2.start()
-        t1.join()
-        t2.join()
+        threading.Thread(target=forward, args=(client, server), daemon=True).start()
+        threading.Thread(target=forward, args=(server, client), daemon=True).start()
     except:
-        pass
-    finally:
-        client_socket.close()
+        client.close()
 
-def main():
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind(('0.0.0.0', PORT))
-    server.listen(1024)
-    print(f"HCR Plain Core escuchando en puerto {PORT}")
-    while True:
-        client, addr = server.accept()
-        threading.Thread(target=handle_client, args=(client,)).start()
-
-if __name__ == '__main__':
-    main()
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(('0.0.0.0', PORT))
+s.listen(1024)
+while True:
+    c, a = s.accept()
+    threading.Thread(target=handle, args=(c,), daemon=True).start()
 EOF
+        chmod +x "$HCR_DIR/hcr_bypass.py"
+        EXEC_CMD="/usr/bin/python3 $HCR_DIR/hcr_bypass.py"
+    fi
 
-    chmod +x "$HCR_DIR/hcr_core.py"
     iptables -I INPUT -p tcp --dport 8880 -j ACCEPT
     iptables-save > /etc/iptables.up.rules 2>/dev/null
 
@@ -96,7 +94,8 @@ Description=HCR Native Server Plain
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 $HCR_DIR/hcr_core.py
+WorkingDirectory=$HCR_DIR
+ExecStart=$EXEC_CMD
 Restart=always
 LimitNOFILE=65536
 MemoryHigh=${MEM_HIGH}M
@@ -111,9 +110,7 @@ EOF
     systemctl enable hcr-server >/dev/null 2>&1
     systemctl restart hcr-server
     
-    clear
     echo -e "${C_GREEN}[✔] ¡Motor HCR Plain (Puerto 8880) Instalado y Activo!${C_NC}"
-    echo -e "En HTTP Custom usa el modo: ${C_YELLOW}HCR (Sin TLS)${C_NC}"
     read -p "Presione Enter para regresar..."
 }
 

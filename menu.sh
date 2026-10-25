@@ -46,13 +46,64 @@ menu_install_php() {
     echo -e "${GREEN}         INSTALADOR PHP 8.5.12 VPS              ${NC}"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${YELLOW}[+] Ejecutando instalador externo de PHP...${NC}\n"
-    
-    # Ejecutar el comando solicitado con limpieza de línea 59
     curl -sSL "https://raw.githubusercontent.com/golbert19/php-8.5.12-vps/main/install.sh?t=$(date +%s)" | sed '59s/[()]//g' | bash
-    
     echo -e "\n${CYAN}================================================${NC}"
     echo -e "${GREEN}[✔] Proceso de PHP finalizado.${NC}"
     echo -e "${CYAN}================================================${NC}"
+    read -p "Presione Enter para regresar al menú..."
+}
+
+# --- MÓDULO BBR (Acelerador de Red) ---
+menu_bbr() {
+    clear
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${GREEN}           INSTALADOR / ACTIVADOR BBR           ${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${YELLOW}[+] Descargando y aplicando Bbr.sh...${NC}\n"
+    
+    if [ -f /etc/vps-manager/core/Bbr.sh ]; then
+        bash /etc/vps-manager/core/Bbr.sh
+    else
+        wget -qO /tmp/Bbr.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/Bbr.sh && chmod +x /tmp/Bbr.sh && bash /tmp/Bbr.sh
+    fi
+    
+    echo -e "\n${CYAN}================================================${NC}"
+    read -p "Presione Enter para regresar al menú..."
+}
+
+# --- MÓDULO SSHWS ---
+menu_sshws() {
+    clear
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${GREEN}             INSTALADOR SSHWS                   ${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${YELLOW}[+] Configurando SSHWS...${NC}\n"
+    
+    if [ -f /etc/vps-manager/core/sshws.sh ]; then
+        bash /etc/vps-manager/core/sshws.sh
+    else
+        wget -qO /tmp/sshws.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/sshws.sh && chmod +x /tmp/sshws.sh && bash /tmp/sshws.sh
+    fi
+    
+    echo -e "\n${CYAN}================================================${NC}"
+    read -p "Presione Enter para regresar al menú..."
+}
+
+# --- MÓDULO WEBSOCKET ---
+menu_websocket() {
+    clear
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${GREEN}            INSTALADOR WEBSOCKET                ${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${YELLOW}[+] Configurando Websocket...${NC}\n"
+    
+    if [ -f /etc/vps-manager/core/websocket.sh ]; then
+        bash /etc/vps-manager/core/websocket.sh
+    else
+        wget -qO /tmp/websocket.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/websocket.sh && chmod +x /tmp/websocket.sh && bash /tmp/websocket.sh
+    fi
+    
+    echo -e "\n${CYAN}================================================${NC}"
     read -p "Presione Enter para regresar al menú..."
 }
 
@@ -104,6 +155,9 @@ while true; do
     echo -e "${GREEN}5) ${NC}Comprobar Usuarios"
     echo -e "${GREEN}6) ${NC}Menú OpenVPN (Web Perfiles)"
     echo -e "${GREEN}7) ${NC}Instalador PHP 8.5.12"
+    echo -e "${GREEN}8) ${NC}Acelerador BBR"
+    echo -e "${GREEN}10)${NC}Instalar SSHWS"
+    echo -e "${GREEN}11)${NC}Instalar Websocket"
     echo -e "${GREEN}9) ${NC}Panel General VPS"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${RED}88) Desinstalar Script${NC}"
@@ -120,6 +174,9 @@ while true; do
         5|05) menu_checkuser ;;
         6|06) menu_openvpn ;;
         7|07) menu_install_php ;;
+        8|08) menu_bbr ;;
+        10) menu_sshws ;;
+        11) menu_websocket ;;
         9|09) menu_panel_vps ;;
         88) uninstall_script ;;
         x|X|0) 

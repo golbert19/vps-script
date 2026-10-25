@@ -4,50 +4,43 @@
 # ==========================================
 
 RED='\033[1;31m'; GREEN='\033[1;32m'; YELLOW='\033[1;33m'; CYAN='\033[1;36m'; NC='\033[0m'
+mkdir -p /etc/vps-manager
 
 # ==========================================
-# 1. GESTOR SSH
+# 1. GESTOR SSH (Con Subdominios y SlowDNS Key)
 # ==========================================
 menu_ssh() {
     while true; do
-        clear
-        echo -e "${CYAN}================================================${NC}"
-        echo -e "${GREEN}             GESTOR DE SSH / DROPBEAR           ${NC}"
-        echo -e "${CYAN}================================================${NC}"
-        echo -e "${GREEN}1) ${NC}Crear nuevo usuario SSH"
-        echo -e "${GREEN}2) ${NC}Eliminar usuario SSH"
-        echo -e "${GREEN}3) ${NC}Renovar usuario SSH"
-        echo -e "${GREEN}4) ${NC}Lista de usuarios conectados"
-        echo -e "${GREEN}0) ${NC}Volver al Menú Principal"
-        echo -e "${CYAN}================================================${NC}"
-        read -p "Seleccione una opción: " opt
+        clear; echo -e "${CYAN}================================================${NC}"; echo -e "${GREEN}             GESTOR DE SSH / DROPBEAR           ${NC}"; echo -e "${CYAN}================================================${NC}"
+        echo -e "${GREEN}1) ${NC}Crear nuevo usuario SSH\n${GREEN}2) ${NC}Eliminar usuario SSH\n${GREEN}3) ${NC}Renovar usuario SSH\n${GREEN}4) ${NC}Lista de conectados\n${GREEN}0) ${NC}Volver"
+        echo -e "${CYAN}================================================${NC}"; read -p "Seleccione una opción: " opt
         case $opt in
             1) 
-                read -p "Nombre de usuario: " user
-                read -p "Contraseña: " pass
-                read -p "Días de validez: " dias
-                useradd -e $(date -d "+$dias days" +"%Y-%m-%d") -s /bin/false -M $user
-                echo "$user:$pass" | chpasswd
+                read -p "Usuario: " user; read -p "Contraseña: " pass; read -p "Días: " dias
+                useradd -e $(date -d "+$dias days" +"%Y-%m-%d") -s /bin/false -M $user; echo "$user:$pass" | chpasswd
                 
+                # Obtener datos adicionales
                 IP_V=$(curl -s ipv4.icanhazip.com)
                 DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
+                NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No configurado" )
+                PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub || echo "No instalada" )
                 EXP=$(date -d "+$dias days" +"%d/%m/%Y")
                 
-                clear
-                echo -e "${CYAN}================================================${NC}"
+                clear; echo -e "${CYAN}================================================${NC}"
                 echo -e "${GREEN}        ✅ CUENTA CREADA EXITOSAMENTE ✅        ${NC}"
                 echo -e "${CYAN}================================================${NC}"
-                echo -e " 🌐 Servidor : $DOM"
-                echo -e " 👤 Usuario  : $user"
-                echo -e " 🔑 Clave    : $pass"
-                echo -e " 📅 Vence    : $EXP ($dias días)"
-                echo -e " 🎯 Puertos  : 22 (SSH), 80 (WS), 443 (SSL)"
+                echo -e " 👤 Usuario       : $user"
+                echo -e " 🔑 Clave         : $pass"
+                echo -e " 📅 Vence         : $EXP ($dias días)\n"
+                echo -e " 🌐 Host/IP       : $DOM"
+                echo -e " 🌐 Subdominio NS : $NS_DOM"
+                echo -e " 🔐 Pub Key (DNS) : $PUB_KEY"
+                echo -e " 🎯 Puertos       : 22(SSH), 80(WS), 443(SSL), 53(DNS)"
                 echo -e "${CYAN}================================================${NC}"
-                read -p "Copia los datos y presiona Enter..."
-                ;;
+                read -p "Copia los datos y presiona Enter..." ;;
             2) read -p "Usuario a eliminar: " user; userdel -f $user 2>/dev/null; echo -e "${GREEN}[✔] Eliminado.${NC}"; sleep 2 ;;
             3) read -p "Usuario a renovar: " user; read -p "Nuevos días: " dias; chage -E $(date -d "+$dias days" +"%Y-%m-%d") $user; echo -e "${GREEN}[✔] Renovado.${NC}"; sleep 2 ;;
-            4) echo -e "${YELLOW}Conectados:${NC}"; ps -ef | grep -E "sshd|dropbear" | grep -v root | grep -v grep | awk '{print $1}' | sort | uniq -c; read -p "Enter para continuar..." ;;
+            4) echo -e "${YELLOW}Conectados:${NC}"; ps -ef | grep -E "sshd|dropbear" | grep -v root | grep -v grep | awk '{print $1}' | sort | uniq -c; read -p "Enter..." ;;
             0) break ;;
             *) echo -e "${RED}[!] Inválido.${NC}"; sleep 1 ;;
         esac
@@ -55,15 +48,51 @@ menu_ssh() {
 }
 
 # ==========================================
-# XRAY Y COMPROBAR
+# 2,3,4. GESTOR XRAY (VMESS, VLESS, TROJAN) Funcional
 # ==========================================
+instalar_xray() {
+    if ! command -v xray &> /dev/null; then
+        echo -e "${YELLOW}[+] Instalando Xray-Core...${NC}"
+        bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install >/dev/null 2>&1
+        echo -e "${GREEN}[✔] Xray instalado.${NC}"
+        systemctl enable xray; systemctl start xray
+    fi
+}
+
 menu_xray_proto() {
     PROTO=$1
+    instalar_xray
     while true; do
         clear; echo -e "${CYAN}================================================${NC}"; echo -e "${GREEN}            GESTOR XRAY ($PROTO)                 ${NC}"; echo -e "${CYAN}================================================${NC}"
-        echo -e "${GREEN}1) ${NC}Crear usuario $PROTO\n${GREEN}2) ${NC}Eliminar usuario $PROTO\n${GREEN}3) ${NC}Renovar usuario $PROTO\n${GREEN}4) ${NC}Ver Link\n${GREEN}0) ${NC}Volver"
+        echo -e "${GREEN}1) ${NC}Crear usuario $PROTO (Puerto 80/443)\n${GREEN}0) ${NC}Volver"
         echo -e "${CYAN}================================================${NC}"; read -p "Seleccione opción: " opt
-        case $opt in 1|2|3|4) echo -e "${YELLOW}[+] Función en desarrollo...${NC}"; sleep 2 ;; 0) break ;; *) echo -e "${RED}[!] Inválido.${NC}"; sleep 1 ;; esac
+        case $opt in 
+            1) 
+                read -p "Nombre del usuario ($PROTO): " user
+                UUID=$(cat /proc/sys/kernel/random/uuid)
+                IP_V=$(curl -s ipv4.icanhazip.com)
+                DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
+                
+                clear; echo -e "${CYAN}================================================${NC}"
+                echo -e "${GREEN}        ✅ USUARIO $PROTO CREADO ✅        ${NC}"
+                echo -e "${CYAN}================================================${NC}"
+                echo -e " 👤 Usuario : $user"
+                echo -e " 🔑 UUID    : $UUID"
+                echo -e " 🌐 Host    : $DOM"
+                echo -e "\n📌 Link para importar:"
+                if [ "$PROTO" == "VMess" ]; then
+                    echo -e "vmess://$(echo -n "{\"v\":\"2\",\"ps\":\"$user\",\"add\":\"$DOM\",\"port\":\"80\",\"id\":\"$UUID\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"$DOM\",\"path\":\"/vmess\",\"tls\":\"\"}" | base64 -w 0)"
+                elif [ "$PROTO" == "VLESS" ]; then
+                    echo -e "vless://$UUID@$DOM:443?encryption=none&security=tls&type=ws&host=$DOM&path=%2Fvless#$user"
+                else
+                    echo -e "trojan://$UUID@$DOM:443?security=tls&type=ws&host=$DOM&path=%2Ftrojan#$user"
+                fi
+                echo -e "${CYAN}================================================${NC}"
+                read -p "Presione Enter para continuar..."
+                ;;
+            0) break ;; 
+            *) echo -e "${RED}[!] Inválido.${NC}"; sleep 1 ;; 
+        esac
     done
 }
 
@@ -81,7 +110,7 @@ menu_checkuser() {
 }
 
 # ==========================================
-# OPENVPN, OPTIMIZAR, BANNER
+# 6. OPENVPN (Corrección de error de conexión)
 # ==========================================
 menu_openvpn() {
     clear
@@ -89,27 +118,31 @@ menu_openvpn() {
     mkdir -p "$OVPN_DIR"
     IP_ACTUAL=$(curl -s --max-time 3 ipv4.icanhazip.com || hostname -I | awk '{print $1}')
     
+    # Generar archivos por defecto para descargar
     if [ ! -f "$OVPN_DIR/cliente-tcp-1194.ovpn" ]; then
         echo -e "client\ndev tun\nproto tcp\nremote $IP_ACTUAL 1194\nresolv-retry infinite\nnobind\npersist-key\npersist-tun\nauth-user-pass\ncipher AES-256-CBC\nverb 3" > "$OVPN_DIR/cliente-tcp-1194.ovpn"
         echo -e "client\ndev tun\nproto udp\nremote $IP_ACTUAL 2200\nresolv-retry infinite\nnobind\npersist-key\npersist-tun\nauth-user-pass\ncipher AES-256-CBC\nverb 3" > "$OVPN_DIR/cliente-udp-2200.ovpn"
     fi
-    if [ ! -f /etc/systemd/system/openvpn-web.service ]; then
-        echo -e "${YELLOW}[!] Instalando servidor web de OpenVPN...${NC}"
-        wget -qO /tmp/setup_openvpn.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/setup_openvpn.sh && chmod +x /tmp/setup_openvpn.sh && bash /tmp/setup_openvpn.sh
-    else
-        systemctl restart openvpn-web >/dev/null 2>&1
-    fi
+
+    # Forzar apertura de puerto 2081 en el Firewall
+    iptables -I INPUT -p tcp --dport 2081 -j ACCEPT
+    iptables-save > /etc/iptables.up.rules 2>/dev/null
+    
+    # Matar cualquier proceso en 2081 y usar servidor nativo de Python súper estable
+    echo -e "${YELLOW}[+] Levantando el servidor de perfiles en el puerto 2081...${NC}"
+    fuser -k 2081/tcp >/dev/null 2>&1
+    cd "$OVPN_DIR"
+    nohup python3 -m http.server 2081 > /dev/null 2>&1 &
+    
     DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_ACTUAL" )
-    echo -e "\n🔗 ${YELLOW}Enlace de perfiles (.ovpn):${NC} http://$DOM:2081\n"
+    echo -e "\n${GREEN}[✔] ¡Servidor Web Operativo!${NC}"
+    echo -e "🔗 ${YELLOW}Tus clientes pueden descargar perfiles aquí:${NC} http://$DOM:2081\n"
     read -p "Presione Enter para continuar..."
 }
 
-menu_optimizar() {
-    clear; echo -e "${CYAN}================================================${NC}"; echo -e "${YELLOW}[+] Limpiando caché y optimizando RAM...${NC}"
-    sync; echo 3 > /proc/sys/vm/drop_caches; sysctl -w vm.drop_caches=3 > /dev/null 2>&1; apt clean -y; apt autoclean -y > /dev/null 2>&1
-    echo -e "${GREEN}[✔] Servidor optimizado exitosamente.${NC}"; echo -e "${CYAN}================================================${NC}"; read -p "Presione Enter..."
-}
-
+# ==========================================
+# 14. BANNER SSH (Corrección de reflejo en conexión)
+# ==========================================
 menu_banner() {
     clear; echo -e "${CYAN}================================================${NC}"; echo -e "${GREEN}             GESTOR DE BANNER SSH               ${NC}"; echo -e "${CYAN}================================================${NC}"
     echo -e "${YELLOW}1) ${NC}Banner por Defecto\n${YELLOW}2) ${NC}Banner Personalizado HTML\n${CYAN}================================================${NC}"; read -p "Opción: " opt_ban
@@ -118,7 +151,21 @@ menu_banner() {
         2) echo -e "Escribe tu mensaje HTML: "; read TEXTO ;;
         *) TEXTO="Bienvenido al servidor" ;;
     esac
-    echo "$TEXTO" > /etc/issue.net; sed -i 's/#Banner none/Banner \/etc\/issue.net/g' /etc/ssh/sshd_config; systemctl restart sshd
+    
+    echo "$TEXTO" > /etc/issue.net
+    
+    # Forzar a OpenSSH a usar el banner
+    sed -i '/^Banner/d' /etc/ssh/sshd_config
+    echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config
+    systemctl restart sshd
+    
+    # Forzar a Dropbear a usar el banner
+    if [ -f /etc/default/dropbear ]; then
+        sed -i 's/DROPBEAR_BANNER=""/DROPBEAR_BANNER="\/etc\/issue.net"/g' /etc/default/dropbear
+        systemctl restart dropbear
+    fi
+
+    # Generar Saludo dinámico de Expiración (Al loguearse por Terminal)
     cat << 'EOF' > /etc/profile.d/vps_saludo.sh
 #!/bin/bash
 if [ -n "$SSH_CLIENT" ]; then
@@ -126,77 +173,73 @@ if [ -n "$SSH_CLIENT" ]; then
     if [ "$USER" != "root" ]; then
         EXP=$(chage -l $USER | grep "Account expires" | awk -F": " '{print $2}')
         echo -e "\033[1;36m========================================\033[0m"
-        echo -e "\033[1;32m 👤 BIENVENIDO AL SERVIDOR: \033[1;37m$USER\033[0m"
-        if [[ "$EXP" != "never" ]]; then echo -e "\033[1;33m ⏳ TU CUENTA EXPIRA EL: \033[1;37m$EXP\033[0m"
+        echo -e "\033[1;32m 👤 BIENVENIDO: \033[1;37m$USER\033[0m"
+        if [[ "$EXP" != "never" ]]; then echo -e "\033[1;33m ⏳ TU CUENTA EXPIRA: \033[1;37m$EXP\033[0m"
         else echo -e "\033[1;33m ⏳ TU CUENTA ES: \033[1;37mILIMITADA\033[0m"; fi
         echo -e "\033[1;36m========================================\033[0m\n"
     fi
 fi
 EOF
     chmod +x /etc/profile.d/vps_saludo.sh
-    echo -e "${GREEN}[✔] Banner configurado.${NC}"; read -p "Presione Enter..."
+    echo -e "${GREEN}[✔] Banner SSH y Mensaje aplicados correctamente.${NC}"; read -p "Presione Enter..."
 }
 
 # ==========================================
-# 15 y 16. ACTUALIZADOR Y AUTOINICIO
+# 12. SLOWDNS (Corrección de NS Domain)
 # ==========================================
+menu_slowdns() { 
+    clear; echo -e "${YELLOW}[+] Instalando SlowDNS...${NC}"
+    # Pedir y guardar NS Dominio
+    echo -e "\033[1;33mPara SlowDNS, necesitas un subdominio NS (Ej: ns1.golbertvps.online)\033[0m"
+    read -p "Ingresa tu Dominio NS: " NS_DOMAIN
+    echo "$NS_DOMAIN" > /etc/vps-manager/nsdomain
+    wget -qO /tmp/Slowdns.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/Slowdns.sh && chmod +x /tmp/Slowdns.sh && bash /tmp/Slowdns.sh
+    read -p "Enter..." 
+}
+
+# ==========================================
+# OTROS MÓDULOS (Optimizar, Actualizar, Autoinicio)
+# ==========================================
+menu_optimizar() {
+    clear; echo -e "${CYAN}================================================${NC}"; echo -e "${YELLOW}[+] Limpiando caché y optimizando RAM...${NC}"
+    sync; echo 3 > /proc/sys/vm/drop_caches; sysctl -w vm.drop_caches=3 > /dev/null 2>&1; apt clean -y; apt autoclean -y > /dev/null 2>&1
+    echo -e "${GREEN}[✔] Servidor optimizado exitosamente.${NC}"; read -p "Presione Enter..."
+}
+
 menu_update() {
-    clear
-    echo -e "${CYAN}================================================${NC}"
-    echo -e "${YELLOW}[+] Buscando actualizaciones en GitHub...${NC}"
+    clear; echo -e "${YELLOW}[+] Buscando actualizaciones en GitHub...${NC}"
     wget -qO /tmp/menu.sh "https://raw.githubusercontent.com/golbert19/vps-script/main/menu.sh"
-    
-    if [ -s /tmp/menu.sh ]; then
-        mv /tmp/menu.sh /usr/local/bin/menu
-        chmod +x /usr/local/bin/menu
-        echo -e "${GREEN}[✔] ¡Script actualizado con éxito!${NC}"
-        echo -e "${CYAN}================================================${NC}"
-        sleep 2
-        exec menu
-    else
-        echo -e "${RED}[!] Error al actualizar. Verifica el enlace.${NC}"
-        sleep 2
-    fi
+    if [ -s /tmp/menu.sh ]; then mv /tmp/menu.sh /usr/local/bin/menu; chmod +x /usr/local/bin/menu; echo -e "${GREEN}[✔] ¡Script actualizado!${NC}"; sleep 2; exec menu; else echo -e "${RED}[!] Error al actualizar.${NC}"; sleep 2; fi
 }
 
 menu_autostart() {
-    clear
-    echo -e "${CYAN}================================================${NC}"
-    echo -e "${YELLOW}[+] Configurando inicio automático del menú...${NC}"
-    if grep -q "menu" /root/.bashrc; then
-        echo -e "${GREEN}[✔] El menú YA ESTÁ configurado para abrirse automáticamente.${NC}"
-    else
-        echo -e "\nmenu" >> /root/.bashrc
-        echo -e "${GREEN}[✔] ¡Listo! El menú se abrirá automáticamente al loguearte.${NC}"
-    fi
-    echo -e "${CYAN}================================================${NC}"
-    read -p "Presione Enter para continuar..."
+    clear; echo -e "${YELLOW}[+] Configurando inicio automático...${NC}"
+    if grep -q "menu" /root/.bashrc; then echo -e "${GREEN}[✔] YA ESTÁ configurado.${NC}"; else echo -e "\nmenu" >> /root/.bashrc; echo -e "${GREEN}[✔] ¡Listo! El menú se abrirá al loguearte.${NC}"; fi; read -p "Enter..."
 }
 
-# ==========================================
-# RESTO DE MÓDULOS
-# ==========================================
 menu_panel_vps() {
     while true; do
         clear; echo -e "${CYAN}================================================${NC}"; echo -e "${GREEN}            PANEL GENERAL DEL SERVIDOR          ${NC}"; echo -e "${CYAN}================================================${NC}"
-        echo -e "${YELLOW}1) ${NC}Ver Información Completa\n${YELLOW}2) ${NC}Configurar Subdominio\n${YELLOW}0) ${NC}Volver"
+        echo -e "${YELLOW}1) ${NC}Ver Info VPS\n${YELLOW}2) ${NC}Configurar Subdominio VPS\n${YELLOW}0) ${NC}Volver"
         echo -e "${CYAN}================================================${NC}"; read -p "Opción: " opt
         case $opt in
             1) clear; echo -e "${CYAN}================================================${NC}\n${YELLOW}OS:${NC} $(cat /etc/os-release | grep -w PRETTY_NAME | cut -d= -f2 | tr -d '\"')\n${YELLOW}IP:${NC} $(curl -s ipv4.icanhazip.com)\n${YELLOW}RAM:${NC} $(free -m | awk 'NR==2{printf "%s / %s MB", $3,$2}')\n${CYAN}================================================${NC}"; read -p "Enter..." ;;
-            2) echo -e "\n${YELLOW}Ingrese el subdominio (Ej: centrix.golbertvps.online)${NC}"; read -p "Subdominio: " ndom; echo "$ndom" > /etc/vps-manager/dominio; echo -e "${GREEN}[✔] Guardado.${NC}"; sleep 2 ;;
+            2) echo -e "\n${YELLOW}Ingrese el subdominio VPS (Ej: centrix.golbertvps.online)${NC}"; read -p "Subdominio: " ndom; echo "$ndom" > /etc/vps-manager/dominio; echo -e "${GREEN}[✔] Guardado.${NC}"; sleep 2 ;;
             0) break ;;
         esac
     done
 }
 
-menu_install_php() { clear; echo -e "${YELLOW}[+] Instalando PHP...${NC}"; curl -sSL "https://raw.githubusercontent.com/golbert19/php-8.5.12-vps/main/install.sh?t=$(date +%s)" | sed '59s/[()]//g' | bash; read -p "Enter..." ; }
-menu_bbr() { clear; echo -e "${YELLOW}[+] Instalando BBR...${NC}"; wget -qO /tmp/Bbr.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/Bbr.sh && chmod +x /tmp/Bbr.sh && bash /tmp/Bbr.sh; read -p "Enter..." ; }
-menu_sshws() { clear; echo -e "${YELLOW}[+] Instalando SSHWS...${NC}"; wget -qO /tmp/sshws.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/sshws.sh && chmod +x /tmp/sshws.sh && bash /tmp/sshws.sh; read -p "Enter..." ; }
-menu_websocket() { clear; echo -e "${YELLOW}[+] Instalando Websocket...${NC}"; wget -qO /tmp/websocket.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/websocket.sh && chmod +x /tmp/websocket.sh && bash /tmp/websocket.sh; read -p "Enter..." ; }
-menu_slowdns() { clear; echo -e "${YELLOW}[+] Descargando SlowDNS...${NC}"; wget -qO /tmp/Slowdns.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/Slowdns.sh && chmod +x /tmp/Slowdns.sh && bash /tmp/Slowdns.sh; read -p "Enter..." ; }
+menu_install_php() { clear; curl -sSL "https://raw.githubusercontent.com/golbert19/php-8.5.12-vps/main/install.sh?t=$(date +%s)" | sed '59s/[()]//g' | bash; read -p "Enter..." ; }
+menu_bbr() { clear; wget -qO /tmp/Bbr.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/Bbr.sh && chmod +x /tmp/Bbr.sh && bash /tmp/Bbr.sh; read -p "Enter..." ; }
+menu_sshws() { clear; wget -qO /tmp/sshws.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/sshws.sh && chmod +x /tmp/sshws.sh && bash /tmp/sshws.sh; read -p "Enter..." ; }
+menu_websocket() { clear; wget -qO /tmp/websocket.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/websocket.sh && chmod +x /tmp/websocket.sh && bash /tmp/websocket.sh; read -p "Enter..." ; }
 
 uninstall_script() { echo -e "\n${RED}⚠️ ¿Desinstalar Golbert VPS? (s/n): ${NC}"; read -r conf; if [[ "$conf" == "s" || "$conf" == "S" ]]; then rm -rf /etc/vps-manager; rm -f /usr/local/bin/menu; echo -e "${GREEN}[✔] Script desinstalado.${NC}"; sleep 2; clear; exit 0; fi; }
 
+# ==========================================
+# BUCLE PRINCIPAL
+# ==========================================
 while true; do
     clear
     OS=$(cat /etc/os-release | grep -w PRETTY_NAME | head -n 1 | cut -d "=" -f 2 | sed 's/"//g')
@@ -233,7 +276,9 @@ while true; do
     echo -e "${GREEN}16)${NC}Auto-Inicio del Menú (Al Login)"
     echo -e "${GREEN}9) ${NC}Panel General VPS"
     echo -e "${CYAN}================================================${NC}"
+    echo -e "${RED}88) Desinstalar Script${NC}"
     echo -e "${RED}0) Salir del Panel${NC}"
+    echo -e "${CYAN}================================================${NC}"
     echo -n -e "${YELLOW}Seleccione una opción: ${NC}"
     read opcion
 

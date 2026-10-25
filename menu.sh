@@ -7,7 +7,7 @@ RED='\033[1;31m'; GREEN='\033[1;32m'; YELLOW='\033[1;33m'; CYAN='\033[1;36m'; NC
 mkdir -p /etc/vps-manager
 
 # ==========================================
-# 1. GESTOR SSH
+# 1. GESTOR SSH (Con Subdominios y SlowDNS Key)
 # ==========================================
 menu_ssh() {
     while true; do
@@ -19,6 +19,7 @@ menu_ssh() {
                 read -p "Usuario: " user; read -p "Contraseña: " pass; read -p "Días: " dias
                 useradd -e $(date -d "+$dias days" +"%Y-%m-%d") -s /bin/false -M $user; echo "$user:$pass" | chpasswd
                 
+                # Obtener datos adicionales
                 IP_V=$(curl -s ipv4.icanhazip.com)
                 DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
                 NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No configurado" )
@@ -47,7 +48,7 @@ menu_ssh() {
 }
 
 # ==========================================
-# 2,3,4. GESTOR XRAY
+# 2,3,4. GESTOR XRAY (Descarga archivo maestro)
 # ==========================================
 menu_xray_proto() {
     PROTO=$1
@@ -75,31 +76,48 @@ menu_checkuser() {
 }
 
 # ==========================================
-# 6. OPENVPN
+# 6. OPENVPN (Instalador Real)
 # ==========================================
 menu_openvpn() {
-    clear; echo -e "${YELLOW}[+] Verificando e instalando OpenVPN Completo...${NC}"
+    clear
+    echo -e "${YELLOW}[+] Verificando e instalando OpenVPN Completo...${NC}"
     wget -qO /tmp/setup_openvpn.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/setup_openvpn.sh && chmod +x /tmp/setup_openvpn.sh && bash /tmp/setup_openvpn.sh
-    iptables -I INPUT -p tcp --dport 2081 -j ACCEPT; iptables-save > /etc/iptables.up.rules 2>/dev/null
+    
+    iptables -I INPUT -p tcp --dport 2081 -j ACCEPT
+    iptables-save > /etc/iptables.up.rules 2>/dev/null
+    
     IP_ACTUAL=$(curl -s --max-time 3 ipv4.icanhazip.com || hostname -I | awk '{print $1}')
     DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_ACTUAL" )
-    echo -e "\n${GREEN}[✔] ¡Servidor Web Operativo!${NC}\n🔗 ${YELLOW}Descarga de perfiles (.ovpn):${NC} http://$DOM:2081\n"
+    
+    echo -e "\n${GREEN}[✔] ¡Servidor Web Operativo!${NC}"
+    echo -e "🔗 ${YELLOW}Tus clientes pueden descargar perfiles (.ovpn) aquí:${NC} http://$DOM:2081\n"
     read -p "Presione Enter para continuar..."
 }
 
 # ==========================================
-# 14. BANNER SSH
+# 14. BANNER SSH (Corregido para Ubuntu 24.04 y HTML largo)
 # ==========================================
 menu_banner() {
     clear; echo -e "${CYAN}================================================${NC}"; echo -e "${GREEN}             GESTOR DE BANNER SSH               ${NC}"; echo -e "${CYAN}================================================${NC}"
     echo -e "${YELLOW}1) ${NC}Banner por Defecto\n${YELLOW}2) ${NC}Banner Personalizado HTML\n${CYAN}================================================${NC}"; read -p "Opción: " opt_ban
     case $opt_ban in
         1) TEXTO="<br><font color='cyan'><b>🌟 BIENVENIDO A GOLBERT VPS 🌟</b></font><br><font color='green'>Conexión Segura y Estable</font><br><font color='yellow'>Prohibido DDOS / Spam / Torrent</font><br>" ;;
-        2) echo -e "Escribe tu mensaje HTML: "; read TEXTO ;;
+        2) echo -e "Escribe tu mensaje HTML: "; read -r TEXTO ;;
         *) TEXTO="Bienvenido al servidor" ;;
     esac
-    echo "$TEXTO" > /etc/issue.net; sed -i '/^Banner/d' /etc/ssh/sshd_config; echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config; systemctl restart sshd
-    if [ -f /etc/default/dropbear ]; then sed -i 's/DROPBEAR_BANNER=""/DROPBEAR_BANNER="\/etc\/issue.net"/g' /etc/default/dropbear; systemctl restart dropbear; fi
+    
+    echo "$TEXTO" > /etc/issue.net
+    sed -i '/^Banner/d' /etc/ssh/sshd_config
+    echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config
+    
+    # Reiniciar SSH sin fallos (Intenta ssh y luego sshd)
+    systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
+    
+    if [ -f /etc/default/dropbear ]; then
+        sed -i 's/DROPBEAR_BANNER=""/DROPBEAR_BANNER="\/etc\/issue.net"/g' /etc/default/dropbear
+        systemctl restart dropbear 2>/dev/null
+    fi
+
     cat << 'EOF' > /etc/profile.d/vps_saludo.sh
 #!/bin/bash
 if [ -n "$SSH_CLIENT" ]; then
@@ -114,7 +132,7 @@ if [ -n "$SSH_CLIENT" ]; then
 fi
 EOF
     chmod +x /etc/profile.d/vps_saludo.sh
-    echo -e "${GREEN}[✔] Banner SSH configurado.${NC}"; read -p "Presione Enter..."
+    echo -e "${GREEN}[✔] Banner SSH y Mensaje aplicados correctamente.${NC}"; read -p "Presione Enter..."
 }
 
 # ==========================================
@@ -158,12 +176,10 @@ menu_panel_vps() {
                     echo -e "\n${GREEN}[✔] ¡Certificado SSL válido generado exitosamente!${NC}"
                     echo -e "${YELLOW}[+] Aplicando llaves a Xray y Stunnel...${NC}"
                     
-                    # Copiando certificados a Xray
                     mkdir -p /etc/xray
                     cp /etc/letsencrypt/live/$ndom/fullchain.pem /etc/xray/server.crt
                     cp /etc/letsencrypt/live/$ndom/privkey.pem /etc/xray/server.key
                     
-                    # Copiando certificados a Stunnel
                     mkdir -p /etc/stunnel
                     cat /etc/xray/server.crt /etc/xray/server.key > /etc/stunnel/stunnel.pem
                 else

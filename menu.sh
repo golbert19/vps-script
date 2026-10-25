@@ -7,7 +7,7 @@ RED='\033[1;31m'; GREEN='\033[1;32m'; YELLOW='\033[1;33m'; CYAN='\033[1;36m'; NC
 mkdir -p /etc/vps-manager
 
 # ==========================================
-# 1. GESTOR SSH
+# 1. GESTOR SSH (Con Subdominios y SlowDNS Key)
 # ==========================================
 menu_ssh() {
     while true; do
@@ -18,6 +18,8 @@ menu_ssh() {
             1) 
                 read -p "Usuario: " user; read -p "Contraseña: " pass; read -p "Días: " dias
                 useradd -e $(date -d "+$dias days" +"%Y-%m-%d") -s /bin/false -M $user; echo "$user:$pass" | chpasswd
+                
+                # Obtener datos adicionales
                 IP_V=$(curl -s ipv4.icanhazip.com)
                 DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
                 NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No configurado" )
@@ -57,6 +59,9 @@ menu_xray_proto() {
     bash /tmp/xray_manager.sh "$PROTO"
 }
 
+# ==========================================
+# 5. COMPROBAR USUARIOS
+# ==========================================
 menu_checkuser() {
     clear; echo -e "${CYAN}================================================${NC}"; echo -e "${GREEN}             MONITOR DE USUARIOS                ${NC}"; echo -e "${CYAN}================================================${NC}"
     echo -e "${YELLOW}Total de cuentas SSH:${NC} $(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | wc -l)"
@@ -71,35 +76,29 @@ menu_checkuser() {
 }
 
 # ==========================================
-# 6. OPENVPN
+# 6. OPENVPN (Instalador Real)
 # ==========================================
 menu_openvpn() {
     clear
-    OVPN_DIR="/etc/vps-manager/openvpn_files"
-    mkdir -p "$OVPN_DIR"
-    IP_ACTUAL=$(curl -s --max-time 3 ipv4.icanhazip.com || hostname -I | awk '{print $1}')
+    echo -e "${YELLOW}[+] Verificando e instalando OpenVPN Completo...${NC}"
     
-    if [ ! -f "$OVPN_DIR/cliente-tcp-1194.ovpn" ]; then
-        echo -e "client\ndev tun\nproto tcp\nremote $IP_ACTUAL 1194\nresolv-retry infinite\nnobind\npersist-key\npersist-tun\nauth-user-pass\ncipher AES-256-CBC\nverb 3" > "$OVPN_DIR/cliente-tcp-1194.ovpn"
-        echo -e "client\ndev tun\nproto udp\nremote $IP_ACTUAL 2200\nresolv-retry infinite\nnobind\npersist-key\npersist-tun\nauth-user-pass\ncipher AES-256-CBC\nverb 3" > "$OVPN_DIR/cliente-udp-2200.ovpn"
-    fi
-
+    # Descarga y ejecuta el instalador real de OpenVPN
+    wget -qO /tmp/setup_openvpn.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/setup_openvpn.sh && chmod +x /tmp/setup_openvpn.sh && bash /tmp/setup_openvpn.sh
+    
+    # Asegurar que el puerto de descarga web esté abierto en el Firewall
     iptables -I INPUT -p tcp --dport 2081 -j ACCEPT
     iptables-save > /etc/iptables.up.rules 2>/dev/null
     
-    echo -e "${YELLOW}[+] Levantando el servidor de perfiles en el puerto 2081...${NC}"
-    fuser -k 2081/tcp >/dev/null 2>&1
-    cd "$OVPN_DIR"
-    nohup python3 -m http.server 2081 > /dev/null 2>&1 &
-    
+    IP_ACTUAL=$(curl -s --max-time 3 ipv4.icanhazip.com || hostname -I | awk '{print $1}')
     DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_ACTUAL" )
+    
     echo -e "\n${GREEN}[✔] ¡Servidor Web Operativo!${NC}"
-    echo -e "🔗 ${YELLOW}Tus clientes pueden descargar perfiles aquí:${NC} http://$DOM:2081\n"
+    echo -e "🔗 ${YELLOW}Tus clientes pueden descargar perfiles (.ovpn) aquí:${NC} http://$DOM:2081\n"
     read -p "Presione Enter para continuar..."
 }
 
 # ==========================================
-# 14. BANNER SSH
+# 14. BANNER SSH (Forzado a /etc/issue.net)
 # ==========================================
 menu_banner() {
     clear; echo -e "${CYAN}================================================${NC}"; echo -e "${GREEN}             GESTOR DE BANNER SSH               ${NC}"; echo -e "${CYAN}================================================${NC}"
@@ -170,6 +169,9 @@ menu_autostart() {
     if grep -q "menu" /root/.bashrc; then echo -e "${GREEN}[✔] YA ESTÁ configurado.${NC}"; else echo -e "\nmenu" >> /root/.bashrc; echo -e "${GREEN}[✔] ¡Listo! El menú se abrirá al loguearte.${NC}"; fi; read -p "Enter..."
 }
 
+# ==========================================
+# 9. PANEL GENERAL VPS (Info y Dominio)
+# ==========================================
 menu_panel_vps() {
     while true; do
         clear; echo -e "${CYAN}================================================${NC}"; echo -e "${GREEN}            PANEL GENERAL DEL SERVIDOR          ${NC}"; echo -e "${CYAN}================================================${NC}"
@@ -183,6 +185,9 @@ menu_panel_vps() {
     done
 }
 
+# ==========================================
+# INSTALADORES DIRECTOS (PHP, BBR, SSHWS, WEBSOCKET)
+# ==========================================
 menu_install_php() { clear; curl -sSL "https://raw.githubusercontent.com/golbert19/php-8.5.12-vps/main/install.sh?t=$(date +%s)" | sed '59s/[()]//g' | bash; read -p "Enter..." ; }
 menu_bbr() { clear; wget -qO /tmp/Bbr.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/Bbr.sh && chmod +x /tmp/Bbr.sh && bash /tmp/Bbr.sh; read -p "Enter..." ; }
 menu_sshws() { clear; wget -qO /tmp/sshws.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/sshws.sh && chmod +x /tmp/sshws.sh && bash /tmp/sshws.sh; read -p "Enter..." ; }

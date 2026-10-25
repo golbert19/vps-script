@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Módulo: Bot de Telegram (Aislado VENV - Ubuntu 24.04)
+# Módulo: Bot de Telegram (Aislado VENV - Auto ID)
 # ==========================================
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 
@@ -26,7 +26,7 @@ if [ -f "$BOT_DIR/config.env" ]; then
 fi
 
 echo -e "\n1. Crea un bot en Telegram con ${C_YELLOW}@BotFather${C_NC} y copia su Token."
-echo -e "2. Obtén tu ID de Telegram con ${C_YELLOW}@userinfobot${C_NC}\n"
+echo -e "2. Si no sabes tu ID numérico exacto, pon cualquier número (ej: 123), envíale /start al bot en Telegram y él te dirá tu ID real para que reconfigures.\n"
 
 read -p "Ingresa el Token del Bot: " TELEGRAM_TOKEN
 read -p "Ingresa tu Admin ID de Telegram: " ADMIN_ID
@@ -42,7 +42,6 @@ echo -e "\n${C_YELLOW}[+] Instalando Entorno Virtual Python (Para Ubuntu 24.04).
 apt update -y && apt install -y python3 python3-venv python3-pip jq >/dev/null 2>&1
 
 cd "$BOT_DIR"
-# Eliminar entorno viejo si existe y crear uno limpio
 rm -rf venv
 python3 -m venv venv
 source venv/bin/activate
@@ -74,7 +73,7 @@ def is_admin(user_id):
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     if not is_admin(message.from_user.id):
-        bot.reply_to(message, "⚠️ <b>No tienes autorización para usar este bot.</b>", parse_mode="HTML")
+        bot.reply_to(message, f"⚠️ <b>No tienes autorización.</b>\n\nTu ID de Telegram real es: <code>{message.from_user.id}</code>\n\nCopia este número exacto, ve al menú de tu VPS (Opción 10) y reconfigura el bot pegando este ID.", parse_mode="HTML")
         return
     
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
@@ -106,16 +105,13 @@ def handle_message(message):
             pwd = parts[2]
             days = parts[3]
             
-            # Crear usuario en Linux
             cmd = f"useradd -e $(date -d '+{days} days' +'%Y-%m-%d') -s /bin/false -M {user} && echo '{user}:{pwd}' | chpasswd"
             subprocess.getoutput(cmd)
             
-            # Obtener datos para respuesta
             ip = subprocess.getoutput("curl -s ipv4.icanhazip.com")
             dom = subprocess.getoutput("[ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo '" + ip + "'")
             exp_date = subprocess.getoutput(f"date -d '+{days} days' +'%Y-%m-%d'")
             
-            # INYECTAR BANNER DINÁMICO
             banner_cmd = f"cat /etc/issue.net > /etc/vps-manager/banner_{user}.net && echo \"<br><font color='cyan'>=======================</font><br><font color='yellow'>👤 Usuario:</font> <font color='white'>{user}</font><br><font color='yellow'>📅 Expira:</font> <font color='white'>{exp_date} ({days} Días)</font><br><font color='cyan'>=======================</font><br>\" >> /etc/vps-manager/banner_{user}.net && sed -i '/Match User {user}/d' /etc/ssh/sshd_config && sed -i '/Banner \\/etc\\/vps-manager\\/banner_{user}.net/d' /etc/ssh/sshd_config && echo -e '\\nMatch User {user}\\nBanner /etc/vps-manager/banner_{user}.net' >> /etc/ssh/sshd_config && systemctl restart ssh"
             subprocess.getoutput(banner_cmd)
 
@@ -165,7 +161,6 @@ if __name__ == "__main__":
             time.sleep(3)
 EOF
 
-# Crear servicio Systemd para mantener el bot online 24/7 y vincularlo al VENV
 cat << EOF > /etc/systemd/system/vps-bot.service
 [Unit]
 Description=Telegram Bot Golbert VPS

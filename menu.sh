@@ -16,14 +16,40 @@ menu_ssh() {
         case $opt in
             1) 
                 read -p "Usuario: " user; read -p "Contraseña: " pass; read -p "Días: " dias
-                useradd -e $(date -d "+$dias days" +"%Y-%m-%d") -s /bin/false -M $user; echo "$user:$pass" | chpasswd
+                EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d")
+                useradd -e $EXP_DATE -s /bin/false -M $user; echo "$user:$pass" | chpasswd
+                
+                # Configurar Banner Dinámico por Usuario
+                BASE_BANNER=$(cat /etc/issue.net 2>/dev/null)
+                echo "$BASE_BANNER<br><font color='cyan'>=======================</font><br><font color='yellow'>👤 Usuario:</font> <font color='white'>$user</font><br><font color='yellow'>📅 Expira:</font> <font color='white'>$EXP_DATE ($dias Días)</font><br><font color='cyan'>=======================</font><br>" > /etc/vps-manager/banner_${user}.net
+                
+                # Inyectar regla temporal en SSH
+                sed -i "/Match User $user/d" /etc/ssh/sshd_config
+                sed -i "/Banner \/etc\/vps-manager\/banner_${user}.net/d" /etc/ssh/sshd_config
+                echo -e "\nMatch User $user\nBanner /etc/vps-manager/banner_${user}.net" >> /etc/ssh/sshd_config
+                systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
+                
                 IP_V=$(curl -s ipv4.icanhazip.com); DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
-                NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No config" ); PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub || echo "No instalada" ); EXP=$(date -d "+$dias days" +"%d/%m/%Y")
+                NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No config" )
+                PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub || echo "No instalada" )
+                
                 clear; echo -e "${C_CYAN}================================================${C_NC}\n${C_GREEN}        ✅ CUENTA CREADA EXITOSAMENTE ✅        ${C_NC}\n${C_CYAN}================================================${C_NC}"
-                echo -e " 👤 Usuario       : $user\n 🔑 Clave         : $pass\n 📅 Vence         : $EXP ($dias días)\n\n 🌐 Host/IP       : $DOM\n 🌐 Subdominio NS : $NS_DOM\n 🔐 Pub Key (DNS) : $PUB_KEY\n 🎯 Puertos       : 22, 80, 443, 53, 8080\n${C_CYAN}================================================${C_NC}"
+                echo -e " 👤 Usuario       : $user\n 🔑 Clave         : $pass\n 📅 Vence         : $EXP_DATE ($dias días)\n\n 🌐 Host/IP       : $DOM\n 🌐 Subdominio NS : $NS_DOM\n 🔐 Pub Key (DNS) : $PUB_KEY\n 🎯 Puertos       : 22, 80, 443, 53, 8080\n${C_CYAN}================================================${C_NC}"
                 read -p "Copia los datos y presiona Enter..." ;;
-            2) read -p "Usuario a eliminar: " user; userdel -f $user 2>/dev/null; echo -e "${C_GREEN}[✔] Eliminado.${C_NC}"; sleep 2 ;;
-            3) read -p "Usuario a renovar: " user; read -p "Nuevos días: " dias; chage -E $(date -d "+$dias days" +"%Y-%m-%d") $user; echo -e "${C_GREEN}[✔] Renovado.${C_NC}"; sleep 2 ;;
+            2) 
+                read -p "Usuario a eliminar: " user
+                userdel -f $user 2>/dev/null
+                rm -f /etc/vps-manager/banner_${user}.net
+                sed -i "/Match User $user/,+1d" /etc/ssh/sshd_config
+                systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
+                echo -e "${C_GREEN}[✔] Eliminado.${C_NC}"; sleep 2 ;;
+            3) 
+                read -p "Usuario a renovar: " user; read -p "Nuevos días: " dias
+                EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d")
+                chage -E $EXP_DATE $user
+                BASE_BANNER=$(cat /etc/issue.net 2>/dev/null | grep -v "Usuario:" | grep -v "Expira:")
+                echo "$BASE_BANNER<br><font color='cyan'>=======================</font><br><font color='yellow'>👤 Usuario:</font> <font color='white'>$user</font><br><font color='yellow'>📅 Expira:</font> <font color='white'>$EXP_DATE ($dias Días)</font><br><font color='cyan'>=======================</font><br>" > /etc/vps-manager/banner_${user}.net
+                echo -e "${C_GREEN}[✔] Renovado.${C_NC}"; sleep 2 ;;
             4) echo -e "${C_YELLOW}Conectados:${C_NC}"; ps -ef | grep -E "sshd|dropbear" | grep -v root | grep -v grep | awk '{print $1}' | sort | uniq -c; read -p "Enter..." ;;
             0) break ;; *) echo -e "${C_RED}[!] Inválido.${C_NC}"; sleep 1 ;;
         esac
@@ -75,7 +101,7 @@ menu_herramientas() {
         echo -e "  ${C_YELLOW}5.${C_NC} 🔗 Instalar Websocket"
         echo -e "  ${C_YELLOW}6.${C_NC} 🌐 Instalar BHTTP Proxy (Puerto 8080)"
         echo -e "  ${C_YELLOW}7.${C_NC} 🐘 Instalador PHP 8.5.12"
-        echo -e "  ${C_YELLOW}8.${C_NC} 🎨 Configurar Banner SSH Avanzado"
+        echo -e "  ${C_YELLOW}8.${C_NC} 🎨 Configurar Banner Base"
         echo -e "  ${C_YELLOW}9.${C_NC} 🧹 Optimizar Servidor (Limpiar RAM)"
         echo -e "${C_CYAN}╠══════════════════════════════════════════════╣${C_NC}"
         echo -e "  ${C_RED}0.${C_NC} 🔙 Volver al Menú Principal"
@@ -92,7 +118,7 @@ menu_herramientas() {
             8) 
                 clear
                 echo -e "${C_CYAN}╔══════════════════════════════════════════════╗${C_NC}"
-                echo -e "${C_CYAN}║${C_GREEN}             GESTOR DE BANNER SSH             ${C_CYAN}║${C_NC}"
+                echo -e "${C_CYAN}║${C_GREEN}         GESTOR DE BANNER BASE HTML           ${C_CYAN}║${C_NC}"
                 echo -e "${C_CYAN}╚══════════════════════════════════════════════╝${C_NC}"
                 echo -e "  ${C_YELLOW}1.${C_NC} Banner por Defecto"
                 echo -e "  ${C_YELLOW}2.${C_NC} Banner Personalizado HTML"
@@ -108,48 +134,7 @@ menu_herramientas() {
                 sed -i '/^Banner/d' /etc/ssh/sshd_config
                 echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config
                 systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
-                
-                if [ -f /etc/default/dropbear ]; then
-                    sed -i 's/DROPBEAR_BANNER=""/DROPBEAR_BANNER="\/etc\/issue.net"/g' /etc/default/dropbear
-                    systemctl restart dropbear 2>/dev/null
-                fi
-
-                cat << 'EOF' > /etc/profile.d/vps_saludo.sh
-#!/bin/bash
-if [ -n "$SSH_CLIENT" ]; then
-    USER=$(whoami)
-    if [ "$USER" != "root" ]; then
-        EXP_DATE=$(chage -l $USER | grep "Account expires" | awk -F": " '{print $2}')
-        if [[ "$EXP_DATE" != "never" && -n "$EXP_DATE" ]]; then
-            EXP_FMT=$(date -d "$EXP_DATE" "+%Y-%m-%d" 2>/dev/null || echo "$EXP_DATE")
-            SEC_EXP=$(date -d "$EXP_DATE" +%s 2>/dev/null || echo 0)
-            SEC_NOW=$(date +%s)
-            DAYS=$(( (SEC_EXP - SEC_NOW) / 86400 ))
-            [ $DAYS -lt 0 ] && DAYS=0
-            STR_EXP="$EXP_FMT ($DAYS Días)"
-        else
-            STR_EXP="Ilimitado"
-        fi
-
-        CONSUMO="0.0 MB"
-        if [ -d "/home/$USER" ]; then
-            BYTES=$(du -s /home/$USER 2>/dev/null | awk '{print $1}')
-            [ -z "$BYTES" ] && BYTES=0
-            CONSUMO=$(awk "BEGIN {print $BYTES / 1024}")
-            CONSUMO="${CONSUMO:0:5} MB"
-        fi
-
-        echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-        echo -e "               \033[1;36m👤 Usuario:\033[1;37m $USER\033[0m"
-        echo -e "               \033[1;32m📅 Expira:\033[1;37m $STR_EXP\033[0m"
-        echo -e "               \033[1;35m📊 Consumo:\033[1;37m $CONSUMO (Max: Ilimitado)\033[0m"
-        echo -e "               \033[1;33m🔒 IP Límite:\033[1;37m 2\033[0m"
-        echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\n"
-    fi
-fi
-EOF
-                chmod +x /etc/profile.d/vps_saludo.sh
-                echo -e "${C_GREEN}[✔] Banner avanzado configurado.${C_NC}"; read -p "Presione Enter..." 
+                echo -e "${C_GREEN}[✔] Banner Base HTML configurado.${C_NC}"; read -p "Presione Enter..." 
                 ;;
             9) clear; echo -e "${C_YELLOW}[+] Optimizando RAM...${C_NC}"; sync; echo 3 > /proc/sys/vm/drop_caches; apt clean -y >/dev/null 2>&1; echo -e "${C_GREEN}[✔] Listo.${C_NC}"; read -p "Enter..." ;;
             0) break ;;

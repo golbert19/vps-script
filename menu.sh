@@ -49,7 +49,7 @@ menu_herramientas() {
         echo -e "  ${C_YELLOW}4.${C_NC} 🔗 Instalar SSHWS (Proxy SSL)"
         echo -e "  ${C_YELLOW}5.${C_NC} 🔗 Instalar Websocket"
         echo -e "  ${C_YELLOW}6.${C_NC} 🐘 Instalador PHP 8.5.12"
-        echo -e "  ${C_YELLOW}7.${C_NC} 🎨 Configurar Banner SSH"
+        echo -e "  ${C_YELLOW}7.${C_NC} 🎨 Configurar Banner SSH Avanzado"
         echo -e "  ${C_YELLOW}8.${C_NC} 🧹 Optimizar Servidor (Limpiar RAM)"
         echo -e "${C_CYAN}╠══════════════════════════════════════════════╣${C_NC}"
         echo -e "  ${C_RED}0.${C_NC} 🔙 Volver al Menú Principal"
@@ -63,12 +63,67 @@ menu_herramientas() {
             5) clear; wget -qO /tmp/websocket.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/websocket.sh && chmod +x /tmp/websocket.sh && bash /tmp/websocket.sh; read -p "Enter..." ;;
             6) clear; echo -e "${C_YELLOW}[+] Instalando PHP 8.5.12...${C_NC}"; curl -sSL "https://raw.githubusercontent.com/golbert19/php-8.5.12-vps/main/install.sh?t=$(date +%s)" | sed '59s/[()]//g' | bash; read -p "Enter..." ;;
             7) 
-                clear; echo -e "${C_CYAN}╔══════════════════════════════════════════════╗\n║${C_GREEN}             GESTOR DE BANNER SSH             ${C_CYAN}║\n╚══════════════════════════════════════════════╝${C_NC}\n${C_YELLOW}1)${C_NC} Defecto\n${C_YELLOW}2)${C_NC} HTML Personalizado\n"
-                read -p "Opción: " opt; case $opt in 1) TEXTO="<br><font color='cyan'><b>🌟 BIENVENIDO A GOLBERT VPS 🌟</b></font><br>" ;; 2) echo -e "Pega HTML: "; read -r TEXTO ;; *) TEXTO="Bienvenido" ;; esac
-                echo "$TEXTO" > /etc/issue.net; sed -i '/^Banner/d' /etc/ssh/sshd_config; echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config
+                clear
+                echo -e "${C_CYAN}╔══════════════════════════════════════════════╗${C_NC}"
+                echo -e "${C_CYAN}║${C_GREEN}             GESTOR DE BANNER SSH             ${C_CYAN}║${C_NC}"
+                echo -e "${C_CYAN}╚══════════════════════════════════════════════╝${C_NC}"
+                echo -e "  ${C_YELLOW}1.${C_NC} Banner por Defecto"
+                echo -e "  ${C_YELLOW}2.${C_NC} Banner Personalizado HTML"
+                echo -e "${C_CYAN}────────────────────────────────────────────────${C_NC}"
+                read -p "Seleccione una opción: " opt_ban
+                case $opt_ban in
+                    1) TEXTO="<br><font color='cyan'><b>🌟 BIENVENIDO A GOLBERT VPS 🌟</b></font><br><font color='green'>Conexión Segura y Estable</font><br>" ;;
+                    2) echo -e "Escribe tu mensaje HTML: "; read -r TEXTO ;;
+                    *) TEXTO="Bienvenido al servidor" ;;
+                esac
+                
+                echo "$TEXTO" > /etc/issue.net
+                sed -i '/^Banner/d' /etc/ssh/sshd_config
+                echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config
                 systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
-                [ -f /etc/default/dropbear ] && sed -i 's/DROPBEAR_BANNER=""/DROPBEAR_BANNER="\/etc\/issue.net"/g' /etc/default/dropbear && systemctl restart dropbear 2>/dev/null
-                echo -e "${C_GREEN}[✔] Banner configurado.${C_NC}"; read -p "Enter..." ;;
+                
+                if [ -f /etc/default/dropbear ]; then
+                    sed -i 's/DROPBEAR_BANNER=""/DROPBEAR_BANNER="\/etc\/issue.net"/g' /etc/default/dropbear
+                    systemctl restart dropbear 2>/dev/null
+                fi
+
+                cat << 'EOF' > /etc/profile.d/vps_saludo.sh
+#!/bin/bash
+if [ -n "$SSH_CLIENT" ]; then
+    USER=$(whoami)
+    if [ "$USER" != "root" ]; then
+        EXP_DATE=$(chage -l $USER | grep "Account expires" | awk -F": " '{print $2}')
+        if [[ "$EXP_DATE" != "never" && -n "$EXP_DATE" ]]; then
+            EXP_FMT=$(date -d "$EXP_DATE" "+%Y-%m-%d" 2>/dev/null || echo "$EXP_DATE")
+            SEC_EXP=$(date -d "$EXP_DATE" +%s 2>/dev/null || echo 0)
+            SEC_NOW=$(date +%s)
+            DAYS=$(( (SEC_EXP - SEC_NOW) / 86400 ))
+            [ $DAYS -lt 0 ] && DAYS=0
+            STR_EXP="$EXP_FMT ($DAYS Días)"
+        else
+            STR_EXP="Ilimitado"
+        fi
+
+        CONSUMO="0.0 MB"
+        if [ -d "/home/$USER" ]; then
+            BYTES=$(du -s /home/$USER 2>/dev/null | awk '{print $1}')
+            [ -z "$BYTES" ] && BYTES=0
+            CONSUMO=$(awk "BEGIN {print $BYTES / 1024}")
+            CONSUMO="${CONSUMO:0:5} MB"
+        fi
+
+        echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+        echo -e "               \033[1;36m👤 Usuario:\033[1;37m $USER\033[0m"
+        echo -e "               \033[1;32m📅 Expira:\033[1;37m $STR_EXP\033[0m"
+        echo -e "               \033[1;35m📊 Consumo:\033[1;37m $CONSUMO (Max: Ilimitado)\033[0m"
+        echo -e "               \033[1;33m🔒 IP Límite:\033[1;37m 2\033[0m"
+        echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\n"
+    fi
+fi
+EOF
+                chmod +x /etc/profile.d/vps_saludo.sh
+                echo -e "${C_GREEN}[✔] Banner avanzado y dinámico configurado.${C_NC}"; read -p "Presione Enter..." 
+                ;;
             8) clear; echo -e "${C_YELLOW}[+] Optimizando RAM...${C_NC}"; sync; echo 3 > /proc/sys/vm/drop_caches; apt clean -y >/dev/null 2>&1; echo -e "${C_GREEN}[✔] Listo.${C_NC}"; read -p "Enter..." ;;
             0) break ;;
             *) echo -e "\n${C_RED}[!] Opción inválida.${C_NC}"; sleep 1 ;;

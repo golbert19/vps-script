@@ -6,39 +6,37 @@
 clear
 echo -e "\033[1;36m[+] Instalando y configurando SlowDNS (DNSTT)...\033[0m"
 
-# 1. Instalar dependencias
 apt update -y && apt install -y wget iptables >/dev/null 2>&1
 
 SLOW_DIR="/etc/vps-manager/slowdns"
 mkdir -p "$SLOW_DIR"
 cd "$SLOW_DIR"
 
-# 2. Descargar servidor SlowDNS (Binario dnstt-server)
+# Descargar binario desde una fuente estable
 if [ ! -f "dnstt-server" ]; then
-    wget -qO dnstt-server "https://raw.githubusercontent.com/binaries/dnstt/main/dnstt-server" || curl -sLo dnstt-server "https://raw.githubusercontent.com/binaries/dnstt/main/dnstt-server"
+    wget -qO dnstt-server "https://raw.githubusercontent.com/netobrow/VPS-MX/main/Slow/dnstt-server"
     chmod +x dnstt-server
 fi
 
-# 3. Generar llaves si no existen
+# Generar llaves
 if [ ! -f "server.key" ] || [ ! -f "server.pub" ]; then
     ./dnstt-server -gen key -privkey server.key -pubkey server.pub >/dev/null 2>&1
 fi
 
-PUB_KEY=$(cat server.pub)
+PUB_KEY=$(cat server.pub 2>/dev/null)
 
-# 4. Pedir el NameServer (NS) al usuario
 echo -e "\n\033[1;33mPara que SlowDNS funcione, necesitas un subdominio NS (Ej: ns1.golbertvps.online)\033[0m"
 read -p "Ingresa tu Dominio NS: " NS_DOMAIN
 
-# 5. Configurar iptables para habilitar puerto 53 UDP
+# Abrir puertos
 iptables -I INPUT -p udp --dport 5300 -j ACCEPT
 iptables -t nat -I PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 5300
 iptables-save > /etc/iptables.up.rules
 
-# 6. Crear Servicio Systemd para SlowDNS
+# Crear servicio
 cat << EOF > /etc/systemd/system/slowdns.service
 [Unit]
-Description=SlowDNS Server (Golbert VPS)
+Description=SlowDNS Server
 After=network.target
 
 [Service]
@@ -50,14 +48,12 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
-# 7. Iniciar Servicios
 systemctl daemon-reload
 systemctl enable slowdns >/dev/null 2>&1
 systemctl restart slowdns
 
 echo -e "\n\033[1;32m[✔] SlowDNS instalado y corriendo en puerto UDP 53.\033[0m"
 echo -e "\033[1;36m================================================\033[0m"
-echo -e "\033[1;33m📌 DATOS PARA TU APLICACIÓN VPN:\033[0m"
 echo -e "🔹 \033[1;32mNameServer (NS):\033[0m $NS_DOMAIN"
 echo -e "🔹 \033[1;32mPublic Key:\033[0m $PUB_KEY"
 echo -e "\033[1;36m================================================\033[0m"

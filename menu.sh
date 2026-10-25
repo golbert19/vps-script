@@ -20,7 +20,7 @@ menu_ssh() {
                 IP_V=$(curl -s ipv4.icanhazip.com); DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
                 NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No config" ); PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub || echo "No instalada" ); EXP=$(date -d "+$dias days" +"%d/%m/%Y")
                 clear; echo -e "${C_CYAN}================================================${C_NC}\n${C_GREEN}        ✅ CUENTA CREADA EXITOSAMENTE ✅        ${C_NC}\n${C_CYAN}================================================${C_NC}"
-                echo -e " 👤 Usuario       : $user\n 🔑 Clave         : $pass\n 📅 Vence         : $EXP ($dias días)\n\n 🌐 Host/IP       : $DOM\n 🌐 Subdominio NS : $NS_DOM\n 🔐 Pub Key (DNS) : $PUB_KEY\n 🎯 Puertos       : 22, 80, 443, 53\n${C_CYAN}================================================${C_NC}"
+                echo -e " 👤 Usuario       : $user\n 🔑 Clave         : $pass\n 📅 Vence         : $EXP ($dias días)\n\n 🌐 Host/IP       : $DOM\n 🌐 Subdominio NS : $NS_DOM\n 🔐 Pub Key (DNS) : $PUB_KEY\n 🎯 Puertos       : 22, 80, 443, 53, 8080\n${C_CYAN}================================================${C_NC}"
                 read -p "Copia los datos y presiona Enter..." ;;
             2) read -p "Usuario a eliminar: " user; userdel -f $user 2>/dev/null; echo -e "${C_GREEN}[✔] Eliminado.${C_NC}"; sleep 2 ;;
             3) read -p "Usuario a renovar: " user; read -p "Nuevos días: " dias; chage -E $(date -d "+$dias days" +"%Y-%m-%d") $user; echo -e "${C_GREEN}[✔] Renovado.${C_NC}"; sleep 2 ;;
@@ -33,6 +33,31 @@ menu_ssh() {
 menu_xray_proto() { clear; echo -e "${C_YELLOW}[+] Iniciando Módulo de $1...${C_NC}"; wget -qO /tmp/xray_manager.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/xray_manager.sh && chmod +x /tmp/xray_manager.sh && bash /tmp/xray_manager.sh "$1"; }
 menu_checkuser() { clear; echo -e "${C_YELLOW}Total SSH:${C_NC} $(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | wc -l)\n\n${C_YELLOW}Expirados:${C_NC}"; for user in $(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd); do exp=$(chage -l $user | grep "Account expires" | awk -F": " '{print $2}'); if [[ "$exp" != "never" ]]; then if [ $(date +%s) -ge $(date -d "$exp" +%s 2>/dev/null || echo 9999999999) ]; then echo -e "${C_RED}- $user (Expiró: $exp)${C_NC}"; fi; fi; done; read -p "Enter..."; }
 menu_openvpn() { clear; echo -e "${C_YELLOW}[+] Instalando OpenVPN...${C_NC}"; wget -qO /tmp/setup_openvpn.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/setup_openvpn.sh && chmod +x /tmp/setup_openvpn.sh && bash /tmp/setup_openvpn.sh; iptables -I INPUT -p tcp --dport 2081 -j ACCEPT; iptables-save > /etc/iptables.up.rules 2>/dev/null; IP_ACTUAL=$(curl -s ipv4.icanhazip.com); DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_ACTUAL" ); echo -e "\n${C_GREEN}[✔] ¡Servidor Web Operativo!${C_NC}\n🔗 ${C_YELLOW}Perfiles (.ovpn):${C_NC} http://$DOM:2081\n"; read -p "Enter..."; }
+
+# ==========================================
+# MONITOR DE PUERTOS (Activos / Inactivos)
+# ==========================================
+menu_puertos() {
+    clear
+    echo -e "${C_CYAN}╔══════════════════════════════════════════════╗${C_NC}"
+    echo -e "${C_CYAN}║${C_GREEN}         🔍 ESTADO DE PUERTOS Y SERVICIOS     ${C_CYAN}║${C_NC}"
+    echo -e "${C_CYAN}╚══════════════════════════════════════════════╝${C_NC}"
+    
+    puertos=(22 80 443 53 1194 2081 2083 7300 8080)
+    nombres=("SSH (OpenSSH)" "HTTP / Xray WS" "SSL / VLESS / Trojan" "DNS (SlowDNS)" "OpenVPN TCP" "OpenVPN Web" "Trojan TLS" "BadVPN UDPGW" "BHTTP Custom")
+
+    for i in "${!puertos[@]}"; do
+        p=${puertos[$i]}
+        n=${nombres[$i]}
+        if ss -lntp 2>/dev/null | grep -q ":$p " || ss -lnup 2>/dev/null | grep -q ":$p "; then
+            echo -e "  🔹 [${C_GREEN}ACTIVO   ${C_NC}] Puerto ${C_YELLOW}$p${C_NC} ➔ $n"
+        else
+            echo -e "  🔸 [${C_RED}INACTIVO ${C_NC}] Puerto ${C_YELLOW}$p${C_NC} ➔ $n"
+        fi
+    done
+    echo -e "${C_CYAN}────────────────────────────────────────────────${C_NC}"
+    read -p "Presione Enter para regresar..."
+}
 
 # ==========================================
 # SUBMENÚ: HERRAMIENTAS E INSTALADORES
@@ -48,9 +73,10 @@ menu_herramientas() {
         echo -e "  ${C_YELLOW}3.${C_NC} 🛸 Instalar SlowDNS (DNSTT)"
         echo -e "  ${C_YELLOW}4.${C_NC} 🔗 Instalar SSHWS (Proxy SSL)"
         echo -e "  ${C_YELLOW}5.${C_NC} 🔗 Instalar Websocket"
-        echo -e "  ${C_YELLOW}6.${C_NC} 🐘 Instalador PHP 8.5.12"
-        echo -e "  ${C_YELLOW}7.${C_NC} 🎨 Configurar Banner SSH Avanzado"
-        echo -e "  ${C_YELLOW}8.${C_NC} 🧹 Optimizar Servidor (Limpiar RAM)"
+        echo -e "  ${C_YELLOW}6.${C_NC} 🌐 Instalar BHTTP Proxy (Puerto 8080)"
+        echo -e "  ${C_YELLOW}7.${C_NC} 🐘 Instalador PHP 8.5.12"
+        echo -e "  ${C_YELLOW}8.${C_NC} 🎨 Configurar Banner SSH Avanzado"
+        echo -e "  ${C_YELLOW}9.${C_NC} 🧹 Optimizar Servidor (Limpiar RAM)"
         echo -e "${C_CYAN}╠══════════════════════════════════════════════╣${C_NC}"
         echo -e "  ${C_RED}0.${C_NC} 🔙 Volver al Menú Principal"
         echo -e "${C_CYAN}╚══════════════════════════════════════════════╝${C_NC}"
@@ -61,8 +87,9 @@ menu_herramientas() {
             3) clear; wget -qO /tmp/Slowdns.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/Slowdns.sh && chmod +x /tmp/Slowdns.sh && bash /tmp/Slowdns.sh ;;
             4) clear; wget -qO /tmp/sshws.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/sshws.sh && chmod +x /tmp/sshws.sh && bash /tmp/sshws.sh; read -p "Enter..." ;;
             5) clear; wget -qO /tmp/websocket.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/websocket.sh && chmod +x /tmp/websocket.sh && bash /tmp/websocket.sh; read -p "Enter..." ;;
-            6) clear; echo -e "${C_YELLOW}[+] Instalando PHP 8.5.12...${C_NC}"; curl -sSL "https://raw.githubusercontent.com/golbert19/php-8.5.12-vps/main/install.sh?t=$(date +%s)" | sed '59s/[()]//g' | bash; read -p "Enter..." ;;
-            7) 
+            6) clear; echo -e "${C_YELLOW}[+] Instalando BHTTP Proxy...${C_NC}"; wget -qO /tmp/bhttp.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/bhttp.sh && chmod +x /tmp/bhttp.sh && bash /tmp/bhttp.sh ;;
+            7) clear; echo -e "${C_YELLOW}[+] Instalando PHP 8.5.12...${C_NC}"; curl -sSL "https://raw.githubusercontent.com/golbert19/php-8.5.12-vps/main/install.sh?t=$(date +%s)" | sed '59s/[()]//g' | bash; read -p "Enter..." ;;
+            8) 
                 clear
                 echo -e "${C_CYAN}╔══════════════════════════════════════════════╗${C_NC}"
                 echo -e "${C_CYAN}║${C_GREEN}             GESTOR DE BANNER SSH             ${C_CYAN}║${C_NC}"
@@ -122,9 +149,9 @@ if [ -n "$SSH_CLIENT" ]; then
 fi
 EOF
                 chmod +x /etc/profile.d/vps_saludo.sh
-                echo -e "${C_GREEN}[✔] Banner avanzado y dinámico configurado.${C_NC}"; read -p "Presione Enter..." 
+                echo -e "${C_GREEN}[✔] Banner avanzado configurado.${C_NC}"; read -p "Presione Enter..." 
                 ;;
-            8) clear; echo -e "${C_YELLOW}[+] Optimizando RAM...${C_NC}"; sync; echo 3 > /proc/sys/vm/drop_caches; apt clean -y >/dev/null 2>&1; echo -e "${C_GREEN}[✔] Listo.${C_NC}"; read -p "Enter..." ;;
+            9) clear; echo -e "${C_YELLOW}[+] Optimizando RAM...${C_NC}"; sync; echo 3 > /proc/sys/vm/drop_caches; apt clean -y >/dev/null 2>&1; echo -e "${C_GREEN}[✔] Listo.${C_NC}"; read -p "Enter..." ;;
             0) break ;;
             *) echo -e "\n${C_RED}[!] Opción inválida.${C_NC}"; sleep 1 ;;
         esac
@@ -187,11 +214,12 @@ while true; do
     echo -e "${C_CYAN}╠══════════════════════════════════════════════╣${C_NC}"
     echo -e "${C_PURP}  [ HERRAMIENTAS Y SISTEMA ]${C_NC}"
     echo -e "  ${C_YELLOW}7.${C_NC} 🛠️ Herramientas e Instaladores"
-    echo -e "  ${C_YELLOW}8.${C_NC} ⚙️ Configurar Subdominio VPS y SSL"
-    echo -e "  ${C_YELLOW}9.${C_NC} 🤖 Vincular Bot de Telegram"
-    echo -e "  ${C_YELLOW}10.${C_NC}🔄 Actualizar Panel (Desde GitHub)"
-    echo -e "  ${C_YELLOW}11.${C_NC}🤖 Activar Auto-Inicio al Loguearse"
-    echo -e "  ${C_YELLOW}12.${C_NC}🖥️ Información Completa del Sistema"
+    echo -e "  ${C_YELLOW}8.${C_NC} 🔍 Monitor de Puertos (Activos / Inactivos)"
+    echo -e "  ${C_YELLOW}9.${C_NC} ⚙️ Configurar Subdominio VPS y SSL"
+    echo -e "  ${C_YELLOW}10.${C_NC}🤖 Vincular Bot de Telegram"
+    echo -e "  ${C_YELLOW}11.${C_NC}🔄 Actualizar Panel (Desde GitHub)"
+    echo -e "  ${C_YELLOW}12.${C_NC}🤖 Activar Auto-Inicio al Loguearse"
+    echo -e "  ${C_YELLOW}13.${C_NC}🖥️ Información Completa del Sistema"
     echo -e "${C_CYAN}╠══════════════════════════════════════════════╣${C_NC}"
     echo -e "  ${C_RED}88.${C_NC} ❌ Desinstalar Script   |   ${C_RED}0.${C_NC} 🚪 Salir"
     echo -e "${C_CYAN}╚══════════════════════════════════════════════╝${C_NC}"
@@ -200,8 +228,8 @@ while true; do
 
     case $opcion in
         1) menu_ssh ;; 2) menu_xray_proto "VMess" ;; 3) menu_xray_proto "VLESS" ;; 4) menu_xray_proto "Trojan" ;;
-        5) menu_openvpn ;; 6) menu_checkuser ;; 7) menu_herramientas ;; 8) menu_dominio ;; 9) menu_bot ;;
-        10) menu_update ;; 11) menu_autostart ;; 12) menu_info ;; 88) uninstall_script ;; 0) clear; exit 0 ;;
+        5) menu_openvpn ;; 6) menu_checkuser ;; 7) menu_herramientas ;; 8) menu_puertos ;; 9) menu_dominio ;;
+        10) menu_bot ;; 11) menu_update ;; 12) menu_autostart ;; 13) menu_info ;; 88) uninstall_script ;; 0) clear; exit 0 ;;
         *) echo -e "\n${C_RED}[!] Opción inválida.${C_NC}"; sleep 1 ;;
     esac
 done

@@ -3,24 +3,18 @@
 # Golbert VPS Premium - Panel V5.0 LTS (Pro)
 # ==========================================
 
-# Paleta de colores avanzada y neones
 C_RST='\033[0m'
 C_RED='\033[1;31m'
 C_GREEN='\033[1;32m'
 C_YELLOW='\033[1;33m'
-C_BLUE='\033[1;34m'
-C_MAG='\033[1;35m'
 C_CYAN='\033[1;36m'
-C_WHITE='\033[1;37m'
 C_NEON_BLUE='\033[38;5;39m'
 C_NEON_GREEN='\033[38;5;46m'
-C_NEON_PINK='\033[38;5;198m'
-C_NEON_YELLOW='\033[38;5;226m'
 C_NEON_PURPLE='\033[38;5;141m'
+C_NEON_YELLOW='\033[38;5;226m'
 
 mkdir -p /etc/vps-manager
 
-# FUNCIÓN: Inyectar datos al Banner del Usuario
 generar_banner_usuario() {
     local u=$1; local exp=$2; local dias=$3; local limit=$4
     local base=$(cat /etc/issue.net 2>/dev/null)
@@ -50,7 +44,6 @@ menu_ssh() {
         echo -e "  ${C_RED}0${C_RST} ➔ Volver al Menú Principal"
         echo -e "${C_NEON_BLUE}╚══════════════════════════════════════════════╝${C_RST}"
         read -p "Seleccione una opción: " opt
-        
         case $opt in
             1) 
                 clear; echo -e "${C_CYAN}================================================${C_RST}\n${C_YELLOW}      CREAR USUARIO SSH / HWID PROTECTION       ${C_RST}\n${C_CYAN}================================================${C_RST}"
@@ -65,7 +58,7 @@ menu_ssh() {
                 systemctl restart ssh 2>/dev/null
                 IP_V=$(curl -s ipv4.icanhazip.com); DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" ); NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No config" ); PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub || echo "No instalada" )
                 clear; echo -e "${C_CYAN}================================================${C_RST}\n${C_GREEN}        ✅ CUENTA CREADA EXITOSAMENTE ✅        ${C_RST}\n${C_CYAN}================================================${C_RST}"
-                echo -e " 👤 Usuario       : $user\n 🔑 Clave         : $pass\n 📅 Vence         : $EXP_DATE ($dias días)\n 🔒 Límite IPs    : $limite\n 🛡️ Protecc. HWID : $HWID_MSG\n\n 🌐 Host/IP       : $DOM\n 🌐 Subdominio NS : $NS_DOM\n 🔐 Pub Key (DNS) : $PUB_KEY\n 🎯 Puertos       : 22, 80, 443, 53, 8080, 8880\n${C_CYAN}================================================${C_RST}"; read -p "Copia los datos y presiona Enter..." ;;
+                echo -e " 👤 Usuario       : $user\n 🔑 Clave         : $pass\n 📅 Vence         : $EXP_DATE ($dias días)\n 🔒 Límite IPs    : $limite\n 🛡️ Protecc. HWID : $HWID_MSG\n\n 🌐 Host/IP       : $DOM\n 🌐 Subdominio NS : $NS_DOM\n 🔐 Pub Key (DNS) : $PUB_KEY\n 🎯 Puertos       : 22, 80, 443, 53, 2000, 8080, 8880\n${C_CYAN}================================================${C_RST}"; read -p "Copia los datos y presiona Enter..." ;;
             2) read -p "Usuario a eliminar: " user; userdel -f $user 2>/dev/null; rm -f /etc/vps-manager/banner_${user}.net /etc/vps-manager/limite_${user} /etc/vps-manager/hwid_${user}; sed -i "/Match User $user/,+1d" /etc/ssh/sshd_config; systemctl restart ssh 2>/dev/null; echo -e "${C_GREEN}[✔] Eliminado.${C_RST}"; sleep 2 ;;
             3) read -p "Usuario a renovar: " user; read -p "Nuevos días: " dias; EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d"); chage -E $EXP_DATE $user; limite=$(cat /etc/vps-manager/limite_${user} 2>/dev/null || echo "1"); generar_banner_usuario "$user" "$EXP_DATE" "$dias" "$limite"; systemctl restart ssh 2>/dev/null; echo -e "${C_GREEN}[✔] Renovado.${C_RST}"; sleep 2 ;;
             4) clear; echo -e "${C_CYAN}╔══════════════════════════════════════════════╗\n║${C_GREEN}       📋 LISTA DE USUARIOS Y VENCIMIENTO     ${C_CYAN}║\n╚══════════════════════════════════════════════╝${C_RST}"; printf "${C_YELLOW}%-15s %-15s %-15s${C_RST}\n" "USUARIO" "EXPIRA" "DÍAS RESTANTES"; echo -e "${C_CYAN}────────────────────────────────────────────────${C_RST}"; for user in $(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd); do exp_date=$(chage -l $user | grep "Account expires" | awk -F": " '{print $2}'); if [[ "$exp_date" != "never" && -n "$exp_date" ]]; then exp_fmt=$(date -d "$exp_date" "+%Y-%m-%d" 2>/dev/null); sec_exp=$(date -d "$exp_date" +%s 2>/dev/null); sec_now=$(date +%s); dias=$(( (sec_exp - sec_now) / 86400 )); [ $dias -lt 0 ] && dias=0; printf "%-15s %-15s %-15s\n" "$user" "$exp_fmt" "$dias Días"; else printf "%-15s %-15s %-15s\n" "$user" "Ilimitado" "∞"; fi; done; read -p "Enter..." ;;
@@ -94,7 +87,6 @@ menu_revendedores() {
         echo -e "${C_NEON_BLUE}╚══════════════════════════════════════════════╝${C_RST}"
         read -p "Opción: " ropt
         RES_FILE="/etc/vps-manager/telegram_bot/resellers.txt"
-        
         case $ropt in
             1) read -p "ID de Telegram del Revendedor: " r_id; read -p "Cantidad de Créditos: " r_cred; mkdir -p /etc/vps-manager/telegram_bot; touch $RES_FILE; sed -i "/^$r_id:/d" $RES_FILE; echo "$r_id:$r_cred" >> $RES_FILE; echo -e "${C_GREEN}[✔] Revendedor $r_id guardado con $r_cred créditos.${C_RST}"; sleep 2 ;;
             2) read -p "ID de Telegram a eliminar: " r_id; sed -i "/^$r_id:/d" $RES_FILE; echo -e "${C_RED}[✔] Revendedor eliminado.${C_RST}"; sleep 2 ;;
@@ -116,11 +108,11 @@ menu_instaladores() {
         echo -e "  ${C_NEON_YELLOW}3.${C_RST} 🛡️ Menú Xray (Trojan)"
         echo -e "  ${C_NEON_YELLOW}4.${C_RST} 🌐 Instalar OpenVPN (Web Perfiles)"
         echo -e "  ${C_NEON_YELLOW}5.${C_RST} 🚀 Instalar HCR Nativo (Manager Pro)"
-        echo -e "  ${C_NEON_YELLOW}6.${C_RST} 🎮 Instalar UDP Custom (Llamadas y Juegos)"
+        echo -e "  ${C_NEON_YELLOW}6.${C_RST} 🎮 Instalar UDP Custom (Puerto 2000)"
         echo -e "  ${C_NEON_YELLOW}7.${C_RST} 🛸 Instalar SlowDNS (DNSTT)"
         echo -e "  ${C_NEON_YELLOW}8.${C_RST} 🌐 Instalar BHTTP Proxy (Puerto 8080)"
         echo -e "  ${C_NEON_YELLOW}9.${C_RST} 🔗 Instalar SSHWS / Websocket"
-        echo -e "  ${C_NEON_YELLOW}10.${C_RST}🎮 Instalar BadVPN Antiguo"
+        echo -e "  ${C_NEON_YELLOW}10.${C_RST}🎮 Instalar BadVPN (Puertos 7300 y 7200)"
         echo -e "  ${C_NEON_YELLOW}11.${C_RST}🐘 Instalador PHP 8.5.12"
         echo -e "  ${C_NEON_YELLOW}12.${C_RST}🚀 Instalar Acelerador BBR"
         echo -e "${C_NEON_PURPLE}╠══════════════════════════════════════════════╣${C_RST}"
@@ -151,8 +143,10 @@ menu_webpanel() { clear; echo -e "${C_YELLOW}[+] Descargando Instalador del Pane
 menu_puertos() { 
     clear
     echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗\n║${C_NEON_GREEN}         🔍 ESTADO DE PUERTOS Y SERVICIOS     ${C_NEON_BLUE}║\n╚══════════════════════════════════════════════╝${C_RST}"
-    puertos=(22 80 443 53 1194 2081 2083 8080 8880 8181)
-    nombres=("SSH (OpenSSH)" "HTTP / Xray WS" "SSL / VLESS / Trojan" "DNS (SlowDNS)" "OpenVPN TCP" "OpenVPN Web" "Trojan TLS" "BHTTP Custom" "HCR Proxy PRO" "Web Panel UI")
+    
+    # Verificación de puertos estándar
+    puertos=(22 80 443 53 1194 2081 2083 8080 8880 8181 7300 7200)
+    nombres=("SSH (OpenSSH)" "HTTP / Xray WS" "SSL / VLESS / Trojan" "DNS (SlowDNS)" "OpenVPN TCP" "OpenVPN Web" "Trojan TLS" "BHTTP Custom" "HCR Proxy PRO" "Web Panel UI" "BadVPN (Game 7300)" "BadVPN (Game 7200)")
     
     for i in "${!puertos[@]}"; do 
         p=${puertos[$i]}; n=${nombres[$i]}
@@ -163,12 +157,11 @@ menu_puertos() {
         fi
     done
     
-    if systemctl is-active --quiet udp-custom || pgrep -f "udp-custom" > /dev/null; then
-        UDP_P=$(ss -lunp 2>/dev/null | grep udp-custom | awk -F':' '{print $2}' | awk '{print $1}' | head -n 1)
-        [ -z "$UDP_P" ] && UDP_P="Activo"
-        echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}$UDP_P${C_RST} ➔ UDP Custom"
+    # Verificación específica para UDP Custom (Puerto 2000)
+    if systemctl is-active --quiet udp-custom || ss -lnup 2>/dev/null | grep -q ":2000 "; then
+        echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}2000${C_RST} ➔ UDP Custom"
     else
-        echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Puerto ${C_NEON_YELLOW}7300${C_RST} ➔ UDP Custom"
+        echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Puerto ${C_NEON_YELLOW}2000${C_RST} ➔ UDP Custom"
     fi
     
     echo -e "${C_NEON_BLUE}────────────────────────────────────────────────${C_RST}"
@@ -181,7 +174,6 @@ menu_update() { clear; wget -qO /tmp/menu.sh "https://raw.githubusercontent.com/
 menu_autostart() { clear; grep -q "menu" /root/.bashrc && echo -e "${C_GREEN}[✔] Ya activo.${C_RST}" || (echo -e "\nmenu" >> /root/.bashrc; echo -e "${C_GREEN}[✔] Activado.${C_RST}"); read -p "Enter..." ;}
 menu_banner() { clear; echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗\n║${C_NEON_GREEN}         GESTOR DE BANNER BASE HTML           ${C_NEON_BLUE}║\n╚══════════════════════════════════════════════╝${C_RST}\n  ${C_NEON_YELLOW}1.${C_RST} Banner por Defecto\n  ${C_NEON_YELLOW}2.${C_RST} Personalizado HTML\n"; read -p "Opción: " opt_ban; case $opt_ban in 1) TEXTO="<br><font color='cyan'><b>🌟 BIENVENIDO A GOLBERT VPS 🌟</b></font><br>" ;; 2) echo -e "Pega HTML: "; read -r TEXTO ;; *) TEXTO="Bienvenido" ;; esac; echo "$TEXTO" > /etc/issue.net; echo -e "${C_GREEN}[✔] Banner Global guardado.${C_RST}"; read -p "Presione Enter..." ; }
 
-# DETALLES COMPLETOS DE LA MÁQINA VPS
 menu_info() {
     clear
     OS_NAME=$(cat /etc/os-release | grep -w PRETTY_NAME | cut -d= -f2 | tr -d '"')

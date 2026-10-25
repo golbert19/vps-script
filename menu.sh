@@ -7,7 +7,7 @@ RED='\033[1;31m'; GREEN='\033[1;32m'; YELLOW='\033[1;33m'; CYAN='\033[1;36m'; NC
 mkdir -p /etc/vps-manager
 
 # ==========================================
-# 1. GESTOR SSH (Con Subdominios y SlowDNS Key)
+# 1. GESTOR SSH
 # ==========================================
 menu_ssh() {
     while true; do
@@ -18,8 +18,6 @@ menu_ssh() {
             1) 
                 read -p "Usuario: " user; read -p "Contraseña: " pass; read -p "Días: " dias
                 useradd -e $(date -d "+$dias days" +"%Y-%m-%d") -s /bin/false -M $user; echo "$user:$pass" | chpasswd
-                
-                # Obtener datos adicionales
                 IP_V=$(curl -s ipv4.icanhazip.com)
                 DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
                 NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No configurado" )
@@ -48,52 +46,15 @@ menu_ssh() {
 }
 
 # ==========================================
-# 2,3,4. GESTOR XRAY (VMESS, VLESS, TROJAN) Funcional
+# 2,3,4. GESTOR XRAY (Descarga archivo maestro)
 # ==========================================
-instalar_xray() {
-    if ! command -v xray &> /dev/null; then
-        echo -e "${YELLOW}[+] Instalando Xray-Core...${NC}"
-        bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install >/dev/null 2>&1
-        echo -e "${GREEN}[✔] Xray instalado.${NC}"
-        systemctl enable xray; systemctl start xray
-    fi
-}
-
 menu_xray_proto() {
     PROTO=$1
-    instalar_xray
-    while true; do
-        clear; echo -e "${CYAN}================================================${NC}"; echo -e "${GREEN}            GESTOR XRAY ($PROTO)                 ${NC}"; echo -e "${CYAN}================================================${NC}"
-        echo -e "${GREEN}1) ${NC}Crear usuario $PROTO (Puerto 80/443)\n${GREEN}0) ${NC}Volver"
-        echo -e "${CYAN}================================================${NC}"; read -p "Seleccione opción: " opt
-        case $opt in 
-            1) 
-                read -p "Nombre del usuario ($PROTO): " user
-                UUID=$(cat /proc/sys/kernel/random/uuid)
-                IP_V=$(curl -s ipv4.icanhazip.com)
-                DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
-                
-                clear; echo -e "${CYAN}================================================${NC}"
-                echo -e "${GREEN}        ✅ USUARIO $PROTO CREADO ✅        ${NC}"
-                echo -e "${CYAN}================================================${NC}"
-                echo -e " 👤 Usuario : $user"
-                echo -e " 🔑 UUID    : $UUID"
-                echo -e " 🌐 Host    : $DOM"
-                echo -e "\n📌 Link para importar:"
-                if [ "$PROTO" == "VMess" ]; then
-                    echo -e "vmess://$(echo -n "{\"v\":\"2\",\"ps\":\"$user\",\"add\":\"$DOM\",\"port\":\"80\",\"id\":\"$UUID\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"$DOM\",\"path\":\"/vmess\",\"tls\":\"\"}" | base64 -w 0)"
-                elif [ "$PROTO" == "VLESS" ]; then
-                    echo -e "vless://$UUID@$DOM:443?encryption=none&security=tls&type=ws&host=$DOM&path=%2Fvless#$user"
-                else
-                    echo -e "trojan://$UUID@$DOM:443?security=tls&type=ws&host=$DOM&path=%2Ftrojan#$user"
-                fi
-                echo -e "${CYAN}================================================${NC}"
-                read -p "Presione Enter para continuar..."
-                ;;
-            0) break ;; 
-            *) echo -e "${RED}[!] Inválido.${NC}"; sleep 1 ;; 
-        esac
-    done
+    clear
+    echo -e "${YELLOW}[+] Iniciando Módulo de $PROTO...${NC}"
+    wget -qO /tmp/xray_manager.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/xray_manager.sh
+    chmod +x /tmp/xray_manager.sh
+    bash /tmp/xray_manager.sh "$PROTO"
 }
 
 menu_checkuser() {
@@ -110,7 +71,7 @@ menu_checkuser() {
 }
 
 # ==========================================
-# 6. OPENVPN (Corrección de error de conexión)
+# 6. OPENVPN
 # ==========================================
 menu_openvpn() {
     clear
@@ -118,17 +79,14 @@ menu_openvpn() {
     mkdir -p "$OVPN_DIR"
     IP_ACTUAL=$(curl -s --max-time 3 ipv4.icanhazip.com || hostname -I | awk '{print $1}')
     
-    # Generar archivos por defecto para descargar
     if [ ! -f "$OVPN_DIR/cliente-tcp-1194.ovpn" ]; then
         echo -e "client\ndev tun\nproto tcp\nremote $IP_ACTUAL 1194\nresolv-retry infinite\nnobind\npersist-key\npersist-tun\nauth-user-pass\ncipher AES-256-CBC\nverb 3" > "$OVPN_DIR/cliente-tcp-1194.ovpn"
         echo -e "client\ndev tun\nproto udp\nremote $IP_ACTUAL 2200\nresolv-retry infinite\nnobind\npersist-key\npersist-tun\nauth-user-pass\ncipher AES-256-CBC\nverb 3" > "$OVPN_DIR/cliente-udp-2200.ovpn"
     fi
 
-    # Forzar apertura de puerto 2081 en el Firewall
     iptables -I INPUT -p tcp --dport 2081 -j ACCEPT
     iptables-save > /etc/iptables.up.rules 2>/dev/null
     
-    # Matar cualquier proceso en 2081 y usar servidor nativo de Python súper estable
     echo -e "${YELLOW}[+] Levantando el servidor de perfiles en el puerto 2081...${NC}"
     fuser -k 2081/tcp >/dev/null 2>&1
     cd "$OVPN_DIR"
@@ -141,7 +99,7 @@ menu_openvpn() {
 }
 
 # ==========================================
-# 14. BANNER SSH (Corrección de reflejo en conexión)
+# 14. BANNER SSH
 # ==========================================
 menu_banner() {
     clear; echo -e "${CYAN}================================================${NC}"; echo -e "${GREEN}             GESTOR DE BANNER SSH               ${NC}"; echo -e "${CYAN}================================================${NC}"
@@ -153,19 +111,15 @@ menu_banner() {
     esac
     
     echo "$TEXTO" > /etc/issue.net
-    
-    # Forzar a OpenSSH a usar el banner
     sed -i '/^Banner/d' /etc/ssh/sshd_config
     echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config
     systemctl restart sshd
     
-    # Forzar a Dropbear a usar el banner
     if [ -f /etc/default/dropbear ]; then
         sed -i 's/DROPBEAR_BANNER=""/DROPBEAR_BANNER="\/etc\/issue.net"/g' /etc/default/dropbear
         systemctl restart dropbear
     fi
 
-    # Generar Saludo dinámico de Expiración (Al loguearse por Terminal)
     cat << 'EOF' > /etc/profile.d/vps_saludo.sh
 #!/bin/bash
 if [ -n "$SSH_CLIENT" ]; then
@@ -185,11 +139,10 @@ EOF
 }
 
 # ==========================================
-# 12. SLOWDNS (Corrección de NS Domain)
+# 12. SLOWDNS
 # ==========================================
 menu_slowdns() { 
     clear; echo -e "${YELLOW}[+] Instalando SlowDNS...${NC}"
-    # Pedir y guardar NS Dominio
     echo -e "\033[1;33mPara SlowDNS, necesitas un subdominio NS (Ej: ns1.golbertvps.online)\033[0m"
     read -p "Ingresa tu Dominio NS: " NS_DOMAIN
     echo "$NS_DOMAIN" > /etc/vps-manager/nsdomain

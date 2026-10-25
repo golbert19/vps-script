@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Gestor HCR Nativo (Manager PRO v1.5.2) - PLAIN ONLY
+# Gestor HCR Nativo (Manager PRO v1.5.2) - PYTHON NATIVO
 # ==========================================
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 HCR_DIR="/etc/vps-manager/hcr"
@@ -12,8 +12,7 @@ MEM_HIGH=$((RAM_MB * 60 / 100))
 MEM_MAX=$((RAM_MB * 80 / 100))
 
 check_status() {
-    # Verificación más robusta del estado del servicio
-    if systemctl is-active --quiet hcr-server || pgrep -f "hcr_bypass.py" > /dev/null; then
+    if systemctl is-active --quiet hcr-server; then
         ESTADO="${C_GREEN}ON${C_NC}"
     else
         ESTADO="${C_RED}OFF${C_NC}"
@@ -22,24 +21,16 @@ check_status() {
 
 install_hcr_plain() {
     clear
-    echo -e "${C_GREEN}Instalando HCR Plain en TCP 8880 con perfil 16384 / 8s...${C_NC}"
-    echo -e "${C_GREEN}Descargando hcr-server...${C_NC}"
+    echo -e "${C_GREEN}Instalando HCR Plain en TCP 8880...${C_NC}"
     
     apt update -y >/dev/null 2>&1
-    apt install -y python3 iptables curl >/dev/null 2>&1
+    apt install -y python3 iptables >/dev/null 2>&1
     cd "$HCR_DIR"
     
-    # Intento de descarga (Máximo 5 segundos de espera)
-    curl -sL --max-time 5 -o hcr-server "https://raw.githubusercontent.com/ChumoGH/ScriptCGH/main/modulos/hcr-server" || echo ""
-
-    if [ -s hcr-server ]; then
-        chmod +x hcr-server
-        EXEC_CMD="$HCR_DIR/hcr-server -p 8880 -d 127.0.0.1:22"
-    else
-        echo -e "${C_YELLOW}Alerta: Servidor externo caído. Generando Motor HCR Local (Python)...${C_NC}"
-        
-        # Generador de motor HCR Nativo en Python
-        cat << 'EOF' > "$HCR_DIR/hcr_bypass.py"
+    echo -e "${C_YELLOW}[+] Construyendo Motor HCR Local (Python)...${C_NC}"
+    
+    # Construcción 100% local, sin depender de descargas de GitHub
+    cat << 'EOF' > "$HCR_DIR/hcr_core.py"
 import socket, threading
 
 PORT = 8880
@@ -83,25 +74,22 @@ while True:
     c, a = s.accept()
     threading.Thread(target=handle, args=(c,), daemon=True).start()
 EOF
-        chmod +x "$HCR_DIR/hcr_bypass.py"
-        # Forzar ruta absoluta al ejecutable de Python3
-        EXEC_CMD="/usr/bin/python3 $HCR_DIR/hcr_bypass.py"
-    fi
+    
+    chmod +x "$HCR_DIR/hcr_core.py"
 
-    # Abrir puerto en Iptables
     iptables -I INPUT -p tcp --dport 8880 -j ACCEPT
     iptables-save > /etc/iptables.up.rules 2>/dev/null
 
-    # Crear el servicio Systemd garantizando ejecución
+    # Servicio apuntando directamente a Python3
     cat << EOF > /etc/systemd/system/hcr-server.service
 [Unit]
-Description=HCR Native Server Plain
+Description=HCR Native Server Plain (Python)
 After=network.target
 
 [Service]
 Type=simple
 WorkingDirectory=$HCR_DIR
-ExecStart=$EXEC_CMD
+ExecStart=/usr/bin/python3 $HCR_DIR/hcr_core.py
 Restart=always
 RestartSec=3
 LimitNOFILE=65536
@@ -117,7 +105,7 @@ EOF
     systemctl enable hcr-server >/dev/null 2>&1
     systemctl restart hcr-server
     
-    echo -e "${C_GREEN}[✔] ¡Motor HCR Plain (Puerto 8880) Instalado y Activo!${C_NC}"
+    echo -e "${C_GREEN}[✔] ¡Motor HCR Plain Python (Puerto 8880) Instalado y Activo!${C_NC}"
     read -p "Presione Enter para regresar..."
 }
 

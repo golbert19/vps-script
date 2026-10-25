@@ -29,15 +29,29 @@ menu_openvpn() {
     echo -e "${CYAN}================================================${NC}"
     echo -e "${GREEN}             GESTIÓN DE OPENVPN                 ${NC}"
     echo -e "${CYAN}================================================${NC}"
-    
-    # Obtener IP o si hay un dominio configurado
     IP_ACTUAL=$(curl -s --max-time 3 ipv4.icanhazip.com || hostname -I | awk '{print $1}')
-    
     echo -e "🔗 ${YELLOW}Enlace de descarga de perfiles (.ovpn):${NC}"
     echo -e "   ➡️  http://$IP_ACTUAL:2081"
     echo -e "${CYAN}================================================${NC}"
     echo -e "Los usuarios pueden acceder a este enlace para"
     echo -e "descargar sus archivos TCP, UDP, SSL y OHP."
+    echo -e "${CYAN}================================================${NC}"
+    read -p "Presione Enter para regresar al menú..."
+}
+
+# --- MÓDULO INSTALADOR PHP 8.5.12 ---
+menu_install_php() {
+    clear
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${GREEN}         INSTALADOR PHP 8.5.12 VPS              ${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${YELLOW}[+] Ejecutando instalador externo de PHP...${NC}\n"
+    
+    # Ejecutar el comando solicitado con limpieza de línea 59
+    curl -sSL "https://raw.githubusercontent.com/golbert19/php-8.5.12-vps/main/install.sh?t=$(date +%s)" | sed '59s/[()]//g' | bash
+    
+    echo -e "\n${CYAN}================================================${NC}"
+    echo -e "${GREEN}[✔] Proceso de PHP finalizado.${NC}"
     echo -e "${CYAN}================================================${NC}"
     read -p "Presione Enter para regresar al menú..."
 }
@@ -89,6 +103,7 @@ while true; do
     echo -e "${GREEN}4) ${NC}Menú Xray (Trojan)"
     echo -e "${GREEN}5) ${NC}Comprobar Usuarios"
     echo -e "${GREEN}6) ${NC}Menú OpenVPN (Web Perfiles)"
+    echo -e "${GREEN}7) ${NC}Instalador PHP 8.5.12"
     echo -e "${GREEN}9) ${NC}Panel General VPS"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${RED}88) Desinstalar Script${NC}"
@@ -104,6 +119,7 @@ while true; do
         4|04) menu_xray_proto "trojan" "$DB_TROJAN" ;;
         5|05) menu_checkuser ;;
         6|06) menu_openvpn ;;
+        7|07) menu_install_php ;;
         9|09) menu_panel_vps ;;
         88) uninstall_script ;;
         x|X|0) 

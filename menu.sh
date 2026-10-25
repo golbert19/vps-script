@@ -6,12 +6,46 @@
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_PURP='\033[1;35m'; C_NC='\033[0m'
 mkdir -p /etc/vps-manager
 
+# FUNCIÓN: Inyectar datos al Banner del Usuario
+generar_banner_usuario() {
+    local u=$1; local exp=$2; local dias=$3
+    local base=$(cat /etc/issue.net 2>/dev/null)
+    local banner_file="/etc/vps-manager/banner_${u}.net"
+    
+    echo -e "${base}<br><font color='cyan'>=======================</font><br><font color='yellow'>👤 Usuario:</font> <font color='white'>${u}</font><br><font color='yellow'>📅 Expira:</font> <font color='white'>${exp} (${dias} Días)</font><br><font color='cyan'>=======================</font><br>" > "$banner_file"
+    
+    sed -i "/Match User $u/d" /etc/ssh/sshd_config
+    sed -i "/Banner \/etc\/vps-manager\/banner_${u}.net/d" /etc/ssh/sshd_config
+    echo -e "\nMatch User $u\nBanner $banner_file" >> /etc/ssh/sshd_config
+}
+
+# FUNCIÓN: Actualizar los banners de TODOS los usuarios
+actualizar_todos_banners() {
+    for user in $(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd); do
+        exp_date=$(chage -l $user | grep "Account expires" | awk -F": " '{print $2}')
+        if [[ "$exp_date" != "never" && -n "$exp_date" ]]; then
+            exp_fmt=$(date -d "$exp_date" "+%Y-%m-%d" 2>/dev/null || echo "$exp_date")
+            sec_exp=$(date -d "$exp_date" +%s 2>/dev/null || echo 0)
+            sec_now=$(date +%s)
+            dias=$(( (sec_exp - sec_now) / 86400 ))
+            [ $dias -lt 0 ] && dias=0
+            generar_banner_usuario "$user" "$exp_fmt" "$dias"
+        fi
+    done
+    systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
+}
+
 menu_ssh() {
     while true; do
         clear; echo -e "${C_CYAN}╔══════════════════════════════════════════════╗${C_NC}"
         echo -e "${C_CYAN}║${C_GREEN}             GESTOR DE SSH / DROPBEAR         ${C_CYAN}║${C_NC}"
         echo -e "${C_CYAN}╠══════════════════════════════════════════════╣${C_NC}"
-        echo -e "${C_YELLOW}  1)${C_NC} Crear nuevo usuario SSH\n${C_YELLOW}  2)${C_NC} Eliminar usuario SSH\n${C_YELLOW}  3)${C_NC} Renovar usuario SSH\n${C_YELLOW}  4)${C_NC} Lista de conectados\n${C_YELLOW}  0)${C_NC} Volver"
+        echo -e "${C_YELLOW}  1)${C_NC} Crear nuevo usuario SSH"
+        echo -e "${C_YELLOW}  2)${C_NC} Eliminar usuario SSH"
+        echo -e "${C_YELLOW}  3)${C_NC} Renovar usuario SSH"
+        echo -e "${C_YELLOW}  4)${C_NC} Lista de conectados"
+        echo -e "${C_YELLOW}  5)${C_NC} Lista de usuarios y vencimiento"
+        echo -e "${C_YELLOW}  0)${C_NC} Volver"
         echo -e "${C_CYAN}╚══════════════════════════════════════════════╝${C_NC}"; read -p "Opción: " opt
         case $opt in
             1) 
@@ -19,19 +53,12 @@ menu_ssh() {
                 EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d")
                 useradd -e $EXP_DATE -s /bin/false -M $user; echo "$user:$pass" | chpasswd
                 
-                # Configurar Banner Dinámico por Usuario
-                BASE_BANNER=$(cat /etc/issue.net 2>/dev/null)
-                echo "$BASE_BANNER<br><font color='cyan'>=======================</font><br><font color='yellow'>👤 Usuario:</font> <font color='white'>$user</font><br><font color='yellow'>📅 Expira:</font> <font color='white'>$EXP_DATE ($dias Días)</font><br><font color='cyan'>=======================</font><br>" > /etc/vps-manager/banner_${user}.net
-                
-                # Inyectar regla temporal en SSH
-                sed -i "/Match User $user/d" /etc/ssh/sshd_config
-                sed -i "/Banner \/etc\/vps-manager\/banner_${user}.net/d" /etc/ssh/sshd_config
-                echo -e "\nMatch User $user\nBanner /etc/vps-manager/banner_${user}.net" >> /etc/ssh/sshd_config
+                # Crear Banner único para este cliente
+                generar_banner_usuario "$user" "$EXP_DATE" "$dias"
                 systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
-                
+
                 IP_V=$(curl -s ipv4.icanhazip.com); DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
-                NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No config" )
-                PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub || echo "No instalada" )
+                NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No config" ); PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub || echo "No instalada" )
                 
                 clear; echo -e "${C_CYAN}================================================${C_NC}\n${C_GREEN}        ✅ CUENTA CREADA EXITOSAMENTE ✅        ${C_NC}\n${C_CYAN}================================================${C_NC}"
                 echo -e " 👤 Usuario       : $user\n 🔑 Clave         : $pass\n 📅 Vence         : $EXP_DATE ($dias días)\n\n 🌐 Host/IP       : $DOM\n 🌐 Subdominio NS : $NS_DOM\n 🔐 Pub Key (DNS) : $PUB_KEY\n 🎯 Puertos       : 22, 80, 443, 53, 8080\n${C_CYAN}================================================${C_NC}"
@@ -47,10 +74,33 @@ menu_ssh() {
                 read -p "Usuario a renovar: " user; read -p "Nuevos días: " dias
                 EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d")
                 chage -E $EXP_DATE $user
-                BASE_BANNER=$(cat /etc/issue.net 2>/dev/null | grep -v "Usuario:" | grep -v "Expira:")
-                echo "$BASE_BANNER<br><font color='cyan'>=======================</font><br><font color='yellow'>👤 Usuario:</font> <font color='white'>$user</font><br><font color='yellow'>📅 Expira:</font> <font color='white'>$EXP_DATE ($dias Días)</font><br><font color='cyan'>=======================</font><br>" > /etc/vps-manager/banner_${user}.net
+                generar_banner_usuario "$user" "$EXP_DATE" "$dias"
+                systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
                 echo -e "${C_GREEN}[✔] Renovado.${C_NC}"; sleep 2 ;;
             4) echo -e "${C_YELLOW}Conectados:${C_NC}"; ps -ef | grep -E "sshd|dropbear" | grep -v root | grep -v grep | awk '{print $1}' | sort | uniq -c; read -p "Enter..." ;;
+            5) 
+                clear
+                echo -e "${C_CYAN}╔══════════════════════════════════════════════╗${C_NC}"
+                echo -e "${C_CYAN}║${C_GREEN}       📋 LISTA DE USUARIOS Y VENCIMIENTO     ${C_CYAN}║${C_NC}"
+                echo -e "${C_CYAN}╚══════════════════════════════════════════════╝${C_NC}"
+                printf "${C_YELLOW}%-15s %-15s %-15s${C_NC}\n" "USUARIO" "EXPIRA" "DÍAS RESTANTES"
+                echo -e "${C_CYAN}────────────────────────────────────────────────${C_NC}"
+                for user in $(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd); do
+                    exp_date=$(chage -l $user | grep "Account expires" | awk -F": " '{print $2}')
+                    if [[ "$exp_date" != "never" && -n "$exp_date" ]]; then
+                        exp_fmt=$(date -d "$exp_date" "+%Y-%m-%d" 2>/dev/null || echo "$exp_date")
+                        sec_exp=$(date -d "$exp_date" +%s 2>/dev/null || echo 0)
+                        sec_now=$(date +%s)
+                        dias=$(( (sec_exp - sec_now) / 86400 ))
+                        [ $dias -lt 0 ] && dias=0
+                        printf "%-15s %-15s %-15s\n" "$user" "$exp_fmt" "$dias Días"
+                    else
+                        printf "%-15s %-15s %-15s\n" "$user" "Ilimitado" "∞"
+                    fi
+                done
+                echo -e "${C_CYAN}────────────────────────────────────────────────${C_NC}"
+                read -p "Presione Enter para continuar..."
+                ;;
             0) break ;; *) echo -e "${C_RED}[!] Inválido.${C_NC}"; sleep 1 ;;
         esac
     done
@@ -59,35 +109,8 @@ menu_ssh() {
 menu_xray_proto() { clear; echo -e "${C_YELLOW}[+] Iniciando Módulo de $1...${C_NC}"; wget -qO /tmp/xray_manager.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/xray_manager.sh && chmod +x /tmp/xray_manager.sh && bash /tmp/xray_manager.sh "$1"; }
 menu_checkuser() { clear; echo -e "${C_YELLOW}Total SSH:${C_NC} $(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | wc -l)\n\n${C_YELLOW}Expirados:${C_NC}"; for user in $(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd); do exp=$(chage -l $user | grep "Account expires" | awk -F": " '{print $2}'); if [[ "$exp" != "never" ]]; then if [ $(date +%s) -ge $(date -d "$exp" +%s 2>/dev/null || echo 9999999999) ]; then echo -e "${C_RED}- $user (Expiró: $exp)${C_NC}"; fi; fi; done; read -p "Enter..."; }
 menu_openvpn() { clear; echo -e "${C_YELLOW}[+] Instalando OpenVPN...${C_NC}"; wget -qO /tmp/setup_openvpn.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/setup_openvpn.sh && chmod +x /tmp/setup_openvpn.sh && bash /tmp/setup_openvpn.sh; iptables -I INPUT -p tcp --dport 2081 -j ACCEPT; iptables-save > /etc/iptables.up.rules 2>/dev/null; IP_ACTUAL=$(curl -s ipv4.icanhazip.com); DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_ACTUAL" ); echo -e "\n${C_GREEN}[✔] ¡Servidor Web Operativo!${C_NC}\n🔗 ${C_YELLOW}Perfiles (.ovpn):${C_NC} http://$DOM:2081\n"; read -p "Enter..."; }
+menu_puertos() { clear; echo -e "${C_CYAN}╔══════════════════════════════════════════════╗\n║${C_GREEN}         🔍 ESTADO DE PUERTOS Y SERVICIOS     ${C_CYAN}║\n╚══════════════════════════════════════════════╝${C_NC}"; puertos=(22 80 443 53 1194 2081 2083 7300 8080); nombres=("SSH (OpenSSH)" "HTTP / Xray WS" "SSL / VLESS / Trojan" "DNS (SlowDNS)" "OpenVPN TCP" "OpenVPN Web" "Trojan TLS" "BadVPN UDPGW" "BHTTP Custom"); for i in "${!puertos[@]}"; do p=${puertos[$i]}; n=${nombres[$i]}; if ss -lntp 2>/dev/null | grep -q ":$p " || ss -lnup 2>/dev/null | grep -q ":$p "; then echo -e "  🔹 [${C_GREEN}ACTIVO   ${C_NC}] Puerto ${C_YELLOW}$p${C_NC} ➔ $n"; else echo -e "  🔸 [${C_RED}INACTIVO ${C_NC}] Puerto ${C_YELLOW}$p${C_NC} ➔ $n"; fi; done; echo -e "${C_CYAN}────────────────────────────────────────────────${C_NC}"; read -p "Presione Enter para regresar..."; }
 
-# ==========================================
-# MONITOR DE PUERTOS (Activos / Inactivos)
-# ==========================================
-menu_puertos() {
-    clear
-    echo -e "${C_CYAN}╔══════════════════════════════════════════════╗${C_NC}"
-    echo -e "${C_CYAN}║${C_GREEN}         🔍 ESTADO DE PUERTOS Y SERVICIOS     ${C_CYAN}║${C_NC}"
-    echo -e "${C_CYAN}╚══════════════════════════════════════════════╝${C_NC}"
-    
-    puertos=(22 80 443 53 1194 2081 2083 7300 8080)
-    nombres=("SSH (OpenSSH)" "HTTP / Xray WS" "SSL / VLESS / Trojan" "DNS (SlowDNS)" "OpenVPN TCP" "OpenVPN Web" "Trojan TLS" "BadVPN UDPGW" "BHTTP Custom")
-
-    for i in "${!puertos[@]}"; do
-        p=${puertos[$i]}
-        n=${nombres[$i]}
-        if ss -lntp 2>/dev/null | grep -q ":$p " || ss -lnup 2>/dev/null | grep -q ":$p "; then
-            echo -e "  🔹 [${C_GREEN}ACTIVO   ${C_NC}] Puerto ${C_YELLOW}$p${C_NC} ➔ $n"
-        else
-            echo -e "  🔸 [${C_RED}INACTIVO ${C_NC}] Puerto ${C_YELLOW}$p${C_NC} ➔ $n"
-        fi
-    done
-    echo -e "${C_CYAN}────────────────────────────────────────────────${C_NC}"
-    read -p "Presione Enter para regresar..."
-}
-
-# ==========================================
-# SUBMENÚ: HERRAMIENTAS E INSTALADORES
-# ==========================================
 menu_herramientas() {
     while true; do
         clear
@@ -101,7 +124,7 @@ menu_herramientas() {
         echo -e "  ${C_YELLOW}5.${C_NC} 🔗 Instalar Websocket"
         echo -e "  ${C_YELLOW}6.${C_NC} 🌐 Instalar BHTTP Proxy (Puerto 8080)"
         echo -e "  ${C_YELLOW}7.${C_NC} 🐘 Instalador PHP 8.5.12"
-        echo -e "  ${C_YELLOW}8.${C_NC} 🎨 Configurar Banner Base"
+        echo -e "  ${C_YELLOW}8.${C_NC} 🎨 Configurar Banner Global Base"
         echo -e "  ${C_YELLOW}9.${C_NC} 🧹 Optimizar Servidor (Limpiar RAM)"
         echo -e "${C_CYAN}╠══════════════════════════════════════════════╣${C_NC}"
         echo -e "  ${C_RED}0.${C_NC} 🔙 Volver al Menú Principal"
@@ -130,11 +153,13 @@ menu_herramientas() {
                     *) TEXTO="Bienvenido al servidor" ;;
                 esac
                 
+                # Guardar el global
                 echo "$TEXTO" > /etc/issue.net
-                sed -i '/^Banner/d' /etc/ssh/sshd_config
-                echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config
-                systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
-                echo -e "${C_GREEN}[✔] Banner Base HTML configurado.${C_NC}"; read -p "Presione Enter..." 
+                
+                # ¡MAGIA! Actualiza todos los usuarios creados con el nuevo banner + sus datos de expiración
+                actualizar_todos_banners
+                
+                echo -e "${C_GREEN}[✔] Banner Global aplicado a TODOS los usuarios.${C_NC}"; read -p "Presione Enter..." 
                 ;;
             9) clear; echo -e "${C_YELLOW}[+] Optimizando RAM...${C_NC}"; sync; echo 3 > /proc/sys/vm/drop_caches; apt clean -y >/dev/null 2>&1; echo -e "${C_GREEN}[✔] Listo.${C_NC}"; read -p "Enter..." ;;
             0) break ;;
@@ -152,30 +177,19 @@ uninstall_script() { clear; read -p "⚠️ ¿Desinstalar todo? (s/n): " conf; i
 
 # Función para dibujar barra de progreso visual
 draw_bar() {
-    local perc=$1
-    local filled=$((perc / 10))
-    local empty=$((10 - filled))
-    local bar=""
-    for ((i=0; i<filled; i++)); do bar="${bar}█"; done
-    for ((i=0; i<empty; i++)); do bar="${bar}░"; done
-    echo -e "[$bar] ${perc}%"
+    local perc=$1; local filled=$((perc / 10)); local empty=$((10 - filled)); local bar=""
+    for ((i=0; i<filled; i++)); do bar="${bar}█"; done; for ((i=0; i<empty; i++)); do bar="${bar}░"; done; echo -e "[$bar] ${perc}%"
 }
 
 while true; do
     clear
     OS=$(cat /etc/os-release | grep -w PRETTY_NAME | head -n 1 | cut -d "=" -f 2 | sed 's/"//g')
     IP=$(curl -s --max-time 3 ipv4.icanhazip.com || hostname -I | awk '{print $1}')
-    
-    RAM_TOTAL=$(free -m | awk 'NR==2{print $2}')
-    RAM_USED=$(free -m | awk 'NR==2{print $3}')
-    RAM_PER=$((RAM_USED * 100 / RAM_TOTAL))
-    RAM_STR=$(free -m | awk 'NR==2{printf "%s / %s MB", $3,$2}')
+    RAM_TOTAL=$(free -m | awk 'NR==2{print $2}'); RAM_USED=$(free -m | awk 'NR==2{print $3}')
+    RAM_PER=$((RAM_USED * 100 / RAM_TOTAL)); RAM_STR=$(free -m | awk 'NR==2{printf "%s / %s MB", $3,$2}')
     RAM_BAR=$(draw_bar $RAM_PER)
-
-    CPU_PER=$(top -bn1 | grep "Cpu(s)" | awk '{print 100 - $8}' | cut -d'.' -f1)
-    [ -z "$CPU_PER" ] && CPU_PER=0
+    CPU_PER=$(top -bn1 | grep "Cpu(s)" | awk '{print 100 - $8}' | cut -d'.' -f1); [ -z "$CPU_PER" ] && CPU_PER=0
     CPU_BAR=$(draw_bar $CPU_PER)
-
     CONECTADOS=$(ps -ef | grep -E "sshd|dropbear" | grep -v root | grep -v grep | wc -l)
     SUBDOMINIO=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "No Configurado" )
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Golbert VPS Premium - Panel V5.0 LTS
+# Golbert VPS Premium - Panel V5.0 LTS (Anti-Share)
 # ==========================================
 
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_PURP='\033[1;35m'; C_NC='\033[0m'
@@ -8,77 +8,93 @@ mkdir -p /etc/vps-manager
 
 # FUNCIÓN: Inyectar datos al Banner del Usuario
 generar_banner_usuario() {
-    local u=$1; local exp=$2; local dias=$3
+    local u=$1; local exp=$2; local dias=$3; local limit=$4
     local base=$(cat /etc/issue.net 2>/dev/null)
     local banner_file="/etc/vps-manager/banner_${u}.net"
     
-    echo -e "${base}<br><font color='cyan'>=======================</font><br><font color='yellow'>👤 Usuario:</font> <font color='white'>${u}</font><br><font color='yellow'>📅 Expira:</font> <font color='white'>${exp} (${dias} Días)</font><br><font color='cyan'>=======================</font><br>" > "$banner_file"
+    echo -e "${base}<br><font color='cyan'>=======================</font><br><font color='yellow'>👤 Usuario:</font> <font color='white'>${u}</font><br><font color='yellow'>📅 Expira:</font> <font color='white'>${exp} (${dias} Días)</font><br><font color='yellow'>🔒 Límite:</font> <font color='white'>${limit} Conexiones</font><br><font color='cyan'>=======================</font><br>" > "$banner_file"
     
     sed -i "/Match User $u/d" /etc/ssh/sshd_config
     sed -i "/Banner \/etc\/vps-manager\/banner_${u}.net/d" /etc/ssh/sshd_config
     echo -e "\nMatch User $u\nBanner $banner_file" >> /etc/ssh/sshd_config
 }
 
-# FUNCIÓN: Actualizar los banners de TODOS los usuarios
-actualizar_todos_banners() {
-    for user in $(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd); do
-        exp_date=$(chage -l $user | grep "Account expires" | awk -F": " '{print $2}')
-        if [[ "$exp_date" != "never" && -n "$exp_date" ]]; then
-            exp_fmt=$(date -d "$exp_date" "+%Y-%m-%d" 2>/dev/null || echo "$exp_date")
-            sec_exp=$(date -d "$exp_date" +%s 2>/dev/null || echo 0)
-            sec_now=$(date +%s)
-            dias=$(( (sec_exp - sec_now) / 86400 ))
-            [ $dias -lt 0 ] && dias=0
-            generar_banner_usuario "$user" "$exp_fmt" "$dias"
-        fi
-    done
-    systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
-}
-
+# ==========================================
+# SUBMENÚ AVANZADO DE GESTIÓN SSH
+# ==========================================
 menu_ssh() {
     while true; do
-        clear; echo -e "${C_CYAN}╔══════════════════════════════════════════════╗${C_NC}"
-        echo -e "${C_CYAN}║${C_GREEN}             GESTOR DE SSH / DROPBEAR         ${C_CYAN}║${C_NC}"
+        clear
+        echo -e "${C_CYAN}╔══════════════════════════════════════════════╗${C_NC}"
+        echo -e "${C_CYAN}║${C_GREEN}         🛰️ GESTION DE SSH (USUARIOS)         ${C_CYAN}║${C_NC}"
         echo -e "${C_CYAN}╠══════════════════════════════════════════════╣${C_NC}"
-        echo -e "${C_YELLOW}  1)${C_NC} Crear nuevo usuario SSH"
-        echo -e "${C_YELLOW}  2)${C_NC} Eliminar usuario SSH"
-        echo -e "${C_YELLOW}  3)${C_NC} Renovar usuario SSH"
-        echo -e "${C_YELLOW}  4)${C_NC} Lista de conectados"
-        echo -e "${C_YELLOW}  5)${C_NC} Lista de usuarios y vencimiento"
-        echo -e "${C_YELLOW}  0)${C_NC} Volver"
-        echo -e "${C_CYAN}╚══════════════════════════════════════════════╝${C_NC}"; read -p "Opción: " opt
+        echo -e "  ${C_YELLOW}1${C_NC} ➔ Crear Cuenta SSH (Normal / HWID)"
+        echo -e "  ${C_YELLOW}2${C_NC} ➔ Eliminar Cuenta SSH"
+        echo -e "  ${C_YELLOW}3${C_NC} ➔ Renovar Cuenta SSH"
+        echo -e "  ${C_YELLOW}4${C_NC} ➔ Lista de Miembros y Vencimiento"
+        echo -e "  ${C_YELLOW}5${C_NC} ➔ Verificar Conectados en Vivo"
+        echo -e "  ${C_YELLOW}6${C_NC} ➔ Cambiar Límite de IPs (Cuenta SSH)"
+        echo -e "  ${C_YELLOW}7${C_NC} ➔ Bloquear Cuenta SSH"
+        echo -e "  ${C_YELLOW}8${C_NC} ➔ Desbloquear Cuenta SSH"
+        echo -e "  ${C_YELLOW}9${C_NC} ➔ AutoKill (Desconectar multi-logins)"
+        echo -e "${C_CYAN}╠══════════════════════════════════════════════╣${C_NC}"
+        echo -e "  ${C_RED}0${C_NC} ➔ Volver al Menú Principal"
+        echo -e "${C_CYAN}╚══════════════════════════════════════════════╝${C_NC}"
+        read -p "Seleccione una opción: " opt
+        
         case $opt in
             1) 
-                read -p "Usuario: " user; read -p "Contraseña: " pass; read -p "Días: " dias
+                clear
+                echo -e "${C_CYAN}================================================${C_NC}"
+                echo -e "${C_YELLOW}      CREAR USUARIO SSH / HWID PROTECTION       ${C_NC}"
+                echo -e "${C_CYAN}================================================${C_NC}"
+                echo -e "Selecciona tipo de creación:"
+                echo -e " [${C_GREEN}1${C_NC}] Cuenta SSH Normal (Todo-en-uno)"
+                echo -e " [${C_GREEN}2${C_NC}] Cuenta SSH HWID   (Protección Lock a 1 Celular)"
+                read -p "Opción: " tipo_creacion
+                
+                read -p "Usuario: " user; read -p "Contraseña: " pass; read -p "Días: " dias; read -p "Límite Conexiones: " limite
+                [ -z "$limite" ] && limite=1
+                
                 EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d")
                 useradd -e $EXP_DATE -s /bin/false -M $user; echo "$user:$pass" | chpasswd
                 
-                # Crear Banner único para este cliente
-                generar_banner_usuario "$user" "$EXP_DATE" "$dias"
+                # Guardar límite
+                echo "$limite" > "/etc/vps-manager/limite_${user}"
+                
+                if [ "$tipo_creacion" == "2" ]; then
+                    touch "/etc/vps-manager/hwid_${user}"
+                    HWID_MSG="✅ (Bloqueado al primer Login)"
+                else
+                    rm -f "/etc/vps-manager/hwid_${user}"
+                    HWID_MSG="❌ (Libre)"
+                fi
+
+                generar_banner_usuario "$user" "$EXP_DATE" "$dias" "$limite"
                 systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
 
                 IP_V=$(curl -s ipv4.icanhazip.com); DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
                 NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No config" ); PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub || echo "No instalada" )
                 
                 clear; echo -e "${C_CYAN}================================================${C_NC}\n${C_GREEN}        ✅ CUENTA CREADA EXITOSAMENTE ✅        ${C_NC}\n${C_CYAN}================================================${C_NC}"
-                echo -e " 👤 Usuario       : $user\n 🔑 Clave         : $pass\n 📅 Vence         : $EXP_DATE ($dias días)\n\n 🌐 Host/IP       : $DOM\n 🌐 Subdominio NS : $NS_DOM\n 🔐 Pub Key (DNS) : $PUB_KEY\n 🎯 Puertos       : 22, 80, 443, 53, 8080\n${C_CYAN}================================================${C_NC}"
+                echo -e " 👤 Usuario       : $user\n 🔑 Clave         : $pass\n 📅 Vence         : $EXP_DATE ($dias días)\n 🔒 Límite IPs    : $limite\n 🛡️ Protecc. HWID : $HWID_MSG\n\n 🌐 Host/IP       : $DOM\n 🌐 Subdominio NS : $NS_DOM\n 🔐 Pub Key (DNS) : $PUB_KEY\n 🎯 Puertos       : 22, 80, 443, 53, 8080\n${C_CYAN}================================================${C_NC}"
                 read -p "Copia los datos y presiona Enter..." ;;
             2) 
                 read -p "Usuario a eliminar: " user
                 userdel -f $user 2>/dev/null
-                rm -f /etc/vps-manager/banner_${user}.net
+                rm -f /etc/vps-manager/banner_${user}.net /etc/vps-manager/limite_${user} /etc/vps-manager/hwid_${user}
                 sed -i "/Match User $user/,+1d" /etc/ssh/sshd_config
                 systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
-                echo -e "${C_GREEN}[✔] Eliminado.${C_NC}"; sleep 2 ;;
+                echo -e "${C_GREEN}[✔] Usuario $user eliminado del sistema.${C_NC}"; sleep 2 ;;
             3) 
                 read -p "Usuario a renovar: " user; read -p "Nuevos días: " dias
                 EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d")
                 chage -E $EXP_DATE $user
-                generar_banner_usuario "$user" "$EXP_DATE" "$dias"
+                limite=$(cat /etc/vps-manager/limite_${user} 2>/dev/null || echo "1")
+                generar_banner_usuario "$user" "$EXP_DATE" "$dias" "$limite"
                 systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
-                echo -e "${C_GREEN}[✔] Renovado.${C_NC}"; sleep 2 ;;
-            4) echo -e "${C_YELLOW}Conectados:${C_NC}"; ps -ef | grep -E "sshd|dropbear" | grep -v root | grep -v grep | awk '{print $1}' | sort | uniq -c; read -p "Enter..." ;;
-            5) 
+                echo -e "${C_GREEN}[✔] Usuario $user renovado exitosamente.${C_NC}"; sleep 2 ;;
+            4) 
                 clear
                 echo -e "${C_CYAN}╔══════════════════════════════════════════════╗${C_NC}"
                 echo -e "${C_CYAN}║${C_GREEN}       📋 LISTA DE USUARIOS Y VENCIMIENTO     ${C_CYAN}║${C_NC}"
@@ -99,9 +115,42 @@ menu_ssh() {
                     fi
                 done
                 echo -e "${C_CYAN}────────────────────────────────────────────────${C_NC}"
-                read -p "Presione Enter para continuar..."
-                ;;
-            0) break ;; *) echo -e "${C_RED}[!] Inválido.${C_NC}"; sleep 1 ;;
+                read -p "Presione Enter para continuar..." ;;
+            5) 
+                clear
+                echo -e "${C_CYAN}================================================${C_NC}"
+                echo -e "${C_YELLOW}          VERIFICAR CONEXIONES EN VIVO          ${C_NC}"
+                echo -e "${C_CYAN}================================================${C_NC}"
+                ps -ef | grep -E "sshd|dropbear" | grep -v root | grep -v grep | awk '{print $1}' | sort | uniq -c | awk '{print " 👤 "$2" -> "$1" conexión(es) activa(s)"}'
+                echo -e "${C_CYAN}================================================${C_NC}"
+                read -p "Enter para regresar..." ;;
+            6) 
+                read -p "Usuario a modificar límite: " user
+                read -p "Nuevo Límite de IPs: " n_limite
+                echo "$n_limite" > "/etc/vps-manager/limite_${user}"
+                echo -e "${C_GREEN}[✔] Límite de $user actualizado a $n_limite.${C_NC}"; sleep 2 ;;
+            7) 
+                read -p "Usuario a Bloquear: " user
+                usermod -L $user; pkill -u $user
+                echo -e "${C_RED}[✔] Usuario $user BLOQUEADO y desconectado.${C_NC}"; sleep 2 ;;
+            8) 
+                read -p "Usuario a Desbloquear: " user
+                usermod -U $user
+                echo -e "${C_GREEN}[✔] Usuario $user DESBLOQUEADO.${C_NC}"; sleep 2 ;;
+            9) 
+                clear
+                echo -e "${C_YELLOW}[+] Ejecutando AutoKill (Buscando Multilogins)...${C_NC}"
+                for user in $(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd); do
+                    limite=$(cat /etc/vps-manager/limite_${user} 2>/dev/null || echo "999")
+                    conexiones=$(ps -ef | grep sshd | grep "$user" | grep -v root | grep -v grep | wc -l)
+                    if [ "$conexiones" -gt "$limite" ]; then
+                        echo -e "${C_RED} ➔ $user excedió el límite ($conexiones/$limite). Desconectando...${C_NC}"
+                        pkill -u "$user"
+                    fi
+                done
+                echo -e "${C_GREEN}[✔] AutoKill Finalizado.${C_NC}"; read -p "Enter..." ;;
+            0) break ;;
+            *) echo -e "${C_RED}[!] Inválida.${C_NC}"; sleep 1 ;;
         esac
     done
 }
@@ -152,14 +201,8 @@ menu_herramientas() {
                     2) echo -e "Escribe tu mensaje HTML: "; read -r TEXTO ;;
                     *) TEXTO="Bienvenido al servidor" ;;
                 esac
-                
-                # Guardar el global
                 echo "$TEXTO" > /etc/issue.net
-                
-                # ¡MAGIA! Actualiza todos los usuarios creados con el nuevo banner + sus datos de expiración
-                actualizar_todos_banners
-                
-                echo -e "${C_GREEN}[✔] Banner Global aplicado a TODOS los usuarios.${C_NC}"; read -p "Presione Enter..." 
+                echo -e "${C_GREEN}[✔] Banner Global guardado. Afectará a los próximos usuarios renovados/creados.${C_NC}"; read -p "Presione Enter..." 
                 ;;
             9) clear; echo -e "${C_YELLOW}[+] Optimizando RAM...${C_NC}"; sync; echo 3 > /proc/sys/vm/drop_caches; apt clean -y >/dev/null 2>&1; echo -e "${C_GREEN}[✔] Listo.${C_NC}"; read -p "Enter..." ;;
             0) break ;;
@@ -204,7 +247,7 @@ while true; do
     echo -e "${C_CYAN}║ ${C_GREEN}👥 Conectados :${C_NC} $CONECTADOS usuarios activos"
     echo -e "${C_CYAN}╠══════════════════════════════════════════════╣${C_NC}"
     echo -e "${C_PURP}  [ GESTIÓN DE CUENTAS Y PROTOCOLOS ]${C_NC}"
-    echo -e "  ${C_YELLOW}1.${C_NC} 👤 Menú SSH / Dropbear"
+    echo -e "  ${C_YELLOW}1.${C_NC} 👤 Gestión de SSH (Usuarios y HWID)"
     echo -e "  ${C_YELLOW}2.${C_NC} 🛡️ Menú Xray (VMess)"
     echo -e "  ${C_YELLOW}3.${C_NC} 🛡️ Menú Xray (VLESS)"
     echo -e "  ${C_YELLOW}4.${C_NC} 🛡️ Menú Xray (Trojan)"

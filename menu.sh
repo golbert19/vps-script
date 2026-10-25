@@ -6,7 +6,7 @@
 RED='\033[1;31m'; GREEN='\033[1;32m'; YELLOW='\033[1;33m'; CYAN='\033[1;36m'; NC='\033[0m'
 
 # ==========================================
-# 1. GESTOR SSH (Con detalles de cuenta)
+# 1. GESTOR SSH
 # ==========================================
 menu_ssh() {
     while true; do
@@ -29,7 +29,6 @@ menu_ssh() {
                 useradd -e $(date -d "+$dias days" +"%Y-%m-%d") -s /bin/false -M $user
                 echo "$user:$pass" | chpasswd
                 
-                # --- DETALLES DE LA CUENTA ---
                 IP_V=$(curl -s ipv4.icanhazip.com)
                 DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
                 EXP=$(date -d "+$dias days" +"%d/%m/%Y")
@@ -56,7 +55,7 @@ menu_ssh() {
 }
 
 # ==========================================
-# 2, 3, 4, 5. XRAY Y COMPROBAR
+# XRAY Y COMPROBAR
 # ==========================================
 menu_xray_proto() {
     PROTO=$1
@@ -82,7 +81,7 @@ menu_checkuser() {
 }
 
 # ==========================================
-# 6. OPENVPN (Ahora genera archivos base)
+# OPENVPN, OPTIMIZAR, BANNER
 # ==========================================
 menu_openvpn() {
     clear
@@ -90,58 +89,36 @@ menu_openvpn() {
     mkdir -p "$OVPN_DIR"
     IP_ACTUAL=$(curl -s --max-time 3 ipv4.icanhazip.com || hostname -I | awk '{print $1}')
     
-    # Generar archivos por defecto para que no salga la página en blanco
     if [ ! -f "$OVPN_DIR/cliente-tcp-1194.ovpn" ]; then
         echo -e "client\ndev tun\nproto tcp\nremote $IP_ACTUAL 1194\nresolv-retry infinite\nnobind\npersist-key\npersist-tun\nauth-user-pass\ncipher AES-256-CBC\nverb 3" > "$OVPN_DIR/cliente-tcp-1194.ovpn"
         echo -e "client\ndev tun\nproto udp\nremote $IP_ACTUAL 2200\nresolv-retry infinite\nnobind\npersist-key\npersist-tun\nauth-user-pass\ncipher AES-256-CBC\nverb 3" > "$OVPN_DIR/cliente-udp-2200.ovpn"
     fi
-
     if [ ! -f /etc/systemd/system/openvpn-web.service ]; then
         echo -e "${YELLOW}[!] Instalando servidor web de OpenVPN...${NC}"
         wget -qO /tmp/setup_openvpn.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/setup_openvpn.sh && chmod +x /tmp/setup_openvpn.sh && bash /tmp/setup_openvpn.sh
     else
         systemctl restart openvpn-web >/dev/null 2>&1
     fi
-    
     DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_ACTUAL" )
     echo -e "\n🔗 ${YELLOW}Enlace de perfiles (.ovpn):${NC} http://$DOM:2081\n"
     read -p "Presione Enter para continuar..."
 }
 
-# ==========================================
-# 13 y 14. OPTIMIZAR Y BANNER SSH
-# ==========================================
 menu_optimizar() {
-    clear; echo -e "${CYAN}================================================${NC}"
-    echo -e "${YELLOW}[+] Limpiando caché y optimizando RAM...${NC}"
-    sync; echo 3 > /proc/sys/vm/drop_caches
-    sysctl -w vm.drop_caches=3 > /dev/null 2>&1
-    apt clean -y; apt autoclean -y > /dev/null 2>&1
-    echo -e "${GREEN}[✔] Servidor optimizado exitosamente.${NC}"
-    echo -e "${CYAN}================================================${NC}"
-    read -p "Presione Enter..."
+    clear; echo -e "${CYAN}================================================${NC}"; echo -e "${YELLOW}[+] Limpiando caché y optimizando RAM...${NC}"
+    sync; echo 3 > /proc/sys/vm/drop_caches; sysctl -w vm.drop_caches=3 > /dev/null 2>&1; apt clean -y; apt autoclean -y > /dev/null 2>&1
+    echo -e "${GREEN}[✔] Servidor optimizado exitosamente.${NC}"; echo -e "${CYAN}================================================${NC}"; read -p "Presione Enter..."
 }
 
 menu_banner() {
-    clear; echo -e "${CYAN}================================================${NC}"
-    echo -e "${GREEN}             GESTOR DE BANNER SSH               ${NC}"
-    echo -e "${CYAN}================================================${NC}"
-    echo -e "${YELLOW}1) ${NC}Banner por Defecto (Recomendado)"
-    echo -e "${YELLOW}2) ${NC}Banner Personalizado HTML"
-    echo -e "${CYAN}================================================${NC}"
-    read -p "Opción: " opt_ban
+    clear; echo -e "${CYAN}================================================${NC}"; echo -e "${GREEN}             GESTOR DE BANNER SSH               ${NC}"; echo -e "${CYAN}================================================${NC}"
+    echo -e "${YELLOW}1) ${NC}Banner por Defecto\n${YELLOW}2) ${NC}Banner Personalizado HTML\n${CYAN}================================================${NC}"; read -p "Opción: " opt_ban
     case $opt_ban in
         1) TEXTO="<br><font color='cyan'><b>🌟 BIENVENIDO A GOLBERT VPS 🌟</b></font><br><font color='green'>Conexión Segura y Estable</font><br><font color='yellow'>Prohibido DDOS / Spam / Torrent</font><br>" ;;
-        2) echo -e "Escribe tu mensaje en HTML (Ej: <font color='red'>Hola</font>): "; read TEXTO ;;
+        2) echo -e "Escribe tu mensaje HTML: "; read TEXTO ;;
         *) TEXTO="Bienvenido al servidor" ;;
     esac
-
-    # Guardar banner de texto
-    echo "$TEXTO" > /etc/issue.net
-    sed -i 's/#Banner none/Banner \/etc\/issue.net/g' /etc/ssh/sshd_config
-    systemctl restart sshd
-
-    # Generar script de saludo dinámico (Muestra los días al entrar)
+    echo "$TEXTO" > /etc/issue.net; sed -i 's/#Banner none/Banner \/etc\/issue.net/g' /etc/ssh/sshd_config; systemctl restart sshd
     cat << 'EOF' > /etc/profile.d/vps_saludo.sh
 #!/bin/bash
 if [ -n "$SSH_CLIENT" ]; then
@@ -150,18 +127,50 @@ if [ -n "$SSH_CLIENT" ]; then
         EXP=$(chage -l $USER | grep "Account expires" | awk -F": " '{print $2}')
         echo -e "\033[1;36m========================================\033[0m"
         echo -e "\033[1;32m 👤 BIENVENIDO AL SERVIDOR: \033[1;37m$USER\033[0m"
-        if [[ "$EXP" != "never" ]]; then
-            echo -e "\033[1;33m ⏳ TU CUENTA EXPIRA EL: \033[1;37m$EXP\033[0m"
-        else
-            echo -e "\033[1;33m ⏳ TU CUENTA ES: \033[1;37mILIMITADA\033[0m"
-        fi
+        if [[ "$EXP" != "never" ]]; then echo -e "\033[1;33m ⏳ TU CUENTA EXPIRA EL: \033[1;37m$EXP\033[0m"
+        else echo -e "\033[1;33m ⏳ TU CUENTA ES: \033[1;37mILIMITADA\033[0m"; fi
         echo -e "\033[1;36m========================================\033[0m\n"
     fi
 fi
 EOF
     chmod +x /etc/profile.d/vps_saludo.sh
-    echo -e "${GREEN}[✔] Banner y Mensaje de Expiración configurados.${NC}"
-    read -p "Presione Enter..."
+    echo -e "${GREEN}[✔] Banner configurado.${NC}"; read -p "Presione Enter..."
+}
+
+# ==========================================
+# 15 y 16. ACTUALIZADOR Y AUTOINICIO
+# ==========================================
+menu_update() {
+    clear
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${YELLOW}[+] Buscando actualizaciones en GitHub...${NC}"
+    wget -qO /tmp/menu.sh "https://raw.githubusercontent.com/golbert19/vps-script/main/menu.sh"
+    
+    if [ -s /tmp/menu.sh ]; then
+        mv /tmp/menu.sh /usr/local/bin/menu
+        chmod +x /usr/local/bin/menu
+        echo -e "${GREEN}[✔] ¡Script actualizado con éxito!${NC}"
+        echo -e "${CYAN}================================================${NC}"
+        sleep 2
+        exec menu
+    else
+        echo -e "${RED}[!] Error al actualizar. Verifica el enlace.${NC}"
+        sleep 2
+    fi
+}
+
+menu_autostart() {
+    clear
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${YELLOW}[+] Configurando inicio automático del menú...${NC}"
+    if grep -q "menu" /root/.bashrc; then
+        echo -e "${GREEN}[✔] El menú YA ESTÁ configurado para abrirse automáticamente.${NC}"
+    else
+        echo -e "\nmenu" >> /root/.bashrc
+        echo -e "${GREEN}[✔] ¡Listo! El menú se abrirá automáticamente al loguearte.${NC}"
+    fi
+    echo -e "${CYAN}================================================${NC}"
+    read -p "Presione Enter para continuar..."
 }
 
 # ==========================================
@@ -186,10 +195,7 @@ menu_sshws() { clear; echo -e "${YELLOW}[+] Instalando SSHWS...${NC}"; wget -qO 
 menu_websocket() { clear; echo -e "${YELLOW}[+] Instalando Websocket...${NC}"; wget -qO /tmp/websocket.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/websocket.sh && chmod +x /tmp/websocket.sh && bash /tmp/websocket.sh; read -p "Enter..." ; }
 menu_slowdns() { clear; echo -e "${YELLOW}[+] Descargando SlowDNS...${NC}"; wget -qO /tmp/Slowdns.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/Slowdns.sh && chmod +x /tmp/Slowdns.sh && bash /tmp/Slowdns.sh; read -p "Enter..." ; }
 
-uninstall_script() {
-    echo -e "\n${RED}⚠️ ¿Desinstalar Golbert VPS? (s/n): ${NC}"; read -r conf
-    if [[ "$conf" == "s" || "$conf" == "S" ]]; then rm -rf /etc/vps-manager; rm -f /usr/local/bin/menu; echo -e "${GREEN}[✔] Script desinstalado.${NC}"; sleep 2; clear; exit 0; fi
-}
+uninstall_script() { echo -e "\n${RED}⚠️ ¿Desinstalar Golbert VPS? (s/n): ${NC}"; read -r conf; if [[ "$conf" == "s" || "$conf" == "S" ]]; then rm -rf /etc/vps-manager; rm -f /usr/local/bin/menu; echo -e "${GREEN}[✔] Script desinstalado.${NC}"; sleep 2; clear; exit 0; fi; }
 
 while true; do
     clear
@@ -223,6 +229,8 @@ while true; do
     echo -e "${GREEN}12)${NC}Instalar SlowDNS (DNSTT)"
     echo -e "${GREEN}13)${NC}Optimizar Servidor (Limpiar RAM)"
     echo -e "${GREEN}14)${NC}Configurar Banner SSH (Saludo)"
+    echo -e "${GREEN}15)${NC}Actualizar Script (Desde GitHub)"
+    echo -e "${GREEN}16)${NC}Auto-Inicio del Menú (Al Login)"
     echo -e "${GREEN}9) ${NC}Panel General VPS"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${RED}0) Salir del Panel${NC}"
@@ -233,6 +241,7 @@ while true; do
         1|01) menu_ssh ;; 2|02) menu_xray_proto "VMess" ;; 3|03) menu_xray_proto "VLESS" ;; 4|04) menu_xray_proto "Trojan" ;;
         5|05) menu_checkuser ;; 6|06) menu_openvpn ;; 7|07) menu_install_php ;; 8|08) menu_bbr ;;
         10) menu_sshws ;; 11) menu_websocket ;; 12) menu_slowdns ;; 13) menu_optimizar ;; 14) menu_banner ;;
+        15) menu_update ;; 16) menu_autostart ;;
         9|09) menu_panel_vps ;; 88) uninstall_script ;; x|X|0) clear; exit 0 ;;
         *) echo -e "\n${RED}[!] Opción inválida.${NC}"; sleep 1 ;;
     esac

@@ -17,12 +17,30 @@ DB_TROJAN="/etc/vps-manager/trojan.json"
 
 # ==========================================
 # --- FUNCIONES DE MÓDULOS ---
-# (Reemplaza los 'echo' con tus comandos reales, ej: bash /ruta/a/tu/script.sh)
 # ==========================================
 menu_ssh() { echo -e "\n${YELLOW}[!] Abriendo módulo SSH...${NC}"; sleep 1; }
 menu_xray_proto() { echo -e "\n${YELLOW}[!] Abriendo módulo $1...${NC}"; sleep 1; }
 menu_checkuser() { echo -e "\n${YELLOW}[!] Comprobando usuarios...${NC}"; sleep 1; }
 menu_panel_vps() { echo -e "\n${YELLOW}[!] Abriendo configuración del VPS...${NC}"; sleep 1; }
+
+# --- MÓDULO OPENVPN (WEB DE PERFILES .OVPN) ---
+menu_openvpn() {
+    clear
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${GREEN}             GESTIÓN DE OPENVPN                 ${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    
+    # Obtener IP o si hay un dominio configurado
+    IP_ACTUAL=$(curl -s --max-time 3 ipv4.icanhazip.com || hostname -I | awk '{print $1}')
+    
+    echo -e "🔗 ${YELLOW}Enlace de descarga de perfiles (.ovpn):${NC}"
+    echo -e "   ➡️  http://$IP_ACTUAL:2081"
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "Los usuarios pueden acceder a este enlace para"
+    echo -e "descargar sus archivos TCP, UDP, SSL y OHP."
+    echo -e "${CYAN}================================================${NC}"
+    read -p "Presione Enter para regresar al menú..."
+}
 
 # --- FUNCIÓN DE DESINSTALACIÓN ---
 uninstall_script() {
@@ -70,6 +88,7 @@ while true; do
     echo -e "${GREEN}3) ${NC}Menú Xray (VLESS)"
     echo -e "${GREEN}4) ${NC}Menú Xray (Trojan)"
     echo -e "${GREEN}5) ${NC}Comprobar Usuarios"
+    echo -e "${GREEN}6) ${NC}Menú OpenVPN (Web Perfiles)"
     echo -e "${GREEN}9) ${NC}Panel General VPS"
     echo -e "${CYAN}================================================${NC}"
     echo -e "${RED}88) Desinstalar Script${NC}"
@@ -84,6 +103,7 @@ while true; do
         3|03) menu_xray_proto "vless" "$DB_VLESS" ;;
         4|04) menu_xray_proto "trojan" "$DB_TROJAN" ;;
         5|05) menu_checkuser ;;
+        6|06) menu_openvpn ;;
         9|09) menu_panel_vps ;;
         88) uninstall_script ;;
         x|X|0) 

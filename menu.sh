@@ -38,6 +38,8 @@ menu_bbr() { clear; wget -qO /tmp/Bbr.sh https://raw.githubusercontent.com/golbe
 menu_slowdns() { clear; wget -qO /tmp/Slowdns.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/Slowdns.sh && chmod +x /tmp/Slowdns.sh && bash /tmp/Slowdns.sh; }
 menu_sshws() { clear; wget -qO /tmp/sshws.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/sshws.sh && chmod +x /tmp/sshws.sh && bash /tmp/sshws.sh; read -p "Enter..."; }
 menu_websocket() { clear; wget -qO /tmp/websocket.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/websocket.sh && chmod +x /tmp/websocket.sh && bash /tmp/websocket.sh; read -p "Enter..."; }
+menu_install_php() { clear; echo -e "${C_YELLOW}[+] Instalando PHP 8.5.12...${C_NC}"; curl -sSL "https://raw.githubusercontent.com/golbert19/php-8.5.12-vps/main/install.sh?t=$(date +%s)" | sed '59s/[()]//g' | bash; read -p "Enter..." ; }
+menu_bot() { clear; echo -e "${C_YELLOW}[+] Configurando Bot de Telegram...${C_NC}"; wget -qO /tmp/bot.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/bot.sh && chmod +x /tmp/bot.sh && bash /tmp/bot.sh; read -p "Enter..."; }
 menu_banner() { clear; echo -e "${C_CYAN}╔══════════════════════════════════════════════╗\n║${C_GREEN}             GESTOR DE BANNER SSH             ${C_CYAN}║\n╚══════════════════════════════════════════════╝${C_NC}\n${C_YELLOW}1)${C_NC} Defecto\n${C_YELLOW}2)${C_NC} HTML Personalizado\n"; read -p "Opción: " opt; case $opt in 1) TEXTO="<br><font color='cyan'><b>🌟 BIENVENIDO A GOLBERT VPS 🌟</b></font><br>" ;; 2) echo -e "Pega HTML: "; read -r TEXTO ;; *) TEXTO="Bienvenido" ;; esac; echo "$TEXTO" > /etc/issue.net; sed -i '/^Banner/d' /etc/ssh/sshd_config; echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config; systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null; [ -f /etc/default/dropbear ] && sed -i 's/DROPBEAR_BANNER=""/DROPBEAR_BANNER="\/etc\/issue.net"/g' /etc/default/dropbear && systemctl restart dropbear 2>/dev/null; echo -e "${C_GREEN}[✔] Banner configurado.${C_NC}"; read -p "Enter..."; }
 menu_optimizar() { clear; echo -e "${C_YELLOW}[+] Optimizando RAM...${C_NC}"; sync; echo 3 > /proc/sys/vm/drop_caches; apt clean -y >/dev/null 2>&1; echo -e "${C_GREEN}[✔] Listo.${C_NC}"; read -p "Enter..."; }
 menu_dominio() { clear; echo -e "${C_YELLOW}Ingrese su subdominio (Ej: vps.dominio.com)${C_NC}"; read -p "Subdominio: " ndom; echo "$ndom" > /etc/vps-manager/dominio; echo -e "\n${C_YELLOW}[+] Generando SSL Let's Encrypt...${C_NC}"; systemctl stop ws-python xray stunnel4 2>/dev/null; fuser -k 80/tcp 2>/dev/null; apt update -y && apt install -y certbot >/dev/null 2>&1; certbot certonly --standalone -d "$ndom" --non-interactive --agree-tos -m "admin@$ndom"; if [ -d "/etc/letsencrypt/live/$ndom" ]; then mkdir -p /etc/xray /etc/stunnel; cp /etc/letsencrypt/live/$ndom/fullchain.pem /etc/xray/server.crt; cp /etc/letsencrypt/live/$ndom/privkey.pem /etc/xray/server.key; cat /etc/xray/server.crt /etc/xray/server.key > /etc/stunnel/stunnel.pem; echo -e "${C_GREEN}[✔] SSL Instalado.${C_NC}"; else echo -e "${C_RED}[!] Error SSL.${C_NC}"; fi; systemctl start ws-python xray stunnel4 2>/dev/null; systemctl restart xray 2>/dev/null; systemctl restart stunnel4 2>/dev/null; sleep 3; }
@@ -77,14 +79,16 @@ while true; do
     echo -e "  ${C_YELLOW}9.${C_NC} 🛸 Instalar SlowDNS (DNSTT)"
     echo -e "  ${C_YELLOW}10.${C_NC}🔗 Instalar SSHWS (Proxy SSL)"
     echo -e "  ${C_YELLOW}11.${C_NC}🔗 Instalar Websocket"
-    echo -e "  ${C_YELLOW}12.${C_NC}🎨 Configurar Banner SSH"
-    echo -e "  ${C_YELLOW}13.${C_NC}🧹 Optimizar Servidor (Limpiar RAM)"
+    echo -e "  ${C_YELLOW}12.${C_NC}🐘 Instalador PHP 8.5.12"
+    echo -e "  ${C_YELLOW}13.${C_NC}🎨 Configurar Banner SSH"
+    echo -e "  ${C_YELLOW}14.${C_NC}🧹 Optimizar Servidor (Limpiar RAM)"
     echo -e "${C_CYAN}╠══════════════════════════════════════════════╣${C_NC}"
     echo -e "${C_PURP}  [ SISTEMA Y CONFIGURACIÓN ]${C_NC}"
-    echo -e "  ${C_YELLOW}14.${C_NC}⚙️ Configurar Subdominio VPS y SSL"
-    echo -e "  ${C_YELLOW}15.${C_NC}🔄 Actualizar Panel (Desde GitHub)"
-    echo -e "  ${C_YELLOW}16.${C_NC}🤖 Activar Auto-Inicio al Loguearse"
-    echo -e "  ${C_YELLOW}17.${C_NC}🖥️ Información Completa del Sistema"
+    echo -e "  ${C_YELLOW}15.${C_NC}⚙️ Configurar Subdominio VPS y SSL"
+    echo -e "  ${C_YELLOW}16.${C_NC}🤖 Vincular Bot de Telegram"
+    echo -e "  ${C_YELLOW}17.${C_NC}🔄 Actualizar Panel (Desde GitHub)"
+    echo -e "  ${C_YELLOW}18.${C_NC}🤖 Activar Auto-Inicio al Loguearse"
+    echo -e "  ${C_YELLOW}19.${C_NC}🖥️ Información Completa del Sistema"
     echo -e "${C_CYAN}╠══════════════════════════════════════════════╣${C_NC}"
     echo -e "  ${C_RED}88.${C_NC} ❌ Desinstalar Script   |   ${C_RED}0.${C_NC} 🚪 Salir"
     echo -e "${C_CYAN}╚══════════════════════════════════════════════╝${C_NC}"
@@ -94,7 +98,7 @@ while true; do
     case $opcion in
         1) menu_ssh ;; 2) menu_xray_proto "VMess" ;; 3) menu_xray_proto "VLESS" ;; 4) menu_xray_proto "Trojan" ;;
         5) menu_openvpn ;; 6) menu_checkuser ;; 7) menu_badvpn ;; 8) menu_bbr ;; 9) menu_slowdns ;; 10) menu_sshws ;;
-        11) menu_websocket ;; 12) menu_banner ;; 13) menu_optimizar ;; 14) menu_dominio ;; 15) menu_update ;;
-        16) menu_autostart ;; 17) menu_info ;; 88) uninstall_script ;; 0) clear; exit 0 ;; *) echo -e "\n${C_RED}[!] Opción inválida.${C_NC}"; sleep 1 ;;
+        11) menu_websocket ;; 12) menu_install_php ;; 13) menu_banner ;; 14) menu_optimizar ;; 15) menu_dominio ;;
+        16) menu_bot ;; 17) menu_update ;; 18) menu_autostart ;; 19) menu_info ;; 88) uninstall_script ;; 0) clear; exit 0 ;; *) echo -e "\n${C_RED}[!] Opción inválida.${C_NC}"; sleep 1 ;;
     esac
 done

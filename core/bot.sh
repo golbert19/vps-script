@@ -1,64 +1,64 @@
 #!/bin/bash
 # ==========================================
-# Módulo: Bot de Telegram (Aislado VENV - Auto ID)
+# Módulo: Bot de Telegram (Sistema Vendedores + V2Ray)
 # ==========================================
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 
 BOT_DIR="/etc/vps-manager/telegram_bot"
 mkdir -p "$BOT_DIR"
+touch "$BOT_DIR/resellers.txt"
 
 clear
 echo -e "${C_CYAN}================================================${C_NC}"
-echo -e "${C_GREEN}         CONFIGURACIÓN DE BOT DE TELEGRAM       ${C_NC}"
+echo -e "${C_GREEN}    CONFIGURACIÓN DE BOT (VENDEDORES Y V2RAY)   ${C_NC}"
 echo -e "${C_CYAN}================================================${C_NC}"
 
 if [ -f "$BOT_DIR/config.env" ]; then
-    echo -e "${C_YELLOW}[!] Ya hay un bot configurado actualmente.${C_NC}"
-    read -p "¿Deseas reconfigurarlo con nuevos datos? (s/n): " reconf
-    if [ "$reconf" == "s" ] || [ "$reconf" == "S" ]; then
+    echo -e "${C_YELLOW}[+] Bot ya configurado.${C_NC}"
+    read -p "¿Deseas reconfigurar Token y Admin ID? (s/n): " reconf
+    if [[ "$reconf" == "s" || "$reconf" == "S" ]]; then
         rm -f "$BOT_DIR/config.env"
     else
-        echo -e "${C_GREEN}Re-iniciando el bot actual...${C_NC}"
-        systemctl restart vps-bot
-        sleep 2
-        exit 0
+        echo -e "${C_GREEN}Actualizando el sistema del bot actual...${C_NC}"
     fi
 fi
 
-echo -e "\n1. Crea un bot en Telegram con ${C_YELLOW}@BotFather${C_NC} y copia su Token."
-echo -e "2. Si no sabes tu ID numérico exacto, pon cualquier número (ej: 123), envíale /start al bot en Telegram y él te dirá tu ID real para que reconfigures.\n"
+if [ ! -f "$BOT_DIR/config.env" ]; then
+    read -p "Ingresa el Token del Bot: " TELEGRAM_TOKEN
+    read -p "Ingresa tu Admin ID de Telegram: " ADMIN_ID
+    TELEGRAM_TOKEN=$(echo "$TELEGRAM_TOKEN" | tr -d ' ' | tr -d '"')
+    ADMIN_ID=$(echo "$ADMIN_ID" | tr -d ' ' | tr -d '"')
+    echo "TOKEN=\"$TELEGRAM_TOKEN\"" > "$BOT_DIR/config.env"
+    echo "ADMIN=\"$ADMIN_ID\"" >> "$BOT_DIR/config.env"
+fi
 
-read -p "Ingresa el Token del Bot: " TELEGRAM_TOKEN
-read -p "Ingresa tu Admin ID de Telegram: " ADMIN_ID
-
-# Limpiar espacios en blanco por seguridad
-TELEGRAM_TOKEN=$(echo "$TELEGRAM_TOKEN" | tr -d ' ' | tr -d '"')
-ADMIN_ID=$(echo "$ADMIN_ID" | tr -d ' ' | tr -d '"')
-
-echo "TOKEN=\"$TELEGRAM_TOKEN\"" > "$BOT_DIR/config.env"
-echo "ADMIN=\"$ADMIN_ID\"" >> "$BOT_DIR/config.env"
-
-echo -e "\n${C_YELLOW}[+] Instalando Entorno Virtual Python (Para Ubuntu 24.04)...${C_NC}"
-apt update -y && apt install -y python3 python3-venv python3-pip jq >/dev/null 2>&1
+apt update -y && apt install -y python3 python3-venv python3-pip jq uuid-runtime >/dev/null 2>&1
 
 cd "$BOT_DIR"
-rm -rf venv
-python3 -m venv venv
-source venv/bin/activate
-pip install pyTelegramBotAPI >/dev/null 2>&1
+if [ ! -d "venv" ]; then
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install pyTelegramBotAPI >/dev/null 2>&1
+fi
 
-# Crear el script principal de Python
+# ==========================================
+# SCRIPT DE PYTHON (EL CEREBRO DEL BOT)
+# ==========================================
 cat << 'EOF' > "$BOT_DIR/bot.py"
 import os
 import subprocess
 import telebot
 from telebot import types
 import time
+import uuid
 
-# Cargar configuraciones
+# Cargar configuración
+BOT_DIR = "/etc/vps-manager/telegram_bot"
+RESELLERS_FILE = os.path.join(BOT_DIR, "resellers.txt")
 TOKEN = ""
 ADMIN_ID = ""
-with open("/etc/vps-manager/telegram_bot/config.env", "r") as f:
+
+with open(os.path.join(BOT_DIR, "config.env"), "r") as f:
     for line in f:
         if line.startswith("TOKEN="):
             TOKEN = line.split("=")[1].strip().strip('"')
@@ -67,91 +67,198 @@ with open("/etc/vps-manager/telegram_bot/config.env", "r") as f:
 
 bot = telebot.TeleBot(TOKEN)
 
+# Funciones de Vendedores (Resellers)
+def load_resellers():
+    resellers = {}
+    if os.path.exists(RESELLERS_FILE):
+        with open(RESELLERS_FILE, "r") as f:
+            for line in f:
+                if ":" in line:
+                    uid, creds = line.strip().split(":")
+                    resellers[uid] = int(creds)
+    return resellers
+
+def save_resellers(resellers):
+    with open(RESELLERS_FILE, "w") as f:
+        for uid, creds in resellers.items():
+            f.write(f"{uid}:{creds}\n")
+
 def is_admin(user_id):
     return str(user_id) == str(ADMIN_ID)
 
+def is_reseller(user_id):
+    return str(user_id) in load_resellers()
+
+def get_credits(user_id):
+    return load_resellers().get(str(user_id), 0)
+
+def deduct_credit(user_id):
+    if is_admin(user_id): return True
+    resellers = load_resellers()
+    uid = str(user_id)
+    if uid in resellers and resellers[uid] > 0:
+        resellers[uid] -= 1
+        save_resellers(resellers)
+        return True
+    return False
+
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    if not is_admin(message.from_user.id):
-        bot.reply_to(message, f"⚠️ <b>No tienes autorización.</b>\n\nTu ID de Telegram real es: <code>{message.from_user.id}</code>\n\nCopia este número exacto, ve al menú de tu VPS (Opción 10) y reconfigura el bot pegando este ID.", parse_mode="HTML")
-        return
-    
-    markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    markup.add(types.KeyboardButton("👤 Crear SSH"), types.KeyboardButton("❌ Eliminar SSH"))
-    markup.add(types.KeyboardButton("📋 Lista SSH"), types.KeyboardButton("📊 Info Servidor"))
-    
-    bot.reply_to(message, "🤖 <b>Panel Bot Golbert VPS Activado</b>\nSelecciona una opción en el menú inferior:", parse_mode="HTML", reply_markup=markup)
+    uid = str(message.from_user.id)
+    if is_admin(uid):
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+        markup.add("👤 Crear SSH", "❌ Eliminar SSH")
+        markup.add("🛡️ Crear V2Ray (Xray)", "📋 Lista SSH")
+        markup.add("👥 Panel Vendedores", "📊 Info Servidor")
+        bot.reply_to(message, "👑 <b>Panel ADMIN VPS Activo</b>", parse_mode="HTML", reply_markup=markup)
+    elif is_reseller(uid):
+        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+        markup.add("👤 Crear SSH", "💰 Mis Créditos")
+        bot.reply_to(message, f"🤝 <b>Panel VENDEDOR Activo</b>\nCréditos Disponibles: {get_credits(uid)}", parse_mode="HTML", reply_markup=markup)
+    else:
+        bot.reply_to(message, f"⚠️ <b>Acceso Denegado.</b>\nNo estás registrado como vendedor.\nTu ID es: <code>{uid}</code>", parse_mode="HTML")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    if not is_admin(message.from_user.id):
+    uid = str(message.from_user.id)
+    if not (is_admin(uid) or is_reseller(uid)):
         return
 
     text = message.text
-    if text == "📊 Info Servidor":
-        ip = subprocess.getoutput("curl -s ipv4.icanhazip.com")
-        ram = subprocess.getoutput("free -m | awk 'NR==2{printf \"%s / %s MB\", $3,$2}'")
-        conectados = subprocess.getoutput("ps -ef | grep -E 'sshd|dropbear' | grep -v root | grep -v grep | wc -l")
-        msg = f"🌐 <b>IP:</b> {ip}\n⚡ <b>RAM:</b> {ram}\n👥 <b>Conectados:</b> {conectados}"
-        bot.reply_to(message, msg, parse_mode="HTML")
-        
+
+    # ==========================
+    # MENÚ ADMIN EXCLUSIVO
+    # ==========================
+    if is_admin(uid):
+        if text == "📊 Info Servidor":
+            ip = subprocess.getoutput("curl -s ipv4.icanhazip.com")
+            ram = subprocess.getoutput("free -m | awk 'NR==2{printf \"%s / %s MB\", $3,$2}'")
+            bot.reply_to(message, f"🌐 <b>IP:</b> {ip}\n⚡ <b>RAM:</b> {ram}", parse_mode="HTML")
+            return
+            
+        elif text == "❌ Eliminar SSH":
+            bot.reply_to(message, "Formato:\n<code>/deluser [usuario]</code>", parse_mode="HTML")
+            return
+            
+        elif text.startswith("/deluser"):
+            try:
+                user = text.split()[1]
+                subprocess.getoutput(f"userdel -f {user}")
+                subprocess.getoutput(f"rm -f /etc/vps-manager/banner_{user}.net")
+                subprocess.getoutput(f"sed -i '/Match User {user}/,+1d' /etc/ssh/sshd_config")
+                subprocess.getoutput("systemctl restart ssh")
+                bot.reply_to(message, f"✅ <b>{user}</b> eliminado.", parse_mode="HTML")
+            except:
+                bot.reply_to(message, "❌ Error.")
+            return
+
+        elif text == "👥 Panel Vendedores":
+            msg = "👥 <b>GESTIÓN DE REVENDEDORES</b>\n\n"
+            msg += "Añadir vendedor (Ej: 10 créditos):\n<code>/addvend ID_TELEGRAM 10</code>\n\n"
+            msg += "Eliminar vendedor:\n<code>/delvend ID_TELEGRAM</code>\n\n"
+            msg += "<b>Vendedores Actuales:</b>\n"
+            res = load_resellers()
+            for r_id, cred in res.items():
+                msg += f"ID: <code>{r_id}</code> - Créditos: {cred}\n"
+            bot.reply_to(message, msg, parse_mode="HTML")
+            return
+
+        elif text.startswith("/addvend"):
+            try:
+                parts = text.split()
+                r_id = parts[1]
+                creds = int(parts[2])
+                res = load_resellers()
+                res[r_id] = creds
+                save_resellers(res)
+                bot.reply_to(message, f"✅ Vendedor <code>{r_id}</code> agregado con {creds} créditos.", parse_mode="HTML")
+            except:
+                bot.reply_to(message, "❌ Formato: /addvend ID CREDITOS")
+            return
+
+        elif text.startswith("/delvend"):
+            try:
+                r_id = text.split()[1]
+                res = load_resellers()
+                if r_id in res:
+                    del res[r_id]
+                    save_resellers(res)
+                    bot.reply_to(message, f"✅ Vendedor eliminado.", parse_mode="HTML")
+            except:
+                pass
+            return
+            
+        elif text == "🛡️ Crear V2Ray (Xray)":
+            bot.reply_to(message, "Generador V2Ray (VMess):\n<code>/addvmess [usuario] [dias]</code>\nEjemplo: <code>/addvmess carlos 30</code>", parse_mode="HTML")
+            return
+            
+        elif text.startswith("/addvmess"):
+            try:
+                parts = text.split()
+                v_user = parts[1]
+                v_days = parts[2]
+                v_uuid = str(uuid.uuid4())
+                ip = subprocess.getoutput("curl -s ipv4.icanhazip.com")
+                dom = subprocess.getoutput("[ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo '" + ip + "'")
+                
+                # Formato Vmess Básico
+                vmess_json = f'{{"v":"2","ps":"{v_user}","add":"{dom}","port":"443","id":"{v_uuid}","aid":"0","scy":"auto","net":"ws","type":"none","host":"{dom}","path":"/vmess","tls":"tls","sni":"{dom}","alpn":""}}'
+                import base64
+                vmess_base64 = base64.b64encode(vmess_json.encode('utf-8')).decode('utf-8')
+                vmess_link = f"vmess://{vmess_base64}"
+                
+                msg = f"✅ <b>V2RAY VMESS CREADO</b> ✅\n\n👤 <b>Usuario:</b> {v_user}\n🔑 <b>UUID:</b> <code>{v_uuid}</code>\n📅 <b>Días:</b> {v_days}\n\n🔗 <b>Enlace Vmess:</b>\n<code>{vmess_link}</code>"
+                bot.reply_to(message, msg, parse_mode="HTML")
+            except Exception as e:
+                bot.reply_to(message, "❌ Error al generar V2Ray.")
+            return
+
+    # ==========================
+    # FUNCIONES GENERALES (Admin y Revendedor)
+    # ==========================
+    if text == "💰 Mis Créditos":
+        bot.reply_to(message, f"💰 <b>Créditos disponibles:</b> {get_credits(uid)}", parse_mode="HTML")
+        return
+
     elif text == "👤 Crear SSH":
-        bot.reply_to(message, "Envía el comando con este formato exacto:\n\n<code>/adduser [usuario] [clave] [dias]</code>\n\nEjemplo: <code>/adduser juan 1234 30</code>", parse_mode="HTML")
+        bot.reply_to(message, "Comando para crear:\n<code>/adduser [usuario] [clave] [dias]</code>", parse_mode="HTML")
+        return
         
     elif text.startswith("/adduser"):
+        if get_credits(uid) <= 0 and not is_admin(uid):
+            bot.reply_to(message, "❌ <b>No tienes créditos suficientes.</b> Contacta al administrador.", parse_mode="HTML")
+            return
+            
         try:
-            parts = message.text.split()
+            parts = text.split()
             user = parts[1]
             pwd = parts[2]
             days = parts[3]
             
             cmd = f"useradd -e $(date -d '+{days} days' +'%Y-%m-%d') -s /bin/false -M {user} && echo '{user}:{pwd}' | chpasswd"
-            subprocess.getoutput(cmd)
+            res_cmd = subprocess.getoutput(cmd)
             
+            if "already exists" in res_cmd:
+                bot.reply_to(message, "❌ El usuario ya existe.")
+                return
+
             ip = subprocess.getoutput("curl -s ipv4.icanhazip.com")
             dom = subprocess.getoutput("[ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo '" + ip + "'")
             exp_date = subprocess.getoutput(f"date -d '+{days} days' +'%Y-%m-%d'")
             
-            banner_cmd = f"cat /etc/issue.net > /etc/vps-manager/banner_{user}.net && echo \"<br><font color='cyan'>=======================</font><br><font color='yellow'>👤 Usuario:</font> <font color='white'>{user}</font><br><font color='yellow'>📅 Expira:</font> <font color='white'>{exp_date} ({days} Días)</font><br><font color='cyan'>=======================</font><br>\" >> /etc/vps-manager/banner_{user}.net && sed -i '/Match User {user}/d' /etc/ssh/sshd_config && sed -i '/Banner \\/etc\\/vps-manager\\/banner_{user}.net/d' /etc/ssh/sshd_config && echo -e '\\nMatch User {user}\\nBanner /etc/vps-manager/banner_{user}.net' >> /etc/ssh/sshd_config && systemctl restart ssh"
-            subprocess.getoutput(banner_cmd)
-
-            respuesta = f"✅ <b>CUENTA CREADA</b> ✅\n\n👤 <b>Usuario:</b> {user}\n🔑 <b>Clave:</b> {pwd}\n📅 <b>Expira:</b> {exp_date} ({days} días)\n🌐 <b>Host:</b> {dom}"
-            bot.reply_to(message, respuesta, parse_mode="HTML")
-        except Exception as e:
-            bot.reply_to(message, "❌ <b>Error.</b> Formato correcto:\n<code>/adduser usuario clave dias</code>", parse_mode="HTML")
-
-    elif text == "❌ Eliminar SSH":
-        bot.reply_to(message, "Envía el comando así:\n\n<code>/deluser [usuario]</code>", parse_mode="HTML")
-        
-    elif text.startswith("/deluser"):
-        try:
-            user = message.text.split()[1]
-            subprocess.getoutput(f"userdel -f {user}")
-            subprocess.getoutput(f"rm -f /etc/vps-manager/banner_{user}.net")
-            subprocess.getoutput(f"sed -i '/Match User {user}/,+1d' /etc/ssh/sshd_config")
-            subprocess.getoutput("systemctl restart ssh")
-            bot.reply_to(message, f"✅ Usuario <b>{user}</b> eliminado del sistema.", parse_mode="HTML")
-        except:
-            bot.reply_to(message, "❌ <b>Error.</b> Formato:\n<code>/deluser usuario</code>", parse_mode="HTML")
+            # Banner
+            subprocess.getoutput(f"cat /etc/issue.net > /etc/vps-manager/banner_{user}.net && echo \"<br><font color='cyan'>=======================</font><br><font color='yellow'>👤 Usuario:</font> <font color='white'>{user}</font><br><font color='yellow'>📅 Expira:</font> <font color='white'>{exp_date} ({days} Días)</font><br><font color='cyan'>=======================</font><br>\" >> /etc/vps-manager/banner_{user}.net && sed -i '/Match User {user}/d' /etc/ssh/sshd_config && echo -e '\\nMatch User {user}\\nBanner /etc/vps-manager/banner_{user}.net' >> /etc/ssh/sshd_config && systemctl restart ssh")
             
-    elif text == "📋 Lista SSH":
-        try:
-            output = subprocess.getoutput("awk -F: '$3 >= 1000 && $1 != \"nobody\" {print $1}' /etc/passwd")
-            users = output.split('\n')
-            msg = "📋 <b>USUARIOS ACTIVOS:</b>\n\n"
-            for u in users:
-                if u.strip():
-                    exp = subprocess.getoutput(f"chage -l {u} | grep 'Account expires' | awk -F': ' '{{print $2}}'")
-                    if "never" not in exp.lower() and exp.strip() != "":
-                        msg += f"👤 <b>{u}</b> - 📅 {exp}\n"
-                    else:
-                        msg += f"👤 <b>{u}</b> - 📅 Ilimitado\n"
-                        
-            if msg == "📋 <b>USUARIOS ACTIVOS:</b>\n\n":
-                msg = "No hay usuarios creados."
-            bot.reply_to(message, msg, parse_mode="HTML")
+            # Descontar crédito si es vendedor
+            deduct_credit(uid)
+            
+            respuesta = f"✅ <b>CUENTA CREADA</b> ✅\n\n👤 <b>Usuario:</b> {user}\n🔑 <b>Clave:</b> {pwd}\n📅 <b>Expira:</b> {exp_date} ({days} días)\n🌐 <b>Host:</b> {dom}\n\n"
+            if not is_admin(uid):
+                respuesta += f"💰 <i>Créditos restantes: {get_credits(uid)}</i>"
+                
+            bot.reply_to(message, respuesta, parse_mode="HTML")
         except:
-            bot.reply_to(message, "❌ Error al obtener lista.")
+            bot.reply_to(message, "❌ <b>Error.</b> Formato: /adduser usuario clave dias", parse_mode="HTML")
 
 if __name__ == "__main__":
     while True:

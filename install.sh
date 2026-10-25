@@ -31,7 +31,7 @@ fi
 echo -e "\033[1;32m[✔] Key autorizada. Preparando entorno del sistema...\033[0m"
 sleep 2
 
-# 1. Actualizar repositorios e instalar dependencias primero para evitar fallos de red/paquetes
+# 1. Actualizar repositorios e instalar dependencias del sistema
 apt update -y && apt upgrade -y
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
 echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
@@ -39,13 +39,15 @@ apt install -y python3 curl wget net-tools stunnel4 openssl jq iptables iptables
 
 echo -e "\033[1;32m[✔] Descargando componentes y módulos core...\033[0m"
 
-# 2. Descargar archivos base y core desde GitHub antes de ejecutarlos
+# 2. Descargar archivos base y core desde GitHub
 wget -O "$DIR/proxy.py" "$REPO_URL/core/proxy.py"
 wget -O "$DIR/limiter.sh" "$REPO_URL/core/limiter.sh"
+wget -O "$DIR/core/setup_dns.sh" "$REPO_URL/core/setup_dns.sh"
 wget -O /usr/local/bin/menu "$REPO_URL/menu.sh"
-chmod +x "$DIR/proxy.py" "$DIR/limiter.sh" /usr/local/bin/menu
 
-# 3. Llamado seguro a los módulos core externos ya con las dependencias instaladas
+chmod +x "$DIR/proxy.py" "$DIR/limiter.sh" "$DIR/core/setup_dns.sh" /usr/local/bin/menu
+
+# 3. Ejecutar módulos core externos (ZIVPN e Hysteria2)
 bash <(curl -s "${REPO_URL}/core/setup_zivpn.sh")
 bash <(curl -s "${REPO_URL}/core/setup_hysteria.sh")
 

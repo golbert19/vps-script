@@ -12,7 +12,8 @@ MEM_HIGH=$((RAM_MB * 60 / 100))
 MEM_MAX=$((RAM_MB * 80 / 100))
 
 check_status() {
-    if systemctl is-active --quiet hcr-server; then
+    # Verificación más robusta del estado del servicio
+    if systemctl is-active --quiet hcr-server || pgrep -f "hcr_bypass.py" > /dev/null; then
         ESTADO="${C_GREEN}ON${C_NC}"
     else
         ESTADO="${C_RED}OFF${C_NC}"
@@ -28,7 +29,7 @@ install_hcr_plain() {
     apt install -y python3 iptables curl >/dev/null 2>&1
     cd "$HCR_DIR"
     
-    # Intento de descarga segura (Máximo 5 segundos de espera para que NO se congele)
+    # Intento de descarga (Máximo 5 segundos de espera)
     curl -sL --max-time 5 -o hcr-server "https://raw.githubusercontent.com/ChumoGH/ScriptCGH/main/modulos/hcr-server" || echo ""
 
     if [ -s hcr-server ]; then
@@ -36,7 +37,8 @@ install_hcr_plain() {
         EXEC_CMD="$HCR_DIR/hcr-server -p 8880 -d 127.0.0.1:22"
     else
         echo -e "${C_YELLOW}Alerta: Servidor externo caído. Generando Motor HCR Local (Python)...${C_NC}"
-        # Generador de motor HCR Nativo en Python por si falla la descarga
+        
+        # Generador de motor HCR Nativo en Python
         cat << 'EOF' > "$HCR_DIR/hcr_bypass.py"
 import socket, threading
 
@@ -82,21 +84,26 @@ while True:
     threading.Thread(target=handle, args=(c,), daemon=True).start()
 EOF
         chmod +x "$HCR_DIR/hcr_bypass.py"
+        # Forzar ruta absoluta al ejecutable de Python3
         EXEC_CMD="/usr/bin/python3 $HCR_DIR/hcr_bypass.py"
     fi
 
+    # Abrir puerto en Iptables
     iptables -I INPUT -p tcp --dport 8880 -j ACCEPT
     iptables-save > /etc/iptables.up.rules 2>/dev/null
 
+    # Crear el servicio Systemd garantizando ejecución
     cat << EOF > /etc/systemd/system/hcr-server.service
 [Unit]
 Description=HCR Native Server Plain
 After=network.target
 
 [Service]
+Type=simple
 WorkingDirectory=$HCR_DIR
 ExecStart=$EXEC_CMD
 Restart=always
+RestartSec=3
 LimitNOFILE=65536
 MemoryHigh=${MEM_HIGH}M
 MemoryMax=${MEM_MAX}M

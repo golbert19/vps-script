@@ -13,17 +13,14 @@ echo -e "${C_CYAN}================================================${C_NC}"
 echo -e "${C_GREEN}    INSTALADOR BHTTP PRO (PUERTO 8080)          ${C_NC}"
 echo -e "${C_CYAN}================================================${C_NC}"
 
-echo -e "${C_YELLOW}[+] Instalando dependencias necesarias...${C_NC}"
 apt update -y >/dev/null 2>&1
 apt install -y python3 iptables net-tools psmisc ufw >/dev/null 2>&1
 
-# Detener servicios anteriores y liberar puerto 8080
 systemctl stop bhttp.service >/dev/null 2>&1
 fuser -k ${BHTTP_PORT}/tcp >/dev/null 2>&1
 
 mkdir -p "$BHTTP_DIR"
 
-echo -e "${C_YELLOW}[+] Creando núcleo BHTTP de alta compatibilidad...${C_NC}"
 cat << 'EOF' > "$BHTTP_DIR/bhttp_server.py"
 import socket
 import threading
@@ -42,22 +39,18 @@ def handle_client(client_sock):
         client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         client_sock.settimeout(10)
         
-        # Leer la cabecera enviada por UltraCustom / HTTP Custom
         request = client_sock.recv(BUFFER_SIZE)
         if not request:
             client_sock.close()
             return
 
-        # Conectar al servicio SSH local (Puerto 22)
         target_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         target_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         target_sock.connect((TARGET_HOST, TARGET_PORT))
 
-        # Si entra conexión directa SSH sin cabecera HTTP
         if request.startswith(b'SSH-'):
             target_sock.sendall(request)
         else:
-            # Responder a la app con 200 OK para aceptar el túnel BHTTP
             response = (
                 b"HTTP/1.1 200 OK\r\n"
                 b"Connection: keep-alive\r\n"
@@ -69,14 +62,12 @@ def handle_client(client_sock):
             except:
                 pass
 
-            # Si la app mandó datos de SSH junto con la petición HTTP, reenviarlos
             if b'SSH-' in request:
                 idx = request.find(b'SSH-')
                 target_sock.sendall(request[idx:])
 
         client_sock.settimeout(None)
         
-        # Puente de comunicación bidireccional
         sockets = [client_sock, target_sock]
         while True:
             r, _, e = select.select(sockets, [], sockets, 60)
@@ -90,18 +81,13 @@ def handle_client(client_sock):
                     target_sock.sendall(data)
                 else:
                     client_sock.sendall(data)
-
-    except Exception:
+    except:
         pass
     finally:
-        try:
-            client_sock.close()
-        except:
-            pass
-        try:
-            target_sock.close()
-        except:
-            pass
+        try: client_sock.close()
+        except: pass
+        try: target_sock.close()
+        except: pass
 
 def main():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -109,9 +95,7 @@ def main():
     try:
         server.bind((LISTEN_HOST, LISTEN_PORT))
         server.listen(1024)
-        print(f"BHTTP Pro activo en puerto {LISTEN_PORT}")
     except Exception as e:
-        print(f"Error al enlazar: {e}")
         sys.exit(1)
 
     while True:
@@ -119,8 +103,6 @@ def main():
             client_sock, _ = server.accept()
             t = threading.Thread(target=handle_client, args=(client_sock,), daemon=True)
             t.start()
-        except KeyboardInterrupt:
-            break
         except:
             continue
 
@@ -130,13 +112,11 @@ EOF
 
 chmod +x "$BHTTP_DIR/bhttp_server.py"
 
-# Reglas de red y cortafuegos para el puerto 8080
 iptables -D INPUT -p tcp --dport $BHTTP_PORT -j ACCEPT 2>/dev/null
 iptables -I INPUT -p tcp --dport $BHTTP_PORT -j ACCEPT
 iptables-save > /etc/iptables.up.rules 2>/dev/null
 ufw allow ${BHTTP_PORT}/tcp >/dev/null 2>&1
 
-echo -e "${C_YELLOW}[+] Creando servicio Systemd permanente...${C_NC}"
 cat << EOF > /etc/systemd/system/bhttp.service
 [Unit]
 Description=BHTTP Pro Proxy Service (Port $BHTTP_PORT)
@@ -159,12 +139,6 @@ systemctl daemon-reload
 systemctl enable bhttp.service >/dev/null 2>&1
 systemctl restart bhttp.service
 
-IP_VPS=$(curl -s ipv4.icanhazip.com)
 clear
 echo -e "${C_GREEN}[✔] ¡BHTTP Pro instalado y activo en el puerto $BHTTP_PORT!${C_NC}"
-echo -e "${C_CYAN}================================================${C_NC}"
-echo -e " 🌐 Host / IP    : $IP_VPS"
-echo -e " 🎯 Puerto BHTTP : $BHTTP_PORT"
-echo -e " ⚡ Estado       : Activo en verde (Python Engine)"
-echo -e "${C_CYAN}================================================${C_NC}"
-read -p "Presione Enter para regresar al menú..."
+read -p "Presione Enter para regresar..."

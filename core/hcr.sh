@@ -1,149 +1,76 @@
 #!/bin/bash
 # ==========================================
-# Gestor HCR Nativo (Manager PRO v1.5.2) - PYTHON NATIVO
+# Módulo: HCR Proxy Server (Oficial ePro / HTTP Custom)
 # ==========================================
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 HCR_DIR="/etc/vps-manager/hcr"
-mkdir -p "$HCR_DIR"
 
-VCPU=$(nproc)
-RAM_MB=$(free -m | awk 'NR==2{print $2}')
-MEM_HIGH=$((RAM_MB * 60 / 100))
-MEM_MAX=$((RAM_MB * 80 / 100))
+clear
+echo -e "${C_CYAN}================================================${C_NC}"
+echo -e "${C_GREEN}   INSTALADOR HCR PROXY (OFICIAL HTTP CUSTOM)   ${C_NC}"
+echo -e "${C_CYAN}================================================${C_NC}"
 
-check_status() {
-    if systemctl is-active --quiet hcr-server; then
-        ESTADO="${C_GREEN}ON${C_NC}"
-    else
-        ESTADO="${C_RED}OFF${C_NC}"
-    fi
-}
+read -p "Ingresa el puerto para HCR [Por defecto 8880]: " INPUT_PORT
+HCR_PORT=${INPUT_PORT:-8880}
 
-install_hcr_plain() {
-    clear
-    echo -e "${C_GREEN}Instalando HCR Plain en TCP 8880...${C_NC}"
-    
-    apt update -y >/dev/null 2>&1
-    apt install -y python3 iptables >/dev/null 2>&1
-    cd "$HCR_DIR"
-    
-    echo -e "${C_YELLOW}[+] Construyendo Motor HCR Local (Python)...${C_NC}"
-    
-    # Construcción 100% local, sin depender de descargas de GitHub
-    cat << 'EOF' > "$HCR_DIR/hcr_core.py"
-import socket, threading
+echo -e "${C_YELLOW}[+] Preparando entorno y deteniendo servicios conflictivos...${C_NC}"
+apt update -y >/dev/null 2>&1
+apt install -y wget iptables net-tools psmisc ufw >/dev/null 2>&1
 
-PORT = 8880
-SSH_PORT = 22
+systemctl stop hcr.service >/dev/null 2>&1
+fuser -k ${HCR_PORT}/tcp >/dev/null 2>&1
 
-def handle(client):
-    try:
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server.connect(('127.0.0.1', SSH_PORT))
-        
-        first_data = client.recv(8192)
-        if not first_data:
-            client.close()
-            return
-            
-        if b"HTTP/" in first_data or b"GET " in first_data or b"CONNECT " in first_data:
-            client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
-            if b"SSH-" in first_data:
-                server.sendall(first_data[first_data.find(b"SSH-"):])
-        else:
-            server.sendall(first_data)
-            
-        def forward(src, dst):
-            while True:
-                try:
-                    d = src.recv(8192)
-                    if not d: break
-                    dst.sendall(d)
-                except: break
+mkdir -p $HCR_DIR
+cd $HCR_DIR
+rm -f hcr
 
-        threading.Thread(target=forward, args=(client, server), daemon=True).start()
-        threading.Thread(target=forward, args=(server, client), daemon=True).start()
-    except:
-        client.close()
+echo -e "${C_YELLOW}[+] Descargando binario oficial HCR (HexPn / ePro Dev Team)...${C_NC}"
+# Intentamos primero desde la fuente de los desarrolladores originales (hexpn)
+wget -qO hcr "https://raw.githubusercontent.com/hexpn/hcr/main/hcr-linux-amd64"
+if [ ! -s "hcr" ]; then
+    # Repositorio espejo oficial de la comunidad para herramientas ePro
+    wget -qO hcr "https://raw.githubusercontent.com/rudi9999/ADMRufu/main/Plugins/hcr"
+fi
+chmod +x hcr
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-s.bind(('0.0.0.0', PORT))
-s.listen(1024)
-while True:
-    c, a = s.accept()
-    threading.Thread(target=handle, args=(c,), daemon=True).start()
-EOF
-    
-    chmod +x "$HCR_DIR/hcr_core.py"
+echo -e "${C_YELLOW}[+] Abriendo puerto $HCR_PORT en el Firewall...${C_NC}"
+iptables -D INPUT -p tcp --dport $HCR_PORT -j ACCEPT 2>/dev/null
+iptables -I INPUT -p tcp --dport $HCR_PORT -j ACCEPT
+iptables-save > /etc/iptables.up.rules 2>/dev/null
+ufw allow ${HCR_PORT}/tcp >/dev/null 2>&1
 
-    iptables -I INPUT -p tcp --dport 8880 -j ACCEPT
-    iptables-save > /etc/iptables.up.rules 2>/dev/null
-
-    # Servicio apuntando directamente a Python3
-    cat << EOF > /etc/systemd/system/hcr-server.service
+echo -e "${C_YELLOW}[+] Configurando servicio Systemd (Anti-Caídas)...${C_NC}"
+cat << EOF > /etc/systemd/system/hcr.service
 [Unit]
-Description=HCR Native Server Plain (Python)
-After=network.target
+Description=HCR Proxy Server by ePro Dev
+After=network.target ssh.service
 
 [Service]
 Type=simple
+User=root
 WorkingDirectory=$HCR_DIR
-ExecStart=/usr/bin/python3 $HCR_DIR/hcr_core.py
+# Ejecución oficial del binario enlazando al puerto deseado
+ExecStart=$HCR_DIR/hcr -p $HCR_PORT
 Restart=always
 RestartSec=3
-LimitNOFILE=65536
-MemoryHigh=${MEM_HIGH}M
-MemoryMax=${MEM_MAX}M
-TasksMax=2048
+LimitNOFILE=65535
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    systemctl daemon-reload
-    systemctl enable hcr-server >/dev/null 2>&1
-    systemctl restart hcr-server
-    
-    echo -e "${C_GREEN}[✔] ¡Motor HCR Plain Python (Puerto 8880) Instalado y Activo!${C_NC}"
-    read -p "Presione Enter para regresar..."
-}
+systemctl daemon-reload
+systemctl enable hcr.service >/dev/null 2>&1
+systemctl restart hcr.service
 
-while true; do
-    check_status
-    clear
-    echo -e "${C_YELLOW}======================================================${C_NC}"
-    echo -e "${C_CYAN}    GESTOR HCR NATIVO (MANAGER PRO v1.5.2)            ${C_NC}"
-    echo -e "${C_YELLOW}======================================================${C_NC}"
-    echo -e ""
-    echo -e "Estado Principal: $ESTADO"
-    echo -e "Configuración: ${C_CYAN}TCP | Frame | Poll${C_NC}"
-    echo -e "Puertos HCR adicionales:"
-    echo -e " - Ninguno"
-    echo -e "${C_CYAN}AUTO-TUNE: BALANCED+ | CPU $VCPU vCPU | RAM $RAM_MB MB${C_NC}"
-    echo -e "${C_GREEN}Recursos: NOFILE 65536 | Tasks 2048 | MemMax ${MEM_MAX}M${C_NC}"
-    echo -e ""
-    echo -e "${C_RED}──────────────────────────────────────────────────────${C_NC}"
-    echo -e "${C_GREEN}[1] > Instalación rápida HCR Plain :8880 [16384 / 8s]${C_NC}"
-    echo -e "[2] > Estado completo HCR"
-    echo -e "${C_CYAN}[3] > Reiniciar HCR principal${C_NC}"
-    echo -e "[4] > Ver registros HCR"
-    echo -e "${C_RED}[5] > Desinstalar HCR completo${C_NC}"
-    echo -e "${C_RED}[0] > Volver${C_NC}"
-    echo -e "${C_RED}──────────────────────────────────────────────────────${C_NC}"
-    
-    read -p "Opción: " hcr_opt
-    case $hcr_opt in
-        1) install_hcr_plain ;;
-        2) systemctl status hcr-server --no-pager; read -p "Enter..." ;;
-        3) systemctl restart hcr-server; echo -e "${C_GREEN}Reiniciado.${C_NC}"; sleep 1 ;;
-        4) journalctl -u hcr-server -n 20 --no-pager; read -p "Enter..." ;;
-        5) 
-           systemctl stop hcr-server; systemctl disable hcr-server
-           rm -f /etc/systemd/system/hcr-server.service
-           systemctl daemon-reload
-           echo -e "${C_RED}HCR Desinstalado.${C_NC}"; sleep 1 ;;
-        0) break ;;
-        *) echo -e "${C_RED}[!] Opción inválida.${C_NC}"; sleep 1 ;;
-    esac
-done
+IP_VPS=$(curl -s ipv4.icanhazip.com)
+DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_VPS" )
+
+clear
+echo -e "${C_GREEN}[✔] ¡Motor HCR Oficial instalado y operando con éxito!${C_NC}"
+echo -e "${C_CYAN}================================================${C_NC}"
+echo -e " 🌐 Host / IP  : ${C_YELLOW}$DOM${C_NC}"
+echo -e " 🎯 Puerto TCP : ${C_YELLOW}$HCR_PORT${C_NC}"
+echo -e " ⚡ Estado     : ${C_GREEN}Binario Nativo (ePro) Activo${C_NC}"
+echo -e "${C_CYAN}================================================${C_NC}"
+read -p "Presione Enter para regresar al menú..."

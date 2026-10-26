@@ -3,27 +3,12 @@
 # Golbert VPS Premium - Panel V5.0 LTS (Multi-Ubuntu: 22 / 24 / 26)
 # ==========================================
 
-C_RST='\033[0m'
-C_RED='\033[1;31m'
-C_GREEN='\033[1;32m'
-C_YELLOW='\033[1;33m'
-C_CYAN='\033[1;36m'
-C_NEON_BLUE='\033[38;5;39m'
-C_NEON_GREEN='\033[38;5;46m'
-C_NEON_PURPLE='\033[38;5;141m'
-C_NEON_YELLOW='\033[38;5;226m'
-
+C_RST='\033[0m'; C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'
+C_NEON_BLUE='\033[38;5;39m'; C_NEON_GREEN='\033[38;5;46m'; C_NEON_PURPLE='\033[38;5;141m'; C_NEON_YELLOW='\033[38;5;226m'
 mkdir -p /etc/vps-manager
 
-# Detección automática de la versión de Ubuntu
-if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    UBUNTU_VERSION=$VERSION_ID
-else
-    UBUNTU_VERSION="24.04"
-fi
+if [ -f /etc/os-release ]; then . /etc/os-release; UBUNTU_VERSION=$VERSION_ID; else UBUNTU_VERSION="24.04"; fi
 
-# FUNCIÓN: Inyectar datos al Banner del Usuario
 generar_banner_usuario() {
     local u=$1; local exp=$2; local dias=$3; local limit=$4
     local base=$(cat /etc/issue.net 2>/dev/null)
@@ -53,7 +38,6 @@ menu_ssh() {
         echo -e "  ${C_RED}0${C_RST} ➔ Volver al Menú Principal"
         echo -e "${C_NEON_BLUE}╚══════════════════════════════════════════════╝${C_RST}"
         read -p "Seleccione una opción: " opt
-        
         case $opt in
             1) 
                 clear; echo -e "${C_CYAN}================================================${C_RST}\n${C_YELLOW}      CREAR USUARIO SSH / HWID PROTECTION       ${C_RST}\n${C_CYAN}================================================${C_RST}"
@@ -118,7 +102,7 @@ menu_instaladores() {
         echo -e "  ${C_NEON_YELLOW}3.${C_RST} 🛡️ Menú Xray (Trojan)"
         echo -e "  ${C_NEON_YELLOW}4.${C_RST} 🌐 Instalar OpenVPN (Web Perfiles)"
         echo -e "  ${C_NEON_YELLOW}5.${C_RST} 🚀 Instalar HCR Nativo (Manager Pro)"
-        echo -e "  ${C_NEON_YELLOW}6.${C_RST} 🎮 Instalar UDP Custom (Puerto 2000)"
+        echo -e "  ${C_NEON_YELLOW}6.${C_RST} 🎮 Instalar UDP Custom (Puerto 25000)"
         echo -e "  ${C_NEON_YELLOW}7.${C_RST} 🛸 Instalar SlowDNS (DNSTT)"
         echo -e "  ${C_NEON_YELLOW}8.${C_RST} 🌐 Instalar BHTTP Proxy (Puerto 8080)"
         echo -e "  ${C_NEON_YELLOW}9.${C_RST} 🔗 Instalar SSHWS / Websocket"
@@ -165,10 +149,10 @@ menu_puertos() {
         fi
     done
     
-    if systemctl is-active --quiet udp-custom || ss -lnup 2>/dev/null | grep -q ":2000 "; then
-        echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}2000${C_RST} ➔ UDP Custom"
+    if systemctl is-active --quiet udp-custom || ss -lnup 2>/dev/null | grep -q ":25000 "; then
+        echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}25000${C_RST} ➔ UDP Custom"
     else
-        echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Puerto ${C_NEON_YELLOW}2000${C_RST} ➔ UDP Custom"
+        echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Puerto ${C_NEON_YELLOW}25000${C_RST} ➔ UDP Custom"
     fi
     
     echo -e "${C_NEON_BLUE}────────────────────────────────────────────────${C_RST}"

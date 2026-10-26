@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Golbert VPS Premium - Panel V5.0 LTS (Pro)
+# Golbert VPS Premium - Panel V5.0 LTS (Multi-Ubuntu: 22 / 24 / 26)
 # ==========================================
 
 C_RST='\033[0m'
@@ -15,6 +15,15 @@ C_NEON_YELLOW='\033[38;5;226m'
 
 mkdir -p /etc/vps-manager
 
+# Detección automática de la versión de Ubuntu
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    UBUNTU_VERSION=$VERSION_ID
+else
+    UBUNTU_VERSION="24.04"
+fi
+
+# FUNCIÓN: Inyectar datos al Banner del Usuario
 generar_banner_usuario() {
     local u=$1; local exp=$2; local dias=$3; local limit=$4
     local base=$(cat /etc/issue.net 2>/dev/null)
@@ -44,6 +53,7 @@ menu_ssh() {
         echo -e "  ${C_RED}0${C_RST} ➔ Volver al Menú Principal"
         echo -e "${C_NEON_BLUE}╚══════════════════════════════════════════════╝${C_RST}"
         read -p "Seleccione una opción: " opt
+        
         case $opt in
             1) 
                 clear; echo -e "${C_CYAN}================================================${C_RST}\n${C_YELLOW}      CREAR USUARIO SSH / HWID PROTECTION       ${C_RST}\n${C_CYAN}================================================${C_RST}"
@@ -56,9 +66,9 @@ menu_ssh() {
                 if [ "$tipo_creacion" == "2" ]; then touch "/etc/vps-manager/hwid_${user}"; HWID_MSG="✅ (Bloqueado al primer Login)"; else rm -f "/etc/vps-manager/hwid_${user}"; HWID_MSG="❌ (Libre)"; fi
                 generar_banner_usuario "$user" "$EXP_DATE" "$dias" "$limite"
                 systemctl restart ssh 2>/dev/null
-                IP_V=$(curl -s ipv4.icanhazip.com); DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" ); NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No config" ); PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub || echo "No instalada" )
+                IP_V=$(curl -s ipv4.icanhazip.com); DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
                 clear; echo -e "${C_CYAN}================================================${C_RST}\n${C_GREEN}        ✅ CUENTA CREADA EXITOSAMENTE ✅        ${C_RST}\n${C_CYAN}================================================${C_RST}"
-                echo -e " 👤 Usuario       : $user\n 🔑 Clave         : $pass\n 📅 Vence         : $EXP_DATE ($dias días)\n 🔒 Límite IPs    : $limite\n 🛡️ Protecc. HWID : $HWID_MSG\n\n 🌐 Host/IP       : $DOM\n 🌐 Subdominio NS : $NS_DOM\n 🔐 Pub Key (DNS) : $PUB_KEY\n 🎯 Puertos       : 22, 80, 443, 53, 2000, 8080, 8880\n${C_CYAN}================================================${C_RST}"; read -p "Copia los datos y presiona Enter..." ;;
+                echo -e " 👤 Usuario       : $user\n 🔑 Clave         : $pass\n 📅 Vence         : $EXP_DATE ($dias días)\n 🔒 Límite IPs    : $limite\n 🛡️ Protecc. HWID : $HWID_MSG\n 🌐 Host/IP       : $DOM\n${C_CYAN}================================================${C_RST}"; read -p "Presiona Enter..." ;;
             2) read -p "Usuario a eliminar: " user; userdel -f $user 2>/dev/null; rm -f /etc/vps-manager/banner_${user}.net /etc/vps-manager/limite_${user} /etc/vps-manager/hwid_${user}; sed -i "/Match User $user/,+1d" /etc/ssh/sshd_config; systemctl restart ssh 2>/dev/null; echo -e "${C_GREEN}[✔] Eliminado.${C_RST}"; sleep 2 ;;
             3) read -p "Usuario a renovar: " user; read -p "Nuevos días: " dias; EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d"); chage -E $EXP_DATE $user; limite=$(cat /etc/vps-manager/limite_${user} 2>/dev/null || echo "1"); generar_banner_usuario "$user" "$EXP_DATE" "$dias" "$limite"; systemctl restart ssh 2>/dev/null; echo -e "${C_GREEN}[✔] Renovado.${C_RST}"; sleep 2 ;;
             4) clear; echo -e "${C_CYAN}╔══════════════════════════════════════════════╗\n║${C_GREEN}       📋 LISTA DE USUARIOS Y VENCIMIENTO     ${C_CYAN}║\n╚══════════════════════════════════════════════╝${C_RST}"; printf "${C_YELLOW}%-15s %-15s %-15s${C_RST}\n" "USUARIO" "EXPIRA" "DÍAS RESTANTES"; echo -e "${C_CYAN}────────────────────────────────────────────────${C_RST}"; for user in $(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd); do exp_date=$(chage -l $user | grep "Account expires" | awk -F": " '{print $2}'); if [[ "$exp_date" != "never" && -n "$exp_date" ]]; then exp_fmt=$(date -d "$exp_date" "+%Y-%m-%d" 2>/dev/null); sec_exp=$(date -d "$exp_date" +%s 2>/dev/null); sec_now=$(date +%s); dias=$(( (sec_exp - sec_now) / 86400 )); [ $dias -lt 0 ] && dias=0; printf "%-15s %-15s %-15s\n" "$user" "$exp_fmt" "$dias Días"; else printf "%-15s %-15s %-15s\n" "$user" "Ilimitado" "∞"; fi; done; read -p "Enter..." ;;
@@ -68,7 +78,7 @@ menu_ssh() {
             8) read -p "Usuario a Desbloquear: " user; usermod -U $user; echo -e "${C_GREEN}[✔] DESBLOQUEADO.${C_RST}"; sleep 2 ;;
             9) clear; echo -e "${C_YELLOW}[+] AutoKill (Buscando Multilogins)...${C_RST}"; for user in $(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd); do limite=$(cat /etc/vps-manager/limite_${user} 2>/dev/null || echo "999"); conexiones=$(ps -ef | grep sshd | grep "$user" | grep -v root | grep -v grep | wc -l); if [ "$conexiones" -gt "$limite" ]; then echo -e "${C_RED} ➔ $user excedió el límite. Desconectando...${C_RST}"; pkill -u "$user"; fi; done; echo -e "${C_GREEN}[✔] Listo.${C_RST}"; read -p "Enter..." ;;
             0) break ;;
-            *) echo -e "${C_RED}[!] Inválida.${C_RST}"; sleep 1 ;;
+            *) sleep 1 ;;
         esac
     done
 }
@@ -88,7 +98,7 @@ menu_revendedores() {
         read -p "Opción: " ropt
         RES_FILE="/etc/vps-manager/telegram_bot/resellers.txt"
         case $ropt in
-            1) read -p "ID de Telegram del Revendedor: " r_id; read -p "Cantidad de Créditos: " r_cred; mkdir -p /etc/vps-manager/telegram_bot; touch $RES_FILE; sed -i "/^$r_id:/d" $RES_FILE; echo "$r_id:$r_cred" >> $RES_FILE; echo -e "${C_GREEN}[✔] Revendedor $r_id guardado con $r_cred créditos.${C_RST}"; sleep 2 ;;
+            1) read -p "ID de Telegram del Revendedor: " r_id; read -p "Cantidad de Créditos: " r_cred; mkdir -p /etc/vps-manager/telegram_bot; touch $RES_FILE; sed -i "/^$r_id:/d" $RES_FILE; echo "$r_id:$r_cred" >> $RES_FILE; echo -e "${C_GREEN}[✔] Revendedor guardado.${C_RST}"; sleep 2 ;;
             2) read -p "ID de Telegram a eliminar: " r_id; sed -i "/^$r_id:/d" $RES_FILE; echo -e "${C_RED}[✔] Revendedor eliminado.${C_RST}"; sleep 2 ;;
             3) clear; echo -e "${C_YELLOW}📋 LISTA DE REVENDEDORES:${C_RST}"; if [ -f "$RES_FILE" ]; then cat "$RES_FILE" | awk -F: '{print " 👤 ID: "$1" -> 💰 Créditos: "$2}'; else echo "No hay revendedores."; fi; read -p "Enter..." ;;
             0) break ;;
@@ -138,13 +148,11 @@ menu_instaladores() {
     done
 }
 
-menu_webpanel() { clear; echo -e "${C_YELLOW}[+] Descargando Instalador del Panel Web...${C_RST}"; wget -qO /tmp/webpanel.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/webpanel.sh && chmod +x /tmp/webpanel.sh && bash /tmp/webpanel.sh; }
+menu_webpanel() { clear; echo -e "${C_YELLOW}[+] Preparando Panel Web (Compatible Ubuntu 22/24/26)...${C_RST}"; wget -qO /tmp/webpanel.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/webpanel.sh && chmod +x /tmp/webpanel.sh && bash /tmp/webpanel.sh; }
 
 menu_puertos() { 
     clear
     echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗\n║${C_NEON_GREEN}         🔍 ESTADO DE PUERTOS Y SERVICIOS     ${C_NEON_BLUE}║\n╚══════════════════════════════════════════════╝${C_RST}"
-    
-    # Verificación de puertos estándar
     puertos=(22 80 443 53 1194 2081 2083 8080 8880 8181 7300 7200)
     nombres=("SSH (OpenSSH)" "HTTP / Xray WS" "SSL / VLESS / Trojan" "DNS (SlowDNS)" "OpenVPN TCP" "OpenVPN Web" "Trojan TLS" "BHTTP Custom" "HCR Proxy PRO" "Web Panel UI" "BadVPN (Game 7300)" "BadVPN (Game 7200)")
     
@@ -157,7 +165,6 @@ menu_puertos() {
         fi
     done
     
-    # Verificación específica para UDP Custom (Puerto 2000)
     if systemctl is-active --quiet udp-custom || ss -lnup 2>/dev/null | grep -q ":2000 "; then
         echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}2000${C_RST} ➔ UDP Custom"
     else
@@ -189,7 +196,7 @@ menu_info() {
     echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗${C_RST}"
     echo -e "${C_NEON_BLUE}║${C_NEON_GREEN}       🖥️ INFORMACIÓN TÉCNICA DEL VPS         ${C_NEON_BLUE}║${C_RST}"
     echo -e "${C_NEON_BLUE}╠══════════════════════════════════════════════╣${C_RST}"
-    echo -e "  ${C_NEON_YELLOW}💻 Sistema Operativo :${C_RST} $OS_NAME"
+    echo -e "  ${C_NEON_YELLOW}💻 Sistema Operativo :${C_RST} $OS_NAME (Ubuntu $UBUNTU_VERSION LTS)"
     echo -e "  ${C_NEON_YELLOW}⚙️ Arquitectura      :${C_RST} $ARCH ($KERNEL)"
     echo -e "  ${C_NEON_YELLOW}⏱️ Tiempo Encendido  :${C_RST} $UPTIME"
     echo -e "  ${C_NEON_YELLOW}🧠 Procesador (CPU)  :${C_RST} $CPU_MODEL"

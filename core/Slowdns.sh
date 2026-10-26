@@ -20,7 +20,7 @@ if [ -z "$NS_DOMAIN" ]; then
 fi
 echo "$NS_DOMAIN" > /etc/vps-manager/nsdomain
 
-echo -e "${C_YELLOW}[+] Instalando dependencias necesarias...${C_NC}"
+echo -e "${C_YELLOW}[+] Instalando dependencias y binario...${C_NC}"
 apt update -y >/dev/null 2>&1
 apt install -y wget iptables net-tools >/dev/null 2>&1
 
@@ -29,11 +29,18 @@ cd "$DNS_DIR"
 wget -qO dnstt-server "https://raw.githubusercontent.com/rudi9999/ADMRufu/main/Plugins/dnstt-server"
 chmod +x dnstt-server
 
-# 3. Generar Llaves Privadas y Públicas
+# 3. Generar Llaves Privadas y Públicas correctamente
 echo -e "${C_YELLOW}[+] Generando llaves criptográficas...${C_NC}"
-rm -f server.key server.pub
-./dnstt-server -gen key -privkey-file server.key -pubkey-file server.pub >/dev/null 2>&1
-PUB_KEY=$(cat server.pub)
+rm -f server.key server.pub keys.txt
+
+# Generar llaves y capturar la salida
+./dnstt-server -gen-key > keys.txt
+PRIV_KEY=$(grep "Private key:" keys.txt | awk '{print $3}')
+PUB_KEY=$(grep "Public key:" keys.txt | awk '{print $3}')
+
+# Guardar las llaves en sus archivos correspondientes
+echo "$PRIV_KEY" > server.key
+echo "$PUB_KEY" > server.pub
 
 # 4. Configurar reglas de Firewall y liberar puerto 53
 systemctl stop systemd-resolved >/dev/null 2>&1
@@ -56,8 +63,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=$DNS_DIR
-# El parámetro -local 127.0.0.1:22 es vital para que el SSH responda al Injector
-ExecStart=$DNS_DIR/dnstt-server -udp :53 -privkey-file server.key $NS_DOMAIN 127.0.0.1:22
+ExecStart=$DNS_DIR/dnstt-server -udp :53 -privkey-file $DNS_DIR/server.key $NS_DOMAIN 127.0.0.1:22
 Restart=always
 RestartSec=3
 

@@ -51,13 +51,11 @@ menu_ssh() {
                 generar_banner_usuario "$user" "$EXP_DATE" "$dias" "$limite"
                 systemctl restart ssh 2>/dev/null
                 
-                # Extracción de datos de conexión y actualización de Zivpn
                 IP_V=$(curl -s ipv4.icanhazip.com); DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
                 NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No configurado" )
                 PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub | tr -d '\r\n' || echo "No instalada" )
                 OPENVPN_LINK="http://$DOM:2081"
                 
-                # Inyectar la nueva clave al Zivpn dinámicamente
                 if [ -f /etc/zivpn/config.json ]; then
                     if ! grep -q "\"$pass\"" /etc/zivpn/config.json; then
                         sed -i -E "s/(\"config\": ?\[)/\1\"$pass\", /" /etc/zivpn/config.json
@@ -80,8 +78,7 @@ menu_ssh() {
                 echo -e " 🗝️ Pub Key (DNS) : ${C_YELLOW}$PUB_KEY${C_RST}"
                 echo -e " 🔗 OpenVPN       : ${C_YELLOW}$OPENVPN_LINK${C_RST}"
                 echo -e " ⚡ Zivpn Pass    : ${C_YELLOW}$ZIVPN_PASS${C_RST}"
-                echo -e " 🎯 Puertos       : ${C_YELLOW}SSH(22) SSL(443) UDP(25000)${C_RST}"
-                echo -e "                     ${C_YELLOW}Zivpn(6000-19999) DNSTT(53)${C_RST}"
+                echo -e " 🎯 Puertos       : ${C_YELLOW}SSH(22) SSL(443) BHTTP(8080)${C_RST}"
                 echo -e "${C_CYAN}================================================${C_RST}"; read -p "Copia los datos y presiona Enter..." ;;
             2) read -p "Usuario a eliminar: " user; userdel -f $user 2>/dev/null; rm -f /etc/vps-manager/banner_${user}.net /etc/vps-manager/limite_${user} /etc/vps-manager/hwid_${user}; sed -i "/Match User $user/,+1d" /etc/ssh/sshd_config; systemctl restart ssh 2>/dev/null; echo -e "${C_GREEN}[✔] Eliminado.${C_RST}"; sleep 2 ;;
             3) read -p "Usuario a renovar: " user; read -p "Nuevos días: " dias; EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d"); chage -E $EXP_DATE $user; limite=$(cat /etc/vps-manager/limite_${user} 2>/dev/null || echo "1"); generar_banner_usuario "$user" "$EXP_DATE" "$dias" "$limite"; systemctl restart ssh 2>/dev/null; echo -e "${C_GREEN}[✔] Renovado.${C_RST}"; sleep 2 ;;
@@ -164,30 +161,27 @@ menu_instaladores() {
     done
 }
 
-menu_webpanel() { clear; echo -e "${C_YELLOW}[+] Preparando Panel Web (Compatible Ubuntu 22/24/26)...${C_RST}"; wget -qO /tmp/webpanel.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/webpanel.sh && chmod +x /tmp/webpanel.sh && bash /tmp/webpanel.sh; }
+menu_webpanel() { clear; echo -e "${C_YELLOW}[+] Preparando Panel Web...${C_RST}"; wget -qO /tmp/webpanel.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/webpanel.sh && chmod +x /tmp/webpanel.sh && bash /tmp/webpanel.sh; }
 
 menu_puertos() { 
     clear
     echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗\n║${C_NEON_GREEN}         🔍 ESTADO DE PUERTOS Y SERVICIOS     ${C_NEON_BLUE}║\n╚══════════════════════════════════════════════╝${C_RST}"
-    puertos=(22 80 443 53 1194 2081 2083 8080 8880 8181 7300 7200)
-    nombres=("SSH (OpenSSH)" "HTTP / Xray WS" "SSL / VLESS / Trojan" "DNS (SlowDNS)" "OpenVPN TCP" "OpenVPN Web" "Trojan TLS" "BHTTP Custom" "HCR Proxy PRO" "Web Panel UI" "BadVPN (Game 7300)" "BadVPN (Game 7200)")
+    
+    puertos=(22 80 443 53 1194 2081 2083 8080 8880 8181 7300 7200 25000)
+    nombres=("SSH (OpenSSH)" "HTTP / Xray WS" "SSL / VLESS / Trojan" "DNS (SlowDNS)" "OpenVPN TCP" "OpenVPN Web" "Trojan TLS" "BHTTP Custom" "HCR Proxy PRO" "Web Panel UI" "BadVPN (Game 7300)" "BadVPN (Game 7200)" "UDP Custom")
     
     for i in "${!puertos[@]}"; do 
         p=${puertos[$i]}; n=${nombres[$i]}
-        if ss -lntp 2>/dev/null | grep -q ":$p " || ss -lnup 2>/dev/null | grep -q ":$p "; then 
+        # Validación inteligente por socket (TCP/UDP) sin importar el binario
+        if ss -lntp 2>/dev/null | grep -q ":$p " || ss -lnup 2>/dev/null | grep -q ":$p " || netstat -tuln 2>/dev/null | grep -q ":$p "; then 
             echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}$p${C_RST} ➔ $n"
         else 
             echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Puerto ${C_NEON_YELLOW}$p${C_RST} ➔ $n"
         fi
     done
-    
-    if systemctl is-active --quiet udp-custom || ss -lnup 2>/dev/null | grep -q ":25000 "; then
-        echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}25000${C_RST} ➔ UDP Custom"
-    else
-        echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Puerto ${C_NEON_YELLOW}25000${C_RST} ➔ UDP Custom"
-    fi
 
-    if systemctl is-active --quiet zivpn.service || ss -lnup 2>/dev/null | grep -q ":5667 "; then
+    # Verificación de Zivpn UDP (Rango 6000-19999)
+    if ss -lnup 2>/dev/null | grep -q ":5667 " || systemctl is-active --quiet zivpn.service; then
         echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}6000-19999${C_RST} ➔ Zivpn UDP"
     else
         echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Puerto ${C_NEON_YELLOW}6000-19999${C_RST} ➔ Zivpn UDP"

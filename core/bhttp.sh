@@ -1,57 +1,154 @@
 #!/bin/bash
 # ==========================================
-# Módulo: BHTTP Binario Oficial (Puerto 8080)
-# Compatible con UltraCustom / HTTP Custom (Modo BHTTP/Optimized)
+# Módulo: BHTTP Pro Proxy (Python Core - Puerto 8080)
 # ==========================================
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 
 BHTTP_DIR="/etc/vps-manager/bhttp"
 BHTTP_PORT=8080
+SSH_PORT=22
 
 clear
 echo -e "${C_CYAN}================================================${C_NC}"
-echo -e "${C_GREEN}   INSTALADOR BHTTP OFICIAL (PUERTO 8080)       ${C_NC}"
+echo -e "${C_GREEN}    INSTALADOR BHTTP PRO (PUERTO 8080)          ${C_NC}"
 echo -e "${C_CYAN}================================================${C_NC}"
 
-echo -e "${C_YELLOW}[+] Preparando entorno y liberando puerto $BHTTP_PORT...${C_NC}"
+echo -e "${C_YELLOW}[+] Instalando dependencias necesarias...${C_NC}"
 apt update -y >/dev/null 2>&1
-apt install -y wget iptables net-tools psmisc ufw >/dev/null 2>&1
+apt install -y python3 iptables net-tools psmisc ufw >/dev/null 2>&1
 
-# Detener cualquier servicio previo en el 8080
+# Detener servicios anteriores y liberar puerto 8080
 systemctl stop bhttp.service >/dev/null 2>&1
 fuser -k ${BHTTP_PORT}/tcp >/dev/null 2>&1
 
 mkdir -p "$BHTTP_DIR"
-cd "$BHTTP_DIR"
 
-echo -e "${C_YELLOW}[+] Descargando núcleo binario oficial de BHTTP...${C_NC}"
-# Descarga directa del binario compatible con UltraCustom / HTTP Custom BHTTP mode
-wget -qO bhttp-server "https://raw.githubusercontent.com/rudi9999/ADMRufu/main/Plugins/bhttp" 2>/dev/null
-if [ ! -s "bhttp-server" ]; then
-    wget -qO bhttp-server "https://raw.githubusercontent.com/AAAAAEX/Tunnel/main/bhttp" 2>/dev/null
-fi
+echo -e "${C_YELLOW}[+] Creando núcleo BHTTP de alta compatibilidad...${C_NC}"
+cat << 'EOF' > "$BHTTP_DIR/bhttp_server.py"
+import socket
+import threading
+import select
+import sys
 
-chmod +x bhttp-server
+LISTEN_HOST = '0.0.0.0'
+LISTEN_PORT = 8080
+TARGET_HOST = '127.0.0.1'
+TARGET_PORT = 22
+BUFFER_SIZE = 65535
 
-# Configurar reglas de red y Firewall
+def handle_client(client_sock):
+    target_sock = None
+    try:
+        client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        client_sock.settimeout(10)
+        
+        # Leer la cabecera enviada por UltraCustom / HTTP Custom
+        request = client_sock.recv(BUFFER_SIZE)
+        if not request:
+            client_sock.close()
+            return
+
+        # Conectar al servicio SSH local (Puerto 22)
+        target_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        target_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        target_sock.connect((TARGET_HOST, TARGET_PORT))
+
+        # Si entra conexión directa SSH sin cabecera HTTP
+        if request.startswith(b'SSH-'):
+            target_sock.sendall(request)
+        else:
+            # Responder a la app con 200 OK para aceptar el túnel BHTTP
+            response = (
+                b"HTTP/1.1 200 OK\r\n"
+                b"Connection: keep-alive\r\n"
+                b"Proxy-Connection: keep-alive\r\n"
+                b"Content-Length: 0\r\n\r\n"
+            )
+            try:
+                client_sock.sendall(response)
+            except:
+                pass
+
+            # Si la app mandó datos de SSH junto con la petición HTTP, reenviarlos
+            if b'SSH-' in request:
+                idx = request.find(b'SSH-')
+                target_sock.sendall(request[idx:])
+
+        client_sock.settimeout(None)
+        
+        # Puente de comunicación bidireccional
+        sockets = [client_sock, target_sock]
+        while True:
+            r, _, e = select.select(sockets, [], sockets, 60)
+            if e or not r:
+                break
+            for s in r:
+                data = s.recv(BUFFER_SIZE)
+                if not data:
+                    return
+                if s is client_sock:
+                    target_sock.sendall(data)
+                else:
+                    client_sock.sendall(data)
+
+    except Exception:
+        pass
+    finally:
+        try:
+            client_sock.close()
+        except:
+            pass
+        try:
+            target_sock.close()
+        except:
+            pass
+
+def main():
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        server.bind((LISTEN_HOST, LISTEN_PORT))
+        server.listen(1024)
+        print(f"BHTTP Pro activo en puerto {LISTEN_PORT}")
+    except Exception as e:
+        print(f"Error al enlazar: {e}")
+        sys.exit(1)
+
+    while True:
+        try:
+            client_sock, _ = server.accept()
+            t = threading.Thread(target=handle_client, args=(client_sock,), daemon=True)
+            t.start()
+        except KeyboardInterrupt:
+            break
+        except:
+            continue
+
+if __name__ == '__main__':
+    main()
+EOF
+
+chmod +x "$BHTTP_DIR/bhttp_server.py"
+
+# Reglas de red y cortafuegos para el puerto 8080
 iptables -D INPUT -p tcp --dport $BHTTP_PORT -j ACCEPT 2>/dev/null
 iptables -I INPUT -p tcp --dport $BHTTP_PORT -j ACCEPT
 iptables-save > /etc/iptables.up.rules 2>/dev/null
 ufw allow ${BHTTP_PORT}/tcp >/dev/null 2>&1
 
-echo -e "${C_YELLOW}[+] Configurando servicio Systemd para BHTTP...${C_NC}"
+echo -e "${C_YELLOW}[+] Creando servicio Systemd permanente...${C_NC}"
 cat << EOF > /etc/systemd/system/bhttp.service
 [Unit]
-Description=Official BHTTP Tunnel Service (Port $BHTTP_PORT)
+Description=BHTTP Pro Proxy Service (Port $BHTTP_PORT)
 After=network.target ssh.service
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=$BHTTP_DIR
-ExecStart=$BHTTP_DIR/bhttp-server -port $BHTTP_PORT
+ExecStart=/usr/bin/python3 $BHTTP_DIR/bhttp_server.py
 Restart=always
-RestartSec=3
+RestartSec=2
 LimitNOFILE=65535
 
 [Install]
@@ -63,13 +160,11 @@ systemctl enable bhttp.service >/dev/null 2>&1
 systemctl restart bhttp.service
 
 IP_VPS=$(curl -s ipv4.icanhazip.com)
-DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_VPS" )
-
 clear
-echo -e "${C_GREEN}[✔] ¡BHTTP Oficial instalado y activo en el puerto $BHTTP_PORT!${C_NC}"
+echo -e "${C_GREEN}[✔] ¡BHTTP Pro instalado y activo en el puerto $BHTTP_PORT!${C_NC}"
 echo -e "${C_CYAN}================================================${C_NC}"
-echo -e " 🌐 Host / IP    : ${C_YELLOW}$DOM${C_NC}"
-echo -e " 🎯 Puerto BHTTP : ${C_YELLOW}$BHTTP_PORT${C_NC}"
-echo -e " ⚡ Estado       : ${C_GREEN}Binario Nativo Activo (OK)${C_NC}"
+echo -e " 🌐 Host / IP    : $IP_VPS"
+echo -e " 🎯 Puerto BHTTP : $BHTTP_PORT"
+echo -e " ⚡ Estado       : Activo en verde (Python Engine)"
 echo -e "${C_CYAN}================================================${C_NC}"
 read -p "Presione Enter para regresar al menú..."

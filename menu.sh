@@ -51,15 +51,19 @@ menu_ssh() {
                 generar_banner_usuario "$user" "$EXP_DATE" "$dias" "$limite"
                 systemctl restart ssh 2>/dev/null
                 
-                # Extracción de datos de conexión (Mejorado)
+                # Extracción de datos de conexión y actualización de Zivpn
                 IP_V=$(curl -s ipv4.icanhazip.com); DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
                 NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No configurado" )
                 PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub | tr -d '\r\n' || echo "No instalada" )
                 OPENVPN_LINK="http://$DOM:2081"
                 
+                # Inyectar la nueva clave al Zivpn dinámicamente
                 if [ -f /etc/zivpn/config.json ]; then
-                    ZIVPN_PASS=$(grep '"config"' /etc/zivpn/config.json | awk -F'[' '{print $2}' | awk -F']' '{print $1}' | tr -d ' "')
-                    [ -z "$ZIVPN_PASS" ] && ZIVPN_PASS="zi"
+                    if ! grep -q "\"$pass\"" /etc/zivpn/config.json; then
+                        sed -i -E "s/(\"config\": ?\[)/\1\"$pass\", /" /etc/zivpn/config.json
+                        systemctl restart zivpn.service >/dev/null 2>&1
+                    fi
+                    ZIVPN_PASS="$pass"
                 else
                     ZIVPN_PASS="No instalado"
                 fi

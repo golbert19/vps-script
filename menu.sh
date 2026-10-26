@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Golbert VPS Premium - Panel V5.0 LTS (Multi-Ubuntu: 22 / 24 / 26)
+# Golbert VPS Premium - Panel V5.0 LTS (Multi-Ubuntu)
 # ==========================================
 
 C_RST='\033[0m'; C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'
@@ -109,6 +109,7 @@ menu_instaladores() {
         echo -e "  ${C_NEON_YELLOW}10.${C_RST}🎮 Instalar BadVPN (Puertos 7300 y 7200)"
         echo -e "  ${C_NEON_YELLOW}11.${C_RST}🐘 Instalador PHP 8.5.12"
         echo -e "  ${C_NEON_YELLOW}12.${C_RST}🚀 Instalar Acelerador BBR"
+        echo -e "  ${C_NEON_YELLOW}13.${C_RST}🛡️ Instalar Zivpn UDP (App Zivpn)"
         echo -e "${C_NEON_PURPLE}╠══════════════════════════════════════════════╣${C_RST}"
         echo -e "  ${C_RED}0.${C_RST} 🔙 Volver al Menú Principal"
         echo -e "${C_NEON_PURPLE}╚══════════════════════════════════════════════╝${C_RST}"
@@ -126,6 +127,7 @@ menu_instaladores() {
             10) clear; wget -qO /tmp/badvpn.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/badvpn.sh && chmod +x /tmp/badvpn.sh && bash /tmp/badvpn.sh ;;
             11) clear; curl -sSL "https://raw.githubusercontent.com/golbert19/php-8.5.12-vps/main/install.sh?t=$(date +%s)" | sed '59s/[()]//g' | bash; read -p "Enter..." ;;
             12) clear; wget -qO /tmp/Bbr.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/Bbr.sh && chmod +x /tmp/Bbr.sh && bash /tmp/Bbr.sh; read -p "Enter..." ;;
+            13) clear; wget -qO /tmp/zivpn.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/zivpn.sh && chmod +x /tmp/zivpn.sh && bash /tmp/zivpn.sh ;;
             0) break ;;
             *) sleep 1 ;;
         esac
@@ -153,6 +155,13 @@ menu_puertos() {
         echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}25000${C_RST} ➔ UDP Custom"
     else
         echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Puerto ${C_NEON_YELLOW}25000${C_RST} ➔ UDP Custom"
+    fi
+
+    # Verificación de Zivpn UDP (App Zivpn)
+    if systemctl is-active --quiet zivpn.service || ss -lnup 2>/dev/null | grep -q ":5667 "; then
+        echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}6000-19999${C_RST} ➔ Zivpn UDP"
+    else
+        echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Puerto ${C_NEON_YELLOW}6000-19999${C_RST} ➔ Zivpn UDP"
     fi
     
     echo -e "${C_NEON_BLUE}────────────────────────────────────────────────${C_RST}"

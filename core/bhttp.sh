@@ -1,6 +1,7 @@
 #!/bin/bash
 # ==========================================
-# Módulo: BHTTP Pro Proxy (Python Core - Puerto 8080)
+# Módulo: BHTTP Proxy Server (Compilación Nativa en Go)
+# Usa la librería oficial github.com/openpcc/bhttp
 # ==========================================
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 
@@ -10,125 +11,116 @@ SSH_PORT=22
 
 clear
 echo -e "${C_CYAN}================================================${C_NC}"
-echo -e "${C_GREEN}    INSTALADOR BHTTP PRO (PUERTO 8080)          ${C_NC}"
+echo -e "${C_GREEN}   INSTALADOR BHTTP GOLANG (PUERTO 8080)        ${C_NC}"
 echo -e "${C_CYAN}================================================${C_NC}"
 
+echo -e "${C_YELLOW}[+] Instalando Golang y dependencias de red...${C_NC}"
 apt update -y >/dev/null 2>&1
-apt install -y python3 iptables net-tools psmisc ufw >/dev/null 2>&1
+apt install -y golang iptables net-tools psmisc ufw >/dev/null 2>&1
 
+echo -e "${C_YELLOW}[+] Deteniendo servicios conflictivos...${C_NC}"
 systemctl stop bhttp.service >/dev/null 2>&1
 fuser -k ${BHTTP_PORT}/tcp >/dev/null 2>&1
 
 mkdir -p "$BHTTP_DIR"
+cd "$BHTTP_DIR"
 
-cat << 'EOF' > "$BHTTP_DIR/bhttp_server.py"
-import socket
-import threading
-import select
-import sys
+echo -e "${C_YELLOW}[+] Inicializando entorno Go y descargando librería BHTTP...${C_NC}"
+rm -f go.mod go.sum bhttp-server main.go
+go mod init bhttp-server >/dev/null 2>&1
+go get github.com/openpcc/bhttp >/dev/null 2>&1
 
-LISTEN_HOST = '0.0.0.0'
-LISTEN_PORT = 8080
-TARGET_HOST = '127.0.0.1'
-TARGET_PORT = 22
-BUFFER_SIZE = 65535
+echo -e "${C_YELLOW}[+] Escribiendo código fuente del servidor proxy...${C_NC}"
+cat << 'EOF' > main.go
+package main
 
-def handle_client(client_sock):
-    target_sock = None
-    try:
-        client_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        client_sock.settimeout(10)
-        
-        request = client_sock.recv(BUFFER_SIZE)
-        if not request:
-            client_sock.close()
-            return
+import (
+	"context"
+	"io"
+	"log"
+	"net"
+	"net/http"
 
-        target_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        target_sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        target_sock.connect((TARGET_HOST, TARGET_PORT))
+	"github.com/openpcc/bhttp"
+)
 
-        if request.startswith(b'SSH-'):
-            target_sock.sendall(request)
-        else:
-            response = (
-                b"HTTP/1.1 200 OK\r\n"
-                b"Connection: keep-alive\r\n"
-                b"Proxy-Connection: keep-alive\r\n"
-                b"Content-Length: 0\r\n\r\n"
-            )
-            try:
-                client_sock.sendall(response)
-            except:
-                pass
+func main() {
+	listener, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		log.Fatal("Error al iniciar puerto 8080:", err)
+	}
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			continue
+		}
+		go handleConnection(conn)
+	}
+}
 
-            if b'SSH-' in request:
-                idx = request.find(b'SSH-')
-                target_sock.sendall(request[idx:])
+func handleConnection(conn net.Conn) {
+	defer conn.Close()
+	
+	// Decodificación de la solicitud BHTTP del cliente VPN
+	decoder := &bhttp.RequestDecoder{}
+	req, err := decoder.DecodeRequest(context.Background(), conn)
+	if err != nil {
+		return
+	}
 
-        client_sock.settimeout(None)
-        
-        sockets = [client_sock, target_sock]
-        while True:
-            r, _, e = select.select(sockets, [], sockets, 60)
-            if e or not r:
-                break
-            for s in r:
-                data = s.recv(BUFFER_SIZE)
-                if not data:
-                    return
-                if s is client_sock:
-                    target_sock.sendall(data)
-                else:
-                    client_sock.sendall(data)
-    except:
-        pass
-    finally:
-        try: client_sock.close()
-        except: pass
-        try: target_sock.close()
-        except: pass
+	// Conectar internamente al puerto SSH
+	sshConn, err := net.Dial("tcp", "127.0.0.1:22")
+	if err != nil {
+		return
+	}
+	defer sshConn.Close()
 
-def main():
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    try:
-        server.bind((LISTEN_HOST, LISTEN_PORT))
-        server.listen(1024)
-    except Exception as e:
-        sys.exit(1)
+	// 1. Redirigir el cuerpo de la petición BHTTP hacia el servidor SSH
+	go io.Copy(sshConn, req.Body)
 
-    while True:
-        try:
-            client_sock, _ = server.accept()
-            t = threading.Thread(target=handle_client, args=(client_sock,), daemon=True)
-            t.start()
-        except:
-            continue
+	// 2. Preparar la respuesta BHTTP (Longitud indeterminada para streaming)
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		Header:     make(http.Header),
+		Body:       sshConn, // El output de SSH se envía como cuerpo de la respuesta
+	}
+	
+	encoder := &bhttp.ResponseEncoder{}
+	msg, err := encoder.EncodeResponse(resp)
+	if err != nil {
+		return
+	}
 
-if __name__ == '__main__':
-    main()
+	// Enviar respuesta BHTTP en streaming de vuelta al cliente
+	io.Copy(conn, msg)
+}
 EOF
 
-chmod +x "$BHTTP_DIR/bhttp_server.py"
+echo -e "${C_YELLOW}[+] Compilando binario nativo (Esto tomará unos segundos)...${C_NC}"
+go build -o bhttp-server main.go
 
+# Reglas de Firewall para asegurar el puerto 8080
 iptables -D INPUT -p tcp --dport $BHTTP_PORT -j ACCEPT 2>/dev/null
 iptables -I INPUT -p tcp --dport $BHTTP_PORT -j ACCEPT
 iptables-save > /etc/iptables.up.rules 2>/dev/null
 ufw allow ${BHTTP_PORT}/tcp >/dev/null 2>&1
 
+echo -e "${C_YELLOW}[+] Creando servicio Systemd...${C_NC}"
 cat << EOF > /etc/systemd/system/bhttp.service
 [Unit]
-Description=BHTTP Pro Proxy Service (Port $BHTTP_PORT)
+Description=Golbert BHTTP Native Server (Port $BHTTP_PORT)
 After=network.target ssh.service
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=$BHTTP_DIR
-ExecStart=/usr/bin/python3 $BHTTP_DIR/bhttp_server.py
+ExecStart=$BHTTP_DIR/bhttp-server
 Restart=always
-RestartSec=2
+RestartSec=3
 LimitNOFILE=65535
 
 [Install]
@@ -139,6 +131,14 @@ systemctl daemon-reload
 systemctl enable bhttp.service >/dev/null 2>&1
 systemctl restart bhttp.service
 
+IP_VPS=$(curl -s ipv4.icanhazip.com)
+DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_VPS" )
+
 clear
-echo -e "${C_GREEN}[✔] ¡BHTTP Pro instalado y activo en el puerto $BHTTP_PORT!${C_NC}"
-read -p "Presione Enter para regresar..."
+echo -e "${C_GREEN}[✔] ¡Proxy BHTTP Nativo compilado y activo con éxito!${C_NC}"
+echo -e "${C_CYAN}================================================${C_NC}"
+echo -e " 🌐 Host / IP  : ${C_YELLOW}$DOM${C_NC}"
+echo -e " 🎯 Puerto     : ${C_YELLOW}$BHTTP_PORT${C_NC}"
+echo -e " ⚙️ Motor      : ${C_YELLOW}Golang (github.com/openpcc/bhttp)${C_NC}"
+echo -e "${C_CYAN}================================================${C_NC}"
+read -p "Presione Enter para regresar al menú..."

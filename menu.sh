@@ -137,6 +137,7 @@ menu_instaladores() {
         echo -e "  ${C_NEON_YELLOW}11.${C_RST}🐘 Instalador PHP 8.5.12"
         echo -e "  ${C_NEON_YELLOW}12.${C_RST}🚀 Instalar Acelerador BBR"
         echo -e "  ${C_NEON_YELLOW}13.${C_RST}🛡️ Instalar Zivpn UDP (App Zivpn)"
+        echo -e "  ${C_NEON_YELLOW}14.${C_RST}⚡ Instalar Hysteria v1 (QUIC Proxy)"
         echo -e "${C_NEON_PURPLE}╠══════════════════════════════════════════════╣${C_RST}"
         echo -e "  ${C_RED}0.${C_RST} 🔙 Volver al Menú Principal"
         echo -e "${C_NEON_PURPLE}╚══════════════════════════════════════════════╝${C_RST}"
@@ -155,6 +156,7 @@ menu_instaladores() {
             11) clear; curl -sSL "https://raw.githubusercontent.com/golbert19/php-8.5.12-vps/main/install.sh?t=$(date +%s)" | sed '59s/[()]//g' | bash; read -p "Enter..." ;;
             12) clear; wget -qO /tmp/Bbr.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/Bbr.sh && chmod +x /tmp/Bbr.sh && bash /tmp/Bbr.sh; read -p "Enter..." ;;
             13) clear; wget -qO /tmp/zivpn.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/zivpn.sh && chmod +x /tmp/zivpn.sh && bash /tmp/zivpn.sh ;;
+            14) clear; wget -qO /tmp/hysteria.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/hysteria.sh && chmod +x /tmp/hysteria.sh && bash /tmp/hysteria.sh ;;
             0) break ;;
             *) sleep 1 ;;
         esac
@@ -172,7 +174,6 @@ menu_puertos() {
     
     for i in "${!puertos[@]}"; do 
         p=${puertos[$i]}; n=${nombres[$i]}
-        # Validación inteligente por socket (TCP/UDP) sin importar el binario
         if ss -lntp 2>/dev/null | grep -q ":$p " || ss -lnup 2>/dev/null | grep -q ":$p " || netstat -tuln 2>/dev/null | grep -q ":$p "; then 
             echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}$p${C_RST} ➔ $n"
         else 
@@ -180,11 +181,17 @@ menu_puertos() {
         fi
     done
 
-    # Verificación de Zivpn UDP (Rango 6000-19999)
     if ss -lnup 2>/dev/null | grep -q ":5667 " || systemctl is-active --quiet zivpn.service; then
         echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}6000-19999${C_RST} ➔ Zivpn UDP"
     else
         echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Puerto ${C_NEON_YELLOW}6000-19999${C_RST} ➔ Zivpn UDP"
+    fi
+
+    # Verificación de Hysteria v1
+    if systemctl is-active --quiet hysteria.service || ss -lnup 2>/dev/null | grep -q "hysteria"; then
+        echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Hysteria v1   ➔ Hysteria QUIC"
+    else
+        echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Hysteria v1   ➔ Hysteria QUIC"
     fi
     
     echo -e "${C_NEON_BLUE}────────────────────────────────────────────────${C_RST}"

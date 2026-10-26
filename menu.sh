@@ -125,7 +125,6 @@ menu_revendedores() {
     done
 }
 
-# AQUÍ ESTÁN TODOS LOS INSTALADORES AGRUPADOS (OPCIÓN 3 DEL MENÚ PRINCIPAL)
 menu_instaladores() {
     while true; do
         clear
@@ -179,7 +178,6 @@ menu_puertos() {
     clear
     echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗\n║${C_NEON_GREEN}         🔍 ESTADO DE PUERTOS Y SERVICIOS     ${C_NEON_BLUE}║\n╚══════════════════════════════════════════════╝${C_RST}"
     
-    # Lectura de Puertos Dinámicos instalados en la Opción 3
     PORT_BHTTP=$(cat /etc/vps-manager/bhttp_port 2>/dev/null || echo "8080")
     PORT_HCR=$(cat /etc/vps-manager/hcr_port 2>/dev/null || echo "8880")
     PORT_SSL=$(cat /etc/vps-manager/ssl_port 2>/dev/null || echo "444")
@@ -212,7 +210,6 @@ menu_puertos() {
     read -p "Presione Enter para regresar..."
 }
 
-# HERRAMIENTAS ADICIONALES DEL SISTEMA
 menu_bot() { clear; echo -e "${C_YELLOW}[+] Configurando Bot...${C_RST}"; wget -qO /tmp/bot.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/bot.sh && chmod +x /tmp/bot.sh && bash /tmp/bot.sh; read -p "Enter..." ;}
 menu_dominio() { clear; echo -e "${C_YELLOW}[+] Iniciando Gestor SSL...${C_RST}"; wget -qO /tmp/domain.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/domain.sh && chmod +x /tmp/domain.sh && bash /tmp/domain.sh; }
 menu_update() { clear; echo -e "${C_YELLOW}[+] Actualizando Panel...${C_RST}"; wget -qO /tmp/update.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/update.sh && chmod +x /tmp/update.sh && bash /tmp/update.sh; }
@@ -221,29 +218,97 @@ menu_checkuser() { clear; echo -e "${C_YELLOW}[+] Iniciando CheckUser API...${C_
 menu_autostart() { clear; grep -q "menu" /root/.bashrc && echo -e "${C_GREEN}[✔] Ya activo.${C_RST}" || (echo -e "\nmenu" >> /root/.bashrc; echo -e "${C_GREEN}[✔] Activado.${C_RST}"); read -p "Enter..." ;}
 menu_banner() { clear; echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗\n║${C_NEON_GREEN}         GESTOR DE BANNER BASE HTML           ${C_NEON_BLUE}║\n╚══════════════════════════════════════════════╝${C_RST}\n  ${C_NEON_YELLOW}1.${C_RST} Banner por Defecto\n  ${C_NEON_YELLOW}2.${C_RST} Personalizado HTML\n"; read -p "Opción: " opt_ban; case $opt_ban in 1) TEXTO="<br><font color='cyan'><b>🌟 BIENVENIDO A GOLBERT VPS 🌟</b></font><br>" ;; 2) echo -e "Pega HTML: "; read -r TEXTO ;; *) TEXTO="Bienvenido" ;; esac; echo "$TEXTO" > /etc/issue.net; echo -e "${C_GREEN}[✔] Banner Global guardado.${C_RST}"; read -p "Presione Enter..." ; }
 
+# ==========================================
+# NUEVA FUNCIÓN: INFORMACIÓN DETALLADA (ESTILO BENCH.SH)
+# ==========================================
 menu_info() {
     clear
-    OS_NAME=$(cat /etc/os-release | grep -w PRETTY_NAME | cut -d= -f2 | tr -d '"')
-    KERNEL=$(uname -r)
-    ARCH=$(uname -m)
-    UPTIME=$(uptime -p)
-    CPU_MODEL=$(lscpu | grep "Model name" | awk -F':' '{print $2}' | xargs)
-    CPU_CORES=$(nproc)
-    DISK_TOTAL=$(df -h / | awk 'NR==2{print $2}')
-    DISK_USED=$(df -h / | awk 'NR==2{print $3}')
-    DISK_PER=$(df -h / | awk 'NR==2{print $5}')
+    echo -e "${C_CYAN}[+] Recopilando información del sistema, por favor espere...${C_RST}"
     
-    echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗${C_RST}"
-    echo -e "${C_NEON_BLUE}║${C_NEON_GREEN}       🖥️ INFORMACIÓN TÉCNICA DEL VPS         ${C_NEON_BLUE}║${C_RST}"
-    echo -e "${C_NEON_BLUE}╠══════════════════════════════════════════════╣${C_RST}"
-    echo -e "  ${C_NEON_YELLOW}💻 Sistema Operativo :${C_RST} $OS_NAME (Ubuntu $UBUNTU_VERSION LTS)"
-    echo -e "  ${C_NEON_YELLOW}⚙️ Arquitectura      :${C_RST} $ARCH ($KERNEL)"
-    echo -e "  ${C_NEON_YELLOW}⏱️ Tiempo Encendido  :${C_RST} $UPTIME"
-    echo -e "  ${C_NEON_YELLOW}🧠 Procesador (CPU)  :${C_RST} $CPU_MODEL"
-    echo -e "  ${C_NEON_YELLOW}⚡ Núcleos Lógicos   :${C_RST} $CPU_CORES vCPU(s)"
-    echo -e "  ${C_NEON_YELLOW}💾 Almacenamiento    :${C_RST} $DISK_USED / $DISK_TOTAL ($DISK_PER Usado)"
-    echo -e "${C_NEON_BLUE}╚══════════════════════════════════════════════╝${C_RST}"
-    read -p "Presione Enter para regresar..."
+    DEV="@golbert19 (https://t.me/golbertperuvps)"
+    VER="v5.0 LTS"
+    
+    CPU_MODEL=$(grep -m1 'model name' /proc/cpuinfo | awk -F: '{print $2}' | sed 's/^[ \t]*//')
+    CPU_CORES=$(nproc)
+    CPU_FREQ=$(grep -m1 'cpu MHz' /proc/cpuinfo | awk -F: '{print $2}' | sed 's/^[ \t]*//')
+    CPU_CACHE=$(grep -m1 'cache size' /proc/cpuinfo | awk -F: '{print $2}' | sed 's/^[ \t]*//')
+    
+    grep -q -m1 -i 'aes' /proc/cpuinfo && AES="✔ Enabled" || AES="x Disabled"
+    grep -q -m1 -i -E '(vmx|svm)' /proc/cpuinfo && VIRT_HW="✔ Enabled" || VIRT_HW="x Disabled"
+    
+    DISK_T=$(df -h / | awk 'NR==2 {print $2}')
+    DISK_U=$(df -h / | awk 'NR==2 {print $3}')
+    RAM_T=$(free -m | awk 'NR==2 {print $2}')
+    RAM_U=$(free -m | awk 'NR==2 {print $3}')
+    SWAP_T=$(free -m | awk 'NR==3 {print $2}')
+    SWAP_U=$(free -m | awk 'NR==3 {print $3}')
+    [ -z "$SWAP_T" ] && SWAP_T="0" && SWAP_U="0"
+    
+    UPTIME=$(uptime -p | sed 's/up //')
+    LOAD=$(cat /proc/loadavg | awk '{print $1", "$2", "$3}')
+    
+    OS=$(cat /etc/os-release | grep -w PRETTY_NAME | cut -d= -f2 | tr -d '"')
+    ARCH=$(uname -m)
+    [ "$ARCH" = "x86_64" ] && ARCH="$ARCH (64 Bit)"
+    KERNEL=$(uname -r)
+    
+    TCP_C=$(sysctl net.ipv4.tcp_congestion_control 2>/dev/null | awk '{print $3}')
+    [ -z "$TCP_C" ] && TCP_C="cubic"
+    VIRT=$(systemd-detect-virt 2>/dev/null || echo "Desconocido")
+    
+    curl -s4 -m 3 ipinfo.io/ip >/dev/null && IPV4="✔ Online" || IPV4="x Offline"
+    curl -s6 -m 3 ipinfo.io/ip >/dev/null && IPV6="✔ Online" || IPV6="x Offline"
+    
+    # Intenta obtener datos de IPinfo
+    ORG=$(curl -s -m 3 ipinfo.io/org || echo "Desconocido")
+    CITY=$(curl -s -m 3 ipinfo.io/city || echo "Desconocido")
+    COUNTRY=$(curl -s -m 3 ipinfo.io/country || echo "Desconocido")
+    REGION=$(curl -s -m 3 ipinfo.io/region || echo "Desconocido")
+
+    # Limpia la pantalla para pintar el diseño exacto
+    clear
+    C_T='\033[38;5;111m' # Celeste tenue para las Keys
+    C_V='\033[38;5;114m' # Verde agua para los Values
+    C_L='\033[38;5;239m' # Gris para las líneas divisorias
+
+    print_line() {
+        printf "${C_T}%-22s${C_RST} : ${C_V}%s${C_RST}\n" "$1" "$2"
+    }
+
+    print_line "Developer" "$DEV"
+    print_line "Version" "$VER"
+    echo -e "${C_L}---------------------------------------------------------${C_RST}"
+    print_line "CPU Model" "$CPU_MODEL"
+    print_line "CPU Cores" "$CPU_CORES @ $CPU_FREQ MHz"
+    print_line "CPU Cache" "$CPU_CACHE"
+    print_line "AES-NI" "$AES"
+    print_line "VM-x/AMD-V" "$VIRT_HW"
+    print_line "Total Disk" "$DISK_T ($DISK_U Used)"
+    print_line "Total RAM" "${RAM_T} MB (${RAM_U} MB Used)"
+    print_line "Total Swap" "${SWAP_T} MB (${SWAP_U} MB Used)"
+    print_line "System Uptime" "$UPTIME"
+    print_line "Load Average" "$LOAD"
+    print_line "OS" "$OS"
+    print_line "Arch" "$ARCH"
+    print_line "Kernel" "$KERNEL"
+    print_line "TCP Congestion Ctrl" "$TCP_C"
+    print_line "Virtualization" "${VIRT^^}"
+    print_line "IPv4/IPv6" "$IPV4 / $IPV6"
+    print_line "Organization" "$ORG"
+    print_line "Location" "$CITY / $COUNTRY"
+    print_line "Region" "$REGION"
+    echo -e "${C_L}---------------------------------------------------------${C_RST}"
+    
+    # Test I/O Rápido (Simulado instantáneo para no congelar el menú por 5 minutos)
+    echo -e "${C_T}Calculando I/O Speed...${C_RST}"
+    IO_RES=$(dd if=/dev/zero of=test_$$ bs=64k count=16k conv=fdatasync 2>&1 | awk -F, '{print $3}' | tr -d ' ')
+    rm -f test_$$
+    echo -e "\033[1A\033[K\c" # Borra la línea de cálculo
+    print_line "I/O Speed (average)" "$IO_RES"
+    
+    echo -e "${C_L}---------------------------------------------------------${C_RST}"
+    echo -e ""
+    read -p "Press any key to back..."
 }
 
 uninstall_script() { clear; read -p "⚠️ ¿Desinstalar todo? (s/n): " conf; if [[ "$conf" == "s" || "$conf" == "S" ]]; then rm -rf /etc/vps-manager; rm -f /usr/local/bin/menu; echo -e "${C_GREEN}Eliminado.${C_RST}"; exit 0; fi; }

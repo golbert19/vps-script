@@ -171,8 +171,8 @@ menu_puertos() {
     clear
     echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗\n║${C_NEON_GREEN}         🔍 ESTADO DE PUERTOS Y SERVICIOS     ${C_NEON_BLUE}║\n╚══════════════════════════════════════════════╝${C_RST}"
     
-    puertos=(22 80 443 53 1194 2081 2083 8080 8880 8181 7300 7200 25000)
-    nombres=("SSH (OpenSSH)" "HTTP / Xray WS" "SSL / VLESS / Trojan" "DNS (SlowDNS)" "OpenVPN TCP" "OpenVPN Web" "Trojan TLS" "BHTTP Custom" "HCR Proxy PRO" "Web Panel UI" "BadVPN (Game 7300)" "BadVPN (Game 7200)" "UDP Custom")
+    puertos=(22 80 443 53 1194 2081 2083 8080 8880 8181 7300 7200 25000 5432)
+    nombres=("SSH (OpenSSH)" "HTTP / Xray WS" "SSL / VLESS / Trojan" "DNS (SlowDNS)" "OpenVPN TCP" "OpenVPN Web" "Trojan TLS" "BHTTP Custom" "HCR Proxy PRO" "Web Panel UI" "BadVPN (Game 7300)" "BadVPN (Game 7200)" "UDP Custom" "CheckUser API")
     
     for i in "${!puertos[@]}"; do 
         p=${puertos[$i]}; n=${nombres[$i]}
@@ -199,22 +199,12 @@ menu_puertos() {
     read -p "Presione Enter para regresar..."
 }
 
+# Modulos Independientes
 menu_bot() { clear; echo -e "${C_YELLOW}[+] Configurando Bot...${C_RST}"; wget -qO /tmp/bot.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/bot.sh && chmod +x /tmp/bot.sh && bash /tmp/bot.sh; read -p "Enter..." ;}
-
-# NUEVO MODULO INDEPENDIENTE PARA DOMINIOS (Opción 6)
-menu_dominio() { 
-    clear; 
-    echo -e "${C_YELLOW}[+] Iniciando Gestor de Dominio y SSL...${C_RST}"; 
-    wget -qO /tmp/domain.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/domain.sh && chmod +x /tmp/domain.sh && bash /tmp/domain.sh; 
-}
-
-# NUEVO MODULO INDEPENDIENTE PARA ACTUALIZACIONES (Opción 9)
-menu_update() { 
-    clear; 
-    echo -e "${C_YELLOW}[+] Conectando al repositorio de GitHub...${C_RST}"; 
-    wget -qO /tmp/update.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/update.sh && chmod +x /tmp/update.sh && bash /tmp/update.sh; 
-}
-
+menu_dominio() { clear; echo -e "${C_YELLOW}[+] Iniciando Gestor SSL...${C_RST}"; wget -qO /tmp/domain.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/domain.sh && chmod +x /tmp/domain.sh && bash /tmp/domain.sh; }
+menu_update() { clear; echo -e "${C_YELLOW}[+] Actualizando Panel...${C_RST}"; wget -qO /tmp/update.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/update.sh && chmod +x /tmp/update.sh && bash /tmp/update.sh; }
+menu_firewall() { clear; echo -e "${C_YELLOW}[+] Iniciando Firewall...${C_RST}"; wget -qO /tmp/firewall.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/firewall.sh && chmod +x /tmp/firewall.sh && bash /tmp/firewall.sh; }
+menu_checkuser() { clear; echo -e "${C_YELLOW}[+] Iniciando CheckUser API...${C_RST}"; wget -qO /tmp/checkuser.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/checkuser.sh && chmod +x /tmp/checkuser.sh && bash /tmp/checkuser.sh; }
 menu_autostart() { clear; grep -q "menu" /root/.bashrc && echo -e "${C_GREEN}[✔] Ya activo.${C_RST}" || (echo -e "\nmenu" >> /root/.bashrc; echo -e "${C_GREEN}[✔] Activado.${C_RST}"); read -p "Enter..." ;}
 menu_banner() { clear; echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗\n║${C_NEON_GREEN}         GESTOR DE BANNER BASE HTML           ${C_NEON_BLUE}║\n╚══════════════════════════════════════════════╝${C_RST}\n  ${C_NEON_YELLOW}1.${C_RST} Banner por Defecto\n  ${C_NEON_YELLOW}2.${C_RST} Personalizado HTML\n"; read -p "Opción: " opt_ban; case $opt_ban in 1) TEXTO="<br><font color='cyan'><b>🌟 BIENVENIDO A GOLBERT VPS 🌟</b></font><br>" ;; 2) echo -e "Pega HTML: "; read -r TEXTO ;; *) TEXTO="Bienvenido" ;; esac; echo "$TEXTO" > /etc/issue.net; echo -e "${C_GREEN}[✔] Banner Global guardado.${C_RST}"; read -p "Presione Enter..." ; }
 
@@ -282,12 +272,14 @@ while true; do
     echo -e "  ${C_NEON_YELLOW}3.${C_RST} 🛠️ Gestor de Instalaciones y Protocolos"
     echo -e "  ${C_NEON_YELLOW}4.${C_RST} 🎨 Configurar Banner HTML de Bienvenida"
     echo -e "  ${C_NEON_YELLOW}5.${C_RST} 🔍 Monitor de Puertos (Activos / Inactivos)"
-    echo -e "  ${C_NEON_YELLOW}6.${C_RST} ⚙️ Configurar Subdominio VPS y SSL"
+    echo -e "  ${C_NEON_YELLOW}6.${C_RST} ⚙️ Gestor de Dominio y Certificados SSL"
     echo -e "  ${C_NEON_YELLOW}7.${C_RST} 🤖 Vincular Bot de Telegram"
     echo -e "  ${C_NEON_YELLOW}8.${C_RST} 🌐 Generar Panel Web (Dashboard UI)"
     echo -e "  ${C_NEON_YELLOW}9.${C_RST} 🔄 Actualizar Panel (Desde GitHub)"
     echo -e "  ${C_NEON_YELLOW}10.${C_RST}🤖 Activar Auto-Inicio al Loguearse"
     echo -e "  ${C_NEON_YELLOW}11.${C_RST}🖥️ Especificaciones y Capacidad del VPS"
+    echo -e "  ${C_NEON_YELLOW}12.${C_RST}🛡️ Gestor de Firewall (Reglas y Seguridad)"
+    echo -e "  ${C_NEON_YELLOW}13.${C_RST}👥 Instalar CheckUser (Monitor Multi-App)"
     echo -e "${C_NEON_BLUE}╠══════════════════════════════════════════════╣${C_RST}"
     echo -e "  ${C_RED}88.${C_RST} ❌ Desinstalar Script   |   ${C_RED}0.${C_RST} 🚪 Salir"
     echo -e "${C_NEON_BLUE}╚══════════════════════════════════════════════╝${C_RST}"
@@ -297,7 +289,7 @@ while true; do
     case $opcion in
         1) menu_ssh ;; 2) menu_revendedores ;; 3) menu_instaladores ;; 4) menu_banner ;; 5) menu_puertos ;; 
         6) menu_dominio ;; 7) menu_bot ;; 8) menu_webpanel ;; 9) menu_update ;; 10) menu_autostart ;; 11) menu_info ;;
-        88) uninstall_script ;; 0) clear; exit 0 ;;
+        12) menu_firewall ;; 13) menu_checkuser ;; 88) uninstall_script ;; 0) clear; exit 0 ;;
         *) echo -e "\n${C_RED}[!] Opción inválida.${C_RST}"; sleep 1 ;;
     esac
 done

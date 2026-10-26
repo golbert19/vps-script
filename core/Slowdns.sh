@@ -1,66 +1,80 @@
 #!/bin/bash
 # ==========================================
-# Módulo: SlowDNS (DNSTT) - Anti-Timeout
+# Módulo: SlowDNS / DNSTT Nativo (SSH Port 22)
 # ==========================================
+C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
+DNS_DIR="/etc/vps-manager/slowdns"
+mkdir -p "$DNS_DIR"
+
 clear
-echo -e "\033[1;36m[+] Instalando y configurando SlowDNS (Anti-Timeout)...\033[0m"
+echo -e "${C_CYAN}================================================${C_NC}"
+echo -e "${C_GREEN}    INSTALADOR SLOWDNS / DNSTT (PUERTO 53 -> 22)${C_NC}"
+echo -e "${C_CYAN}================================================${C_NC}"
 
-# 1. Liberar el puerto 53 (Apagar systemd-resolved)
-systemctl stop systemd-resolved >/dev/null 2>&1
-systemctl disable systemd-resolved >/dev/null 2>&1
-rm -f /etc/resolv.conf
-echo "nameserver 8.8.8.8" > /etc/resolv.conf
-echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+# 1. Pedir el NS (Nameserver)
+read -p "Ingresa tu subdominio NS (Ej: ns-centrix.golbertvps.online): " NS_DOMAIN
+if [ -z "$NS_DOMAIN" ]; then
+    echo -e "${C_RED}[!] Error: No ingresaste un NS válido.${C_NC}"
+    sleep 2
+    exit 1
+fi
+echo "$NS_DOMAIN" > /etc/vps-manager/nsdomain
 
-apt update -y && apt install -y wget iptables >/dev/null 2>&1
+echo -e "${C_YELLOW}[+] Instalando dependencias necesarias...${C_NC}"
+apt update -y >/dev/null 2>&1
+apt install -y wget iptables net-tools >/dev/null 2>&1
 
-SLOW_DIR="/etc/vps-manager/slowdns"
-mkdir -p "$SLOW_DIR"
-cd "$SLOW_DIR"
-
-# 2. Descargar binario
+# 2. Descargar Binario DNSTT-Server
+cd "$DNS_DIR"
 wget -qO dnstt-server "https://raw.githubusercontent.com/rudi9999/ADMRufu/main/Plugins/dnstt-server"
 chmod +x dnstt-server
 
-# 3. Generar llaves o usar respaldo
-./dnstt-server -gen-key -privkey-file server.key -pubkey-file server.pub >/dev/null 2>&1
-if [ ! -s "server.pub" ]; then
-    echo "4e8a4a5009968cdfa5d3e09848f936a0f4a861617415dff7227d894e6371c676" > server.pub
-    echo "6210214bb5333f2b60456012678f135b1d42813df9cc37397c729525492dcf44" > server.key
-fi
+# 3. Generar Llaves Privadas y Públicas
+echo -e "${C_YELLOW}[+] Generando llaves criptográficas...${C_NC}"
+rm -f server.key server.pub
+./dnstt-server -gen key -privkey-file server.key -pubkey-file server.pub >/dev/null 2>&1
 PUB_KEY=$(cat server.pub)
 
-echo -e "\n\033[1;33mPara que SlowDNS funcione, necesitas tu Dominio NS (Ej: ns1.golbertvps.online)\033[0m"
-read -p "Ingresa tu Dominio NS: " NS_DOMAIN
-echo "$NS_DOMAIN" > /etc/vps-manager/nsdomain
+# 4. Configurar reglas de Firewall y liberar puerto 53
+systemctl stop systemd-resolved >/dev/null 2>&1
+systemctl disable systemd-resolved >/dev/null 2>&1
+killall -9 dnstt-server 2>/dev/null
+killall -9 named 2>/dev/null
+killall -9 bind9 2>/dev/null
 
-# 4. Forzar redirección limpia del puerto 53
-iptables -I INPUT -p udp --dport 5300 -j ACCEPT
 iptables -I INPUT -p udp --dport 53 -j ACCEPT
-iptables -t nat -I PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 5300
 iptables-save > /etc/iptables.up.rules 2>/dev/null
 
-cat << EOF > /etc/systemd/system/slowdns.service
+# 5. Crear el servicio Systemd (Conectando el túnel 53 hacia el puerto SSH 22)
+echo -e "${C_YELLOW}[+] Configurando túnel local hacia SSH (127.0.0.1:22)...${C_NC}"
+cat << EOF > /etc/systemd/system/vps-slowdns.service
 [Unit]
-Description=SlowDNS Server
+Description=DNSTT SlowDNS Server
 After=network.target
 
 [Service]
-WorkingDirectory=$SLOW_DIR
-ExecStart=$SLOW_DIR/dnstt-server -udp :5300 -privkey-file $SLOW_DIR/server.key $NS_DOMAIN 127.0.0.1:22
+Type=simple
+User=root
+WorkingDirectory=$DNS_DIR
+# El parámetro -local 127.0.0.1:22 es vital para que el SSH responda al Injector
+ExecStart=$DNS_DIR/dnstt-server -udp :53 -privkey-file server.key $NS_DOMAIN 127.0.0.1:22
 Restart=always
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-systemctl daemon-reload; systemctl enable slowdns >/dev/null 2>&1; systemctl restart slowdns
+systemctl daemon-reload
+systemctl enable vps-slowdns >/dev/null 2>&1
+systemctl restart vps-slowdns
 
 clear
-echo -e "\033[1;32m[✔] ¡SlowDNS instalado sin bloqueos en el puerto 53!\033[0m\n"
-echo -e "🔹 \033[1;32mNameServer (NS) :\033[0m $NS_DOMAIN"
-echo -e "🔹 \033[1;32mPublic Key      :\033[0m \033[1;33m$PUB_KEY\033[0m\n"
-echo -e "\033[1;31m⚠️ ATENCIÓN CLOUDFLARE:\033[0m"
-echo -e "Asegúrate de tener un registro 'A' (ej: dns.tudominio.com) apuntando a la IP de la VPS."
-echo -e "Y un registro 'NS' (ej: ns1.tudominio.com) apuntando a dns.tudominio.com."
+echo -e "${C_GREEN}[✔] ¡SlowDNS (DNSTT) instalado y activo!${C_NC}"
+echo -e "${C_CYAN}================================================${C_NC}"
+echo -e " 🌐 NS Domain : ${C_YELLOW}$NS_DOMAIN${C_NC}"
+echo -e " 🔑 Pub Key   : ${C_YELLOW}$PUB_KEY${C_NC}"
+echo -e " 🎯 Túnel     : UDP 53 ➔ SSH 22"
+echo -e "${C_CYAN}================================================${C_NC}"
+echo -e "${C_YELLOW}Copia la llave pública (Pub Key) y pégala en HTTP Injector.${C_NC}"
 read -p "Presione Enter para regresar..."

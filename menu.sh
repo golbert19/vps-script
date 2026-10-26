@@ -51,13 +51,11 @@ menu_ssh() {
                 generar_banner_usuario "$user" "$EXP_DATE" "$dias" "$limite"
                 systemctl restart ssh 2>/dev/null
                 
-                # Sincronización y recopilación de datos de conexión
                 IP_V=$(curl -s ipv4.icanhazip.com); DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
                 NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No configurado" )
                 PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub | tr -d '\r\n' || echo "No instalada" )
                 OPENVPN_LINK="http://$DOM:2081"
                 
-                # Inyectar contraseña en Zivpn automáticamente
                 if [ -f /etc/zivpn/config.json ]; then
                     if ! grep -q "\"$pass\"" /etc/zivpn/config.json; then
                         sed -i -E "s/(\"config\": ?\[)/\1\"$pass\", /" /etc/zivpn/config.json
@@ -178,7 +176,6 @@ menu_puertos() {
     
     for i in "${!puertos[@]}"; do 
         p=${puertos[$i]}; n=${nombres[$i]}
-        # Detección inteligente robusta compatible con Python, Xray y Binarios
         if ss -lntp 2>/dev/null | grep -q ":$p " || ss -lnup 2>/dev/null | grep -q ":$p " || netstat -tuln 2>/dev/null | grep -q ":$p "; then 
             echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}$p${C_RST} ➔ $n"
         else 
@@ -186,14 +183,12 @@ menu_puertos() {
         fi
     done
 
-    # Verificación Zivpn UDP (Rango)
     if ss -lnup 2>/dev/null | grep -q ":5667 " || systemctl is-active --quiet zivpn.service; then
         echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}6000-19999${C_RST} ➔ Zivpn UDP"
     else
         echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Puerto ${C_NEON_YELLOW}6000-19999${C_RST} ➔ Zivpn UDP"
     fi
 
-    # Verificación Hysteria v1
     if systemctl is-active --quiet hysteria.service || ss -lnup 2>/dev/null | grep -q "hysteria"; then
         echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Hysteria v1   ➔ Hysteria QUIC"
     else
@@ -205,8 +200,21 @@ menu_puertos() {
 }
 
 menu_bot() { clear; echo -e "${C_YELLOW}[+] Configurando Bot...${C_RST}"; wget -qO /tmp/bot.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/bot.sh && chmod +x /tmp/bot.sh && bash /tmp/bot.sh; read -p "Enter..." ;}
-menu_dominio() { clear; read -p "Subdominio (Ej: vps.dominio.com): " ndom; echo "$ndom" > /etc/vps-manager/dominio; systemctl stop ws-python xray stunnel4 2>/dev/null; fuser -k 80/tcp 2>/dev/null; apt install -y certbot >/dev/null 2>&1; certbot certonly --standalone -d "$ndom" --non-interactive --agree-tos -m "admin@$ndom"; if [ -d "/etc/letsencrypt/live/$ndom" ]; then mkdir -p /etc/xray /etc/stunnel; cp /etc/letsencrypt/live/$ndom/fullchain.pem /etc/xray/server.crt; cp /etc/letsencrypt/live/$ndom/privkey.pem /etc/xray/server.key; cat /etc/xray/server.crt /etc/xray/server.key > /etc/stunnel/stunnel.pem; echo -e "${C_GREEN}[✔] SSL Instalado.${C_RST}"; fi; systemctl start ws-python xray stunnel4 2>/dev/null; sleep 3; }
-menu_update() { clear; wget -qO /tmp/menu.sh "https://raw.githubusercontent.com/golbert19/vps-script/main/menu.sh"; if [ -s /tmp/menu.sh ]; then mv /tmp/menu.sh /usr/local/bin/menu; chmod +x /usr/local/bin/menu; echo -e "${C_GREEN}[✔] Panel Actualizado!${C_RST}"; sleep 2; exec menu; fi; }
+
+# NUEVO MODULO INDEPENDIENTE PARA DOMINIOS (Opción 6)
+menu_dominio() { 
+    clear; 
+    echo -e "${C_YELLOW}[+] Iniciando Gestor de Dominio y SSL...${C_RST}"; 
+    wget -qO /tmp/domain.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/domain.sh && chmod +x /tmp/domain.sh && bash /tmp/domain.sh; 
+}
+
+# NUEVO MODULO INDEPENDIENTE PARA ACTUALIZACIONES (Opción 9)
+menu_update() { 
+    clear; 
+    echo -e "${C_YELLOW}[+] Conectando al repositorio de GitHub...${C_RST}"; 
+    wget -qO /tmp/update.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/update.sh && chmod +x /tmp/update.sh && bash /tmp/update.sh; 
+}
+
 menu_autostart() { clear; grep -q "menu" /root/.bashrc && echo -e "${C_GREEN}[✔] Ya activo.${C_RST}" || (echo -e "\nmenu" >> /root/.bashrc; echo -e "${C_GREEN}[✔] Activado.${C_RST}"); read -p "Enter..." ;}
 menu_banner() { clear; echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗\n║${C_NEON_GREEN}         GESTOR DE BANNER BASE HTML           ${C_NEON_BLUE}║\n╚══════════════════════════════════════════════╝${C_RST}\n  ${C_NEON_YELLOW}1.${C_RST} Banner por Defecto\n  ${C_NEON_YELLOW}2.${C_RST} Personalizado HTML\n"; read -p "Opción: " opt_ban; case $opt_ban in 1) TEXTO="<br><font color='cyan'><b>🌟 BIENVENIDO A GOLBERT VPS 🌟</b></font><br>" ;; 2) echo -e "Pega HTML: "; read -r TEXTO ;; *) TEXTO="Bienvenido" ;; esac; echo "$TEXTO" > /etc/issue.net; echo -e "${C_GREEN}[✔] Banner Global guardado.${C_RST}"; read -p "Presione Enter..." ; }
 

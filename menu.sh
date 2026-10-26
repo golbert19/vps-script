@@ -56,6 +56,8 @@ menu_ssh() {
                 PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub | tr -d '\r\n' || echo "No instalada" )
                 OPENVPN_LINK="http://$DOM:2081"
                 PORT_BHTTP=$(cat /etc/vps-manager/bhttp_port 2>/dev/null || echo "8080")
+                PORT_HCR=$(cat /etc/vps-manager/hcr_port 2>/dev/null || echo "8880")
+                PORT_SSL=$(cat /etc/vps-manager/ssl_port 2>/dev/null || echo "444")
                 
                 if [ -f /etc/zivpn/config.json ]; then
                     if ! grep -q "\"$pass\"" /etc/zivpn/config.json; then
@@ -79,7 +81,9 @@ menu_ssh() {
                 echo -e " 🗝️ Pub Key (DNS) : ${C_YELLOW}$PUB_KEY${C_RST}"
                 echo -e " 🔗 OpenVPN       : ${C_YELLOW}$OPENVPN_LINK${C_RST}"
                 echo -e " ⚡ Zivpn Pass    : ${C_YELLOW}$ZIVPN_PASS${C_RST}"
-                echo -e " 🎯 Puertos       : ${C_YELLOW}SSH(22) SSL(443) BHTTP($PORT_BHTTP)${C_RST}"
+                echo -e " 🎯 Puertos       : ${C_YELLOW}SSH(22) Xray/TLS(443)${C_RST}"
+                echo -e "                     ${C_YELLOW}SSL Stunnel($PORT_SSL)${C_RST}"
+                echo -e "                     ${C_YELLOW}BHTTP($PORT_BHTTP) HCR($PORT_HCR)${C_RST}"
                 echo -e "                     ${C_YELLOW}UDP Custom(25000)${C_RST}"
                 echo -e "                     ${C_YELLOW}Zivpn(6000-19999) DNSTT(53)${C_RST}"
                 echo -e "${C_CYAN}================================================${C_RST}"; read -p "Copia los datos y presiona Enter..." ;;
@@ -121,6 +125,7 @@ menu_revendedores() {
     done
 }
 
+# AQUÍ ESTÁN TODOS LOS INSTALADORES AGRUPADOS (OPCIÓN 3 DEL MENÚ PRINCIPAL)
 menu_instaladores() {
     while true; do
         clear
@@ -131,7 +136,7 @@ menu_instaladores() {
         echo -e "  ${C_NEON_YELLOW}2.${C_RST} 🛡️ Menú Xray (VLESS)"
         echo -e "  ${C_NEON_YELLOW}3.${C_RST} 🛡️ Menú Xray (Trojan)"
         echo -e "  ${C_NEON_YELLOW}4.${C_RST} 🌐 Instalar OpenVPN (Web Perfiles)"
-        echo -e "  ${C_NEON_YELLOW}5.${C_RST} 🚀 Instalar HCR Nativo (Manager Pro)"
+        echo -e "  ${C_NEON_YELLOW}5.${C_RST} 🚀 Instalar HCR Nativo (Puerto Dinámico)"
         echo -e "  ${C_NEON_YELLOW}6.${C_RST} 🎮 Instalar UDP Custom (Puerto 25000)"
         echo -e "  ${C_NEON_YELLOW}7.${C_RST} 🛸 Instalar SlowDNS (DNSTT)"
         echo -e "  ${C_NEON_YELLOW}8.${C_RST} 🌐 Instalar BHTTP Proxy (Puerto Dinámico)"
@@ -141,6 +146,7 @@ menu_instaladores() {
         echo -e "  ${C_NEON_YELLOW}12.${C_RST}🚀 Instalar Acelerador BBR"
         echo -e "  ${C_NEON_YELLOW}13.${C_RST}🛡️ Instalar Zivpn UDP (App Zivpn)"
         echo -e "  ${C_NEON_YELLOW}14.${C_RST}⚡ Instalar Hysteria v1 (QUIC Proxy)"
+        echo -e "  ${C_NEON_YELLOW}15.${C_RST}🔒 Instalar SSL / TLS (Puerto Dinámico)"
         echo -e "${C_NEON_PURPLE}╠══════════════════════════════════════════════╣${C_RST}"
         echo -e "  ${C_RED}0.${C_RST} 🔙 Volver al Menú Principal"
         echo -e "${C_NEON_PURPLE}╚══════════════════════════════════════════════╝${C_RST}"
@@ -160,6 +166,7 @@ menu_instaladores() {
             12) clear; wget -qO /tmp/Bbr.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/Bbr.sh && chmod +x /tmp/Bbr.sh && bash /tmp/Bbr.sh; read -p "Enter..." ;;
             13) clear; wget -qO /tmp/zivpn.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/zivpn.sh && chmod +x /tmp/zivpn.sh && bash /tmp/zivpn.sh ;;
             14) clear; wget -qO /tmp/hysteria.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/hysteria.sh && chmod +x /tmp/hysteria.sh && bash /tmp/hysteria.sh ;;
+            15) clear; wget -qO /tmp/ssl.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/ssl.sh && chmod +x /tmp/ssl.sh && bash /tmp/ssl.sh ;;
             0) break ;;
             *) sleep 1 ;;
         esac
@@ -172,9 +179,13 @@ menu_puertos() {
     clear
     echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗\n║${C_NEON_GREEN}         🔍 ESTADO DE PUERTOS Y SERVICIOS     ${C_NEON_BLUE}║\n╚══════════════════════════════════════════════╝${C_RST}"
     
+    # Lectura de Puertos Dinámicos instalados en la Opción 3
     PORT_BHTTP=$(cat /etc/vps-manager/bhttp_port 2>/dev/null || echo "8080")
-    puertos=(22 80 443 53 1194 2081 2083 $PORT_BHTTP 8880 8181 7300 7200 25000 5432)
-    nombres=("SSH (OpenSSH)" "HTTP / Xray WS" "SSL / VLESS / Trojan" "DNS (SlowDNS)" "OpenVPN TCP" "OpenVPN Web" "Trojan TLS" "BHTTP Custom" "HCR Proxy PRO" "Web Panel UI" "BadVPN (Game 7300)" "BadVPN (Game 7200)" "UDP Custom" "CheckUser API")
+    PORT_HCR=$(cat /etc/vps-manager/hcr_port 2>/dev/null || echo "8880")
+    PORT_SSL=$(cat /etc/vps-manager/ssl_port 2>/dev/null || echo "444")
+    
+    puertos=(22 80 443 53 1194 2081 2083 $PORT_BHTTP $PORT_HCR $PORT_SSL 8181 7300 7200 25000 5432)
+    nombres=("SSH (OpenSSH)" "HTTP / Xray WS" "Xray SSL/VLESS" "DNS (SlowDNS)" "OpenVPN TCP" "OpenVPN Web" "Trojan TLS" "BHTTP Custom" "HCR Proxy PRO" "SSL / TLS Proxy" "Web Panel UI" "BadVPN (Game 7300)" "BadVPN (Game 7200)" "UDP Custom" "CheckUser API")
     
     for i in "${!puertos[@]}"; do 
         p=${puertos[$i]}; n=${nombres[$i]}
@@ -201,6 +212,7 @@ menu_puertos() {
     read -p "Presione Enter para regresar..."
 }
 
+# HERRAMIENTAS ADICIONALES DEL SISTEMA
 menu_bot() { clear; echo -e "${C_YELLOW}[+] Configurando Bot...${C_RST}"; wget -qO /tmp/bot.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/bot.sh && chmod +x /tmp/bot.sh && bash /tmp/bot.sh; read -p "Enter..." ;}
 menu_dominio() { clear; echo -e "${C_YELLOW}[+] Iniciando Gestor SSL...${C_RST}"; wget -qO /tmp/domain.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/domain.sh && chmod +x /tmp/domain.sh && bash /tmp/domain.sh; }
 menu_update() { clear; echo -e "${C_YELLOW}[+] Actualizando Panel...${C_RST}"; wget -qO /tmp/update.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/update.sh && chmod +x /tmp/update.sh && bash /tmp/update.sh; }
@@ -243,6 +255,9 @@ draw_bar() {
     echo -e "[$bar] ${perc}%" 
 }
 
+# ==========================================
+# MENÚ PRINCIPAL ESTRUCTURADO Y COMPACTO
+# ==========================================
 while true; do
     clear
     OS=$(cat /etc/os-release | grep -w PRETTY_NAME | head -n 1 | cut -d "=" -f 2 | sed 's/"//g')

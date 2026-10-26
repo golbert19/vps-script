@@ -26,17 +26,19 @@ apt install -y wget iptables net-tools >/dev/null 2>&1
 
 # 2. Descargar Binario DNSTT-Server
 cd "$DNS_DIR"
+rm -f dnstt-server keys.txt server.key server.pub
 wget -qO dnstt-server "https://raw.githubusercontent.com/rudi9999/ADMRufu/main/Plugins/dnstt-server"
 chmod +x dnstt-server
 
 # 3. Generar Llaves Privadas y Públicas correctamente
 echo -e "${C_YELLOW}[+] Generando llaves criptográficas...${C_NC}"
-rm -f server.key server.pub keys.txt
 
-# Generar llaves y capturar la salida
-./dnstt-server -gen-key > keys.txt
-PRIV_KEY=$(grep "Private key:" keys.txt | awk '{print $3}')
-PUB_KEY=$(grep "Public key:" keys.txt | awk '{print $3}')
+# Ejecutar generador y atrapar salida
+./dnstt-server -gen > keys.txt
+
+# Extraer llaves usando filtro exacto
+PRIV_KEY=$(grep -i "privkey" keys.txt | awk '{print $2}')
+PUB_KEY=$(grep -i "pubkey" keys.txt | awk '{print $2}')
 
 # Guardar las llaves en sus archivos correspondientes
 echo "$PRIV_KEY" > server.key

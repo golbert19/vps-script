@@ -55,6 +55,7 @@ menu_ssh() {
                 NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No configurado" )
                 PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub | tr -d '\r\n' || echo "No instalada" )
                 OPENVPN_LINK="http://$DOM:2081"
+                PORT_BHTTP=$(cat /etc/vps-manager/bhttp_port 2>/dev/null || echo "8080")
                 
                 if [ -f /etc/zivpn/config.json ]; then
                     if ! grep -q "\"$pass\"" /etc/zivpn/config.json; then
@@ -78,7 +79,7 @@ menu_ssh() {
                 echo -e " 🗝️ Pub Key (DNS) : ${C_YELLOW}$PUB_KEY${C_RST}"
                 echo -e " 🔗 OpenVPN       : ${C_YELLOW}$OPENVPN_LINK${C_RST}"
                 echo -e " ⚡ Zivpn Pass    : ${C_YELLOW}$ZIVPN_PASS${C_RST}"
-                echo -e " 🎯 Puertos       : ${C_YELLOW}SSH(22) SSL(443) BHTTP(8080)${C_RST}"
+                echo -e " 🎯 Puertos       : ${C_YELLOW}SSH(22) SSL(443) BHTTP($PORT_BHTTP)${C_RST}"
                 echo -e "                     ${C_YELLOW}UDP Custom(25000)${C_RST}"
                 echo -e "                     ${C_YELLOW}Zivpn(6000-19999) DNSTT(53)${C_RST}"
                 echo -e "${C_CYAN}================================================${C_RST}"; read -p "Copia los datos y presiona Enter..." ;;
@@ -133,7 +134,7 @@ menu_instaladores() {
         echo -e "  ${C_NEON_YELLOW}5.${C_RST} 🚀 Instalar HCR Nativo (Manager Pro)"
         echo -e "  ${C_NEON_YELLOW}6.${C_RST} 🎮 Instalar UDP Custom (Puerto 25000)"
         echo -e "  ${C_NEON_YELLOW}7.${C_RST} 🛸 Instalar SlowDNS (DNSTT)"
-        echo -e "  ${C_NEON_YELLOW}8.${C_RST} 🌐 Instalar BHTTP Proxy (Puerto 8080)"
+        echo -e "  ${C_NEON_YELLOW}8.${C_RST} 🌐 Instalar BHTTP Proxy (Puerto Dinámico)"
         echo -e "  ${C_NEON_YELLOW}9.${C_RST} 🔗 Instalar SSHWS / Websocket"
         echo -e "  ${C_NEON_YELLOW}10.${C_RST}🎮 Instalar BadVPN (Puertos 7300 y 7200)"
         echo -e "  ${C_NEON_YELLOW}11.${C_RST}🐘 Instalador PHP 8.5.12"
@@ -171,7 +172,8 @@ menu_puertos() {
     clear
     echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗\n║${C_NEON_GREEN}         🔍 ESTADO DE PUERTOS Y SERVICIOS     ${C_NEON_BLUE}║\n╚══════════════════════════════════════════════╝${C_RST}"
     
-    puertos=(22 80 443 53 1194 2081 2083 8080 8880 8181 7300 7200 25000 5432)
+    PORT_BHTTP=$(cat /etc/vps-manager/bhttp_port 2>/dev/null || echo "8080")
+    puertos=(22 80 443 53 1194 2081 2083 $PORT_BHTTP 8880 8181 7300 7200 25000 5432)
     nombres=("SSH (OpenSSH)" "HTTP / Xray WS" "SSL / VLESS / Trojan" "DNS (SlowDNS)" "OpenVPN TCP" "OpenVPN Web" "Trojan TLS" "BHTTP Custom" "HCR Proxy PRO" "Web Panel UI" "BadVPN (Game 7300)" "BadVPN (Game 7200)" "UDP Custom" "CheckUser API")
     
     for i in "${!puertos[@]}"; do 
@@ -199,7 +201,6 @@ menu_puertos() {
     read -p "Presione Enter para regresar..."
 }
 
-# Modulos Independientes
 menu_bot() { clear; echo -e "${C_YELLOW}[+] Configurando Bot...${C_RST}"; wget -qO /tmp/bot.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/bot.sh && chmod +x /tmp/bot.sh && bash /tmp/bot.sh; read -p "Enter..." ;}
 menu_dominio() { clear; echo -e "${C_YELLOW}[+] Iniciando Gestor SSL...${C_RST}"; wget -qO /tmp/domain.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/domain.sh && chmod +x /tmp/domain.sh && bash /tmp/domain.sh; }
 menu_update() { clear; echo -e "${C_YELLOW}[+] Actualizando Panel...${C_RST}"; wget -qO /tmp/update.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/update.sh && chmod +x /tmp/update.sh && bash /tmp/update.sh; }

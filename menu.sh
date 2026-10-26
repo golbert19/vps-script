@@ -47,12 +47,38 @@ menu_ssh() {
                 EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d")
                 useradd -e $EXP_DATE -s /bin/false -M $user; echo "$user:$pass" | chpasswd
                 echo "$limite" > "/etc/vps-manager/limite_${user}"
-                if [ "$tipo_creacion" == "2" ]; then touch "/etc/vps-manager/hwid_${user}"; HWID_MSG="✅ (Bloqueado al primer Login)"; else rm -f "/etc/vps-manager/hwid_${user}"; HWID_MSG="❌ (Libre)"; fi
+                if [ "$tipo_creacion" == "2" ]; then touch "/etc/vps-manager/hwid_${user}"; HWID_MSG="✅ (Bloqueado al Login)"; else rm -f "/etc/vps-manager/hwid_${user}"; HWID_MSG="❌ (Libre)"; fi
                 generar_banner_usuario "$user" "$EXP_DATE" "$dias" "$limite"
                 systemctl restart ssh 2>/dev/null
+                
+                # Extracción de datos de conexión (Mejorado)
                 IP_V=$(curl -s ipv4.icanhazip.com); DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_V" )
+                NS_DOM=$( [ -f /etc/vps-manager/nsdomain ] && cat /etc/vps-manager/nsdomain || echo "No configurado" )
+                PUB_KEY=$( [ -f /etc/vps-manager/slowdns/server.pub ] && cat /etc/vps-manager/slowdns/server.pub | tr -d '\r\n' || echo "No instalada" )
+                OPENVPN_LINK="http://$DOM:2081"
+                
+                if [ -f /etc/zivpn/config.json ]; then
+                    ZIVPN_PASS=$(grep '"config"' /etc/zivpn/config.json | awk -F'[' '{print $2}' | awk -F']' '{print $1}' | tr -d ' "')
+                    [ -z "$ZIVPN_PASS" ] && ZIVPN_PASS="zi"
+                else
+                    ZIVPN_PASS="No instalado"
+                fi
+
                 clear; echo -e "${C_CYAN}================================================${C_RST}\n${C_GREEN}        ✅ CUENTA CREADA EXITOSAMENTE ✅        ${C_RST}\n${C_CYAN}================================================${C_RST}"
-                echo -e " 👤 Usuario       : $user\n 🔑 Clave         : $pass\n 📅 Vence         : $EXP_DATE ($dias días)\n 🔒 Límite IPs    : $limite\n 🛡️ Protecc. HWID : $HWID_MSG\n 🌐 Host/IP       : $DOM\n${C_CYAN}================================================${C_RST}"; read -p "Presiona Enter..." ;;
+                echo -e " 👤 Usuario       : ${C_YELLOW}$user${C_RST}"
+                echo -e " 🔑 Clave         : ${C_YELLOW}$pass${C_RST}"
+                echo -e " 📅 Vence         : ${C_YELLOW}$EXP_DATE ($dias días)${C_RST}"
+                echo -e " 🔒 Límite IPs    : ${C_YELLOW}$limite${C_RST}"
+                echo -e " 🛡️ Protecc. HWID : ${C_YELLOW}$HWID_MSG${C_RST}"
+                echo -e "${C_CYAN}------------------------------------------------${C_RST}"
+                echo -e " 🌐 Host/IP       : ${C_YELLOW}$DOM${C_RST}"
+                echo -e " 🌍 NS Domain     : ${C_YELLOW}$NS_DOM${C_RST}"
+                echo -e " 🗝️ Pub Key (DNS) : ${C_YELLOW}$PUB_KEY${C_RST}"
+                echo -e " 🔗 OpenVPN       : ${C_YELLOW}$OPENVPN_LINK${C_RST}"
+                echo -e " ⚡ Zivpn Pass    : ${C_YELLOW}$ZIVPN_PASS${C_RST}"
+                echo -e " 🎯 Puertos       : ${C_YELLOW}SSH(22) SSL(443) UDP(25000)${C_RST}"
+                echo -e "                     ${C_YELLOW}Zivpn(6000-19999) DNSTT(53)${C_RST}"
+                echo -e "${C_CYAN}================================================${C_RST}"; read -p "Copia los datos y presiona Enter..." ;;
             2) read -p "Usuario a eliminar: " user; userdel -f $user 2>/dev/null; rm -f /etc/vps-manager/banner_${user}.net /etc/vps-manager/limite_${user} /etc/vps-manager/hwid_${user}; sed -i "/Match User $user/,+1d" /etc/ssh/sshd_config; systemctl restart ssh 2>/dev/null; echo -e "${C_GREEN}[✔] Eliminado.${C_RST}"; sleep 2 ;;
             3) read -p "Usuario a renovar: " user; read -p "Nuevos días: " dias; EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d"); chage -E $EXP_DATE $user; limite=$(cat /etc/vps-manager/limite_${user} 2>/dev/null || echo "1"); generar_banner_usuario "$user" "$EXP_DATE" "$dias" "$limite"; systemctl restart ssh 2>/dev/null; echo -e "${C_GREEN}[✔] Renovado.${C_RST}"; sleep 2 ;;
             4) clear; echo -e "${C_CYAN}╔══════════════════════════════════════════════╗\n║${C_GREEN}       📋 LISTA DE USUARIOS Y VENCIMIENTO     ${C_CYAN}║\n╚══════════════════════════════════════════════╝${C_RST}"; printf "${C_YELLOW}%-15s %-15s %-15s${C_RST}\n" "USUARIO" "EXPIRA" "DÍAS RESTANTES"; echo -e "${C_CYAN}────────────────────────────────────────────────${C_RST}"; for user in $(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd); do exp_date=$(chage -l $user | grep "Account expires" | awk -F": " '{print $2}'); if [[ "$exp_date" != "never" && -n "$exp_date" ]]; then exp_fmt=$(date -d "$exp_date" "+%Y-%m-%d" 2>/dev/null); sec_exp=$(date -d "$exp_date" +%s 2>/dev/null); sec_now=$(date +%s); dias=$(( (sec_exp - sec_now) / 86400 )); [ $dias -lt 0 ] && dias=0; printf "%-15s %-15s %-15s\n" "$user" "$exp_fmt" "$dias Días"; else printf "%-15s %-15s %-15s\n" "$user" "Ilimitado" "∞"; fi; done; read -p "Enter..." ;;
@@ -157,7 +183,6 @@ menu_puertos() {
         echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Puerto ${C_NEON_YELLOW}25000${C_RST} ➔ UDP Custom"
     fi
 
-    # Verificación de Zivpn UDP (App Zivpn)
     if systemctl is-active --quiet zivpn.service || ss -lnup 2>/dev/null | grep -q ":5667 "; then
         echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Puerto ${C_NEON_YELLOW}6000-19999${C_RST} ➔ Zivpn UDP"
     else

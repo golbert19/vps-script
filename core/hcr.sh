@@ -7,11 +7,15 @@ HCR_DIR="/etc/vps-manager/hcr"
 
 clear
 echo -e "${C_CYAN}================================================${C_NC}"
-echo -e "${C_GREEN}   INSTALADOR HCR PROXY (OFICIAL HTTP CUSTOM)   ${C_NC}"
+echo -e "${C_GREEN}   INSTALADOR HCR PROXY (OFICIAL HTTP CUSTOM)${C_NC}"
 echo -e "${C_CYAN}================================================${C_NC}"
 
 read -p "Ingresa el puerto para HCR [Por defecto 8880]: " INPUT_PORT
 HCR_PORT=${INPUT_PORT:-8880}
+
+# Guardamos el puerto elegido para que el monitor lo lea
+mkdir -p /etc/vps-manager
+echo "$HCR_PORT" > /etc/vps-manager/hcr_port
 
 echo -e "${C_YELLOW}[+] Preparando entorno y deteniendo servicios conflictivos...${C_NC}"
 apt update -y >/dev/null 2>&1
@@ -25,10 +29,8 @@ cd $HCR_DIR
 rm -f hcr
 
 echo -e "${C_YELLOW}[+] Descargando binario oficial HCR (HexPn / ePro Dev Team)...${C_NC}"
-# Intentamos primero desde la fuente de los desarrolladores originales (hexpn)
 wget -qO hcr "https://raw.githubusercontent.com/hexpn/hcr/main/hcr-linux-amd64"
 if [ ! -s "hcr" ]; then
-    # Repositorio espejo oficial de la comunidad para herramientas ePro
     wget -qO hcr "https://raw.githubusercontent.com/rudi9999/ADMRufu/main/Plugins/hcr"
 fi
 chmod +x hcr
@@ -49,8 +51,7 @@ After=network.target ssh.service
 Type=simple
 User=root
 WorkingDirectory=$HCR_DIR
-# Ejecución oficial del binario enlazando al puerto deseado
-ExecStart=$HCR_DIR/hcr -p $HCR_PORT
+ExecStart=$HCR_DIR/hcr -p$HCR_PORT
 Restart=always
 RestartSec=3
 LimitNOFILE=65535
@@ -64,7 +65,7 @@ systemctl enable hcr.service >/dev/null 2>&1
 systemctl restart hcr.service
 
 IP_VPS=$(curl -s ipv4.icanhazip.com)
-DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_VPS" )
+DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio \vert{}\vert{} echo "$IP_VPS" )
 
 clear
 echo -e "${C_GREEN}[✔] ¡Motor HCR Oficial instalado y operando con éxito!${C_NC}"

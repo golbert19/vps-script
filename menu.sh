@@ -225,6 +225,17 @@ menu_puertos() {
     read -p "Presione Enter para regresar..."
 }
 
+menu_fixports() {
+    clear
+    echo -e "${C_YELLOW}[+] Ejecutando sincronización y reparación de puertos (Fix Ports)...${C_RST}"
+    if [ -f /etc/vps-manager/fix_ports.sh ]; then
+        bash /etc/vps-manager/fix_ports.sh
+    else
+        wget -qO /tmp/fix_ports.sh https://raw.githubusercontent.com/golbert19/vps-script/main/fix_ports.sh && chmod +x /tmp/fix_ports.sh && bash /tmp/fix_ports.sh
+    fi
+    read -p "Presione Enter para regresar..."
+}
+
 menu_bot() { clear; echo -e "${C_YELLOW}[+] Configurando Bot...${C_RST}"; wget -qO /tmp/bot.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/bot.sh && chmod +x /tmp/bot.sh && bash /tmp/bot.sh; read -p "Enter..." ;}
 menu_dominio() { clear; echo -e "${C_YELLOW}[+] Iniciando Gestor SSL...${C_RST}"; wget -qO /tmp/domain.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/domain.sh && chmod +x /tmp/domain.sh && bash /tmp/domain.sh; }
 menu_update() { clear; echo -e "${C_YELLOW}[+] Actualizando Panel...${C_RST}"; wget -qO /tmp/update.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/update.sh && chmod +x /tmp/update.sh && bash /tmp/update.sh; }
@@ -361,6 +372,7 @@ while true; do
         M_OPT12="🛡️ Firewall Manager (Rules & Security)"
         M_OPT13="👥 Install CheckUser (Multi-App Monitor)"
         M_OPT14="🌍 Change Language (ES/EN)"
+        M_OPT15="🔧 Repair / Fix Ports (Nginx Gateway)"
         M_OPT88="❌ Uninstall Script"
         M_OPT0="🚪 Exit"
         M_SEL="Select an option: "
@@ -390,6 +402,7 @@ while true; do
         M_OPT12="🛡️ Gestor de Firewall (Reglas y Seguridad)"
         M_OPT13="👥 Instalar CheckUser (Monitor Multi-App)"
         M_OPT14="🌍 Cambiar Idioma (ES/EN)"
+        M_OPT15="🔧 Reparar / Sincronizar Puertos (Fix Ports)"
         M_OPT88="❌ Desinstalar Script"
         M_OPT0="🚪 Salir"
         M_SEL="Seleccione una opción: "
@@ -433,6 +446,7 @@ while true; do
     echo -e "  ${C_NEON_YELLOW}12.${C_RST}${M_OPT12}"
     echo -e "  ${C_NEON_YELLOW}13.${C_RST}${M_OPT13}"
     echo -e "  ${C_NEON_YELLOW}14.${C_RST}${M_OPT14}"
+    echo -e "  ${C_NEON_YELLOW}15.${C_RST}${M_OPT15}"
     echo -e "${C_NEON_BLUE}╠══════════════════════════════════════════════╣${C_RST}"
     echo -e "  ${C_RED}88.${C_RST} ${M_OPT88}   |   ${C_RED}0.${C_RST} ${M_OPT0}"
     echo -e "${C_NEON_BLUE}╚══════════════════════════════════════════════╝${C_RST}"
@@ -442,7 +456,7 @@ while true; do
     case $opcion in
         1) menu_ssh ;; 2) menu_revendedores ;; 3) menu_instaladores ;; 4) menu_banner ;; 5) menu_puertos ;; 
         6) menu_dominio ;; 7) menu_bot ;; 8) menu_webpanel ;; 9) menu_update ;; 10) menu_autostart ;; 11) menu_info ;;
-        12) menu_firewall ;; 13) menu_checkuser ;; 14) menu_idioma ;; 88) uninstall_script ;; 0) clear; exit 0 ;;
+        12) menu_firewall ;; 13) menu_checkuser ;; 14) menu_idioma ;; 15) menu_fixports ;; 88) uninstall_script ;; 0) clear; exit 0 ;;
         *) echo -e "\n${C_RED}[!] ${M_ERR}${C_RST}"; sleep 1 ;;
     esac
 done

@@ -4,64 +4,46 @@
   },
   "inbounds": [
     {
-      "tag": "vless-xhttp-notls-80",
-      "listen": "0.0.0.0",
       "port": 80,
       "protocol": "vless",
       "settings": {
-        "clients": [
-          {
-            "id": "tu-uuid-aqui-generado",
-            "flow": ""
-          }
-        ],
+        "clients": [],
         "decryption": "none"
       },
       "streamSettings": {
-        "network": "xhttp",
-        "security": "none",
-        "xhttpSettings": {
-          "path": "/xhttp-path",
-          "mode": "auto"
+        "network": "ws",
+        "wsSettings": {
+          "path": "/vless"
         }
       }
     },
     {
-      "tag": "vless-xhttp-tls-443",
-      "listen": "0.0.0.0",
       "port": 443,
       "protocol": "vless",
       "settings": {
-        "clients": [
-          {
-            "id": "tu-uuid-aqui-generado",
-            "flow": ""
-          }
-        ],
+        "clients": [],
         "decryption": "none"
       },
       "streamSettings": {
-        "network": "xhttp",
+        "network": "ws",
         "security": "tls",
         "tlsSettings": {
           "certificates": [
             {
-              "certificateFile": "/ruta/a/tu/certificado.crt",
-              "keyFile": "/ruta/a/tu/llave.key"
+              "certificateFile": "/usr/local/etc/xray/server.crt",
+              "keyFile": "/usr/local/etc/xray/server.key"
             }
           ]
         },
-        "xhttpSettings": {
-          "path": "/xhttp-path",
-          "mode": "auto"
+        "wsSettings": {
+          "path": "/vless"
         }
       }
     }
   ],
   "outbounds": [
     {
-      "protocol": "freedom",
-      "tag": "direct"
+      "protocol": "freedom"
     }
   ]
 }

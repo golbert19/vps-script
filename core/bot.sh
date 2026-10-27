@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Módulo: Bot de Telegram (Sistema Vendedores, V2Ray y Keygen)
+# Módulo: Bot de Telegram del Cliente (Revendedor SSH/V2Ray)
 # ==========================================
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 
@@ -49,7 +49,6 @@ from telebot import types
 import time
 import uuid
 
-# Cargar configuración
 BOT_DIR = "/etc/vps-manager/telegram_bot"
 RESELLERS_FILE = os.path.join(BOT_DIR, "resellers.txt")
 TOKEN = ""
@@ -103,8 +102,7 @@ def send_welcome(message):
     uid = str(message.from_user.id)
     if is_admin(uid):
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-        # Menú Limpio: Solo el botón de Generar Key
-        markup.add("🔑 Generar Key", "👤 Crear SSH")
+        markup.add("👤 Crear SSH", "❌ Eliminar SSH")
         markup.add("🛡️ Crear V2Ray (Xray)", "📋 Lista SSH")
         markup.add("👥 Panel Vendedores", "📊 Info Servidor")
         bot.reply_to(message, "👑 <b>Panel ADMIN VPS Activo</b>", parse_mode="HTML", reply_markup=markup)
@@ -113,50 +111,17 @@ def send_welcome(message):
         markup.add("👤 Crear SSH", "💰 Mis Créditos")
         bot.reply_to(message, f"🤝 <b>Panel VENDEDOR Activo</b>\nCréditos Disponibles: {get_credits(uid)}", parse_mode="HTML", reply_markup=markup)
     else:
-        bot.reply_to(message, f"⚠️ <b>Acceso Denegado.</b>\nNo estás registrado como vendedor.\nTu ID es: <code>{uid}</code>", parse_mode="HTML")
+        bot.reply_to(message, f"⚠️ <b>Acceso Denegado.</b>\nTu ID es: <code>{uid}</code>", parse_mode="HTML")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     uid = str(message.from_user.id)
     if not (is_admin(uid) or is_reseller(uid)):
         return
-
     text = message.text
-    username = message.from_user.username if message.from_user.username else "Usuario"
 
-    # ==========================
-    # MENÚ ADMIN EXCLUSIVO
-    # ==========================
     if is_admin(uid):
-        # Generador de Keys Premium
-        if text == "🔑 Generar Key" or text.startswith("/genkey"):
-            try:
-                parts = text.split()
-                client_user = parts[1] if len(parts) > 1 else f"@{username}"
-                client_id = parts[2] if len(parts) > 2 else uid
-
-                new_key = "VPS-" + str(uuid.uuid4()).upper().replace("-", "")[:12]
-                new_key = f"{new_key[:4]}-{new_key[4:8]}-{new_key[8:12]}"
-
-                msg = (
-                    "✅ <b>KEY GENERADA</b>\n"
-                    "━━━━━━━━━━━━━━━━━━━━\n"
-                    f"👤 <b>Cliente:</b> {client_user} (ID: <code>{client_id}</code>)\n"
-                    f"🔑 <b>Key:</b> <code>{new_key}</code>\n"
-                    "⏳ <b>Vence:</b> Permanente (Dueño)\n"
-                    "━━━━━━━━━━━━━━━━━━━━\n"
-                    "⚠️ <b>Sistema:</b> Solo Ubuntu 22.04 | 24.04 | 26.04\n"
-                    "👨‍💻 <b>Dueño:</b> @golbertperuvps\n"
-                    "━━━━━━━━━━━━━━━━━━━━\n"
-                    "💻 <b>Instalación:</b>\n"
-                    "<code>apt update -y && apt install -y wget && wget -O install.sh https://raw.githubusercontent.com/golbert19/vps-script/main/install.sh && chmod +x install.sh && ./install.sh</code>"
-                )
-                bot.reply_to(message, msg, parse_mode="HTML")
-            except Exception as e:
-                bot.reply_to(message, "❌ Error al generar la Key.")
-            return
-
-        elif text == "📊 Info Servidor":
+        if text == "📊 Info Servidor":
             ip = subprocess.getoutput("curl -s ipv4.icanhazip.com")
             ram = subprocess.getoutput("free -m | awk 'NR==2{printf \"%s / %s MB\", $3,$2}'")
             bot.reply_to(message, f"🌐 <b>IP:</b> {ip}\n⚡ <b>RAM:</b> {ram}", parse_mode="HTML")
@@ -165,6 +130,22 @@ def handle_message(message):
         elif text == "📋 Lista SSH":
             users = subprocess.getoutput("awk -F: '$3 >= 1000 && $1 != \"nobody\" {print $1}' /etc/passwd")
             bot.reply_to(message, f"📋 <b>Usuarios SSH Registrados:</b>\n<code>{users}</code>", parse_mode="HTML")
+            return
+
+        elif text == "❌ Eliminar SSH":
+            bot.reply_to(message, "Formato:\n<code>/deluser [usuario]</code>", parse_mode="HTML")
+            return
+            
+        elif text.startswith("/deluser"):
+            try:
+                user = text.split()[1]
+                subprocess.getoutput(f"userdel -f {user}")
+                subprocess.getoutput(f"rm -f /etc/vps-manager/banner_{user}.net")
+                subprocess.getoutput(f"sed -i '/Match User {user}/,+1d' /etc/ssh/sshd_config")
+                subprocess.getoutput("systemctl restart ssh")
+                bot.reply_to(message, f"✅ <b>{user}</b> eliminado.", parse_mode="HTML")
+            except:
+                bot.reply_to(message, "❌ Error.")
             return
 
         elif text == "👥 Panel Vendedores":
@@ -235,9 +216,6 @@ def handle_message(message):
                 bot.reply_to(message, "❌ Error al generar V2Ray.")
             return
 
-    # ==========================
-    # FUNCIONES GENERALES (Admin y Revendedor)
-    # ==========================
     if text == "💰 Mis Créditos":
         bot.reply_to(message, f"💰 <b>Créditos disponibles:</b> {get_credits(uid)}", parse_mode="HTML")
         return
@@ -317,5 +295,5 @@ systemctl stop vps-bot >/dev/null 2>&1
 systemctl enable vps-bot >/dev/null 2>&1
 systemctl restart vps-bot
 
-echo -e "\n${C_GREEN}[✔] ¡Bot actualizado! Envía /start en Telegram para ver el nuevo menú.${C_NC}"
+echo -e "\n${C_GREEN}[✔] ¡Bot del Cliente actualizado exitosamente!${C_NC}"
 read -p "Presione Enter para regresar..."

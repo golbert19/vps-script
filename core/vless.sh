@@ -60,8 +60,8 @@ instalar_xray_vless() {
 }
 
 generar_link_vless() {
-    local alias=$1 dom=$2 uuid=$3 port=$4 net=$5 tls=$6 path=$7
-    echo "vless://$uuid@$dom:$port?encryption=none&security=$tls&type=$net&path=$path&host=$dom&sni=$dom#$alias"
+    local alias=$1 dom=$2 uuid=$3 port=$4
+    echo "vless://$uuid@$dom:$port?path=%2Fvless&security=none&encryption=none&type=ws#$alias"
 }
 
 menu_vless() {
@@ -95,11 +95,9 @@ menu_vless() {
 
                 # Inyección del cliente en el config.json descargado
                 jq ".inbounds[0].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\"}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[1].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\"}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 systemctl restart xray
 
-                LINK_TLS=$(generar_link_vless "$user" "$DOM" "$UUID" "443" "ws" "tls" "/vless")
-                LINK_NTLS=$(generar_link_vless "$user" "$DOM" "$UUID" "80" "ws" "none" "/vless")
+                LINK_NTLS=$(generar_link_vless "$user" "$DOM" "$UUID" "80")
 
                 clear
                 echo -e "${C_YELLOW}    CUENTA VLESS CREADA EXITOSAMENTE    ${C_NC}"
@@ -109,8 +107,7 @@ menu_vless() {
                 echo -e " UUID        : ${C_CYAN}$UUID${C_NC}"
                 echo -e " Expira      : ${C_CYAN}$EXP_DATE${C_NC}"
                 echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
-                echo -e "\n ${C_GREEN}LINK TLS (443) :${C_NC}\n$LINK_TLS\n"
-                echo -e " ${C_GREEN}LINK NTLS (80) :${C_NC}\n$LINK_NTLS\n"
+                echo -e "\n ${C_GREEN}LINK NTLS (80) :${C_NC}\n$LINK_NTLS\n"
                 echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
                 read -p "Presiona ENTER para volver al menú " foo
                 ;;
@@ -122,7 +119,6 @@ menu_vless() {
                 [ -z "$user" ] && continue
                 
                 jq ".inbounds[0].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[1].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 systemctl restart xray
                 echo -e "${C_GREEN}[✔] Cuenta $user eliminada correctamente.${C_NC}"
                 read -p "Presiona ENTER para continuar..." foo
@@ -147,7 +143,6 @@ menu_vless() {
                 [ -z "$user" ] && continue
                 
                 jq ".inbounds[0].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[1].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 systemctl restart xray
                 
                 echo -e "${C_GREEN}[✔] El usuario $user ha sido bloqueado del servidor.${C_NC}"

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Módulo: Bot de Telegram (Sistema Vendedores + V2Ray)
+# Módulo: Bot de Telegram (Sistema Vendedores, V2Ray y Keygen)
 # ==========================================
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 
@@ -67,7 +67,6 @@ with open(os.path.join(BOT_DIR, "config.env"), "r") as f:
 
 bot = telebot.TeleBot(TOKEN)
 
-# Funciones de Vendedores (Resellers)
 def load_resellers():
     resellers = {}
     if os.path.exists(RESELLERS_FILE):
@@ -109,7 +108,8 @@ def send_welcome(message):
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
         markup.add("👤 Crear SSH", "❌ Eliminar SSH")
         markup.add("🛡️ Crear V2Ray (Xray)", "📋 Lista SSH")
-        markup.add("👥 Panel Vendedores", "📊 Info Servidor")
+        markup.add("🔑 Generar Key Script", "👥 Panel Vendedores")
+        markup.add("📊 Info Servidor")
         bot.reply_to(message, "👑 <b>Panel ADMIN VPS Activo</b>", parse_mode="HTML", reply_markup=markup)
     elif is_reseller(uid):
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
@@ -125,17 +125,52 @@ def handle_message(message):
         return
 
     text = message.text
+    username = message.from_user.username if message.from_user.username else "Usuario"
 
     # ==========================
     # MENÚ ADMIN EXCLUSIVO
     # ==========================
     if is_admin(uid):
-        if text == "📊 Info Servidor":
+        # Generador de Keys para Instalación del Script
+        if text == "🔑 Generar Key Script" or text.startswith("/genkey"):
+            try:
+                parts = text.split()
+                # Si el admin escribe "/genkey @cliente 123456", toma esos datos; si no, toma los de quien presiona el botón.
+                client_user = parts[1] if len(parts) > 1 else f"@{username}"
+                client_id = parts[2] if len(parts) > 2 else uid
+
+                new_key = "VPS-" + str(uuid.uuid4()).upper().replace("-", "")[:12]
+                new_key = f"{new_key[:4]}-{new_key[4:8]}-{new_key[8:12]}"
+
+                msg = (
+                    "✅ <b>KEY GENERADA</b>\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 <b>Cliente:</b> {client_user} (ID: <code>{client_id}</code>)\n"
+                    f"🔑 <b>Key:</b> <code>{new_key}</code>\n"
+                    "⏳ <b>Vence:</b> Permanente (Dueño)\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n"
+                    "⚠️ <b>Sistema:</b> Solo Ubuntu 22.04 | 24.04 | 26.04\n"
+                    "👨‍💻 <b>Dueño:</b> @golbertperuvps\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n"
+                    "💻 <b>Instalación:</b>\n"
+                    "<code>apt update -y && apt install -y wget && wget -O install.sh https://raw.githubusercontent.com/golbert19/vps-script/main/install.sh && chmod +x install.sh && ./install.sh</code>"
+                )
+                bot.reply_to(message, msg, parse_mode="HTML")
+            except Exception as e:
+                bot.reply_to(message, "❌ Error al generar la Key.")
+            return
+
+        elif text == "📊 Info Servidor":
             ip = subprocess.getoutput("curl -s ipv4.icanhazip.com")
             ram = subprocess.getoutput("free -m | awk 'NR==2{printf \"%s / %s MB\", $3,$2}'")
             bot.reply_to(message, f"🌐 <b>IP:</b> {ip}\n⚡ <b>RAM:</b> {ram}", parse_mode="HTML")
             return
             
+        elif text == "📋 Lista SSH":
+            users = subprocess.getoutput("awk -F: '$3 >= 1000 && $1 != \"nobody\" {print $1}' /etc/passwd")
+            bot.reply_to(message, f"📋 <b>Usuarios SSH Registrados:</b>\n<code>{users}</code>", parse_mode="HTML")
+            return
+
         elif text == "❌ Eliminar SSH":
             bot.reply_to(message, "Formato:\n<code>/deluser [usuario]</code>", parse_mode="HTML")
             return
@@ -201,13 +236,20 @@ def handle_message(message):
                 ip = subprocess.getoutput("curl -s ipv4.icanhazip.com")
                 dom = subprocess.getoutput("[ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo '" + ip + "'")
                 
-                # Formato Vmess Básico
                 vmess_json = f'{{"v":"2","ps":"{v_user}","add":"{dom}","port":"443","id":"{v_uuid}","aid":"0","scy":"auto","net":"ws","type":"none","host":"{dom}","path":"/vmess","tls":"tls","sni":"{dom}","alpn":""}}'
                 import base64
                 vmess_base64 = base64.b64encode(vmess_json.encode('utf-8')).decode('utf-8')
                 vmess_link = f"vmess://{vmess_base64}"
                 
-                msg = f"✅ <b>V2RAY VMESS CREADO</b> ✅\n\n👤 <b>Usuario:</b> {v_user}\n🔑 <b>UUID:</b> <code>{v_uuid}</code>\n📅 <b>Días:</b> {v_days}\n\n🔗 <b>Enlace Vmess:</b>\n<code>{vmess_link}</code>"
+                msg = (
+                    f"✅ <b>V2RAY VMESS CREADO</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 <b>Usuario:</b> {v_user}\n"
+                    f"🔑 <b>UUID:</b> <code>{v_uuid}</code>\n"
+                    f"📅 <b>Días:</b> {v_days}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🔗 <b>Enlace Vmess:</b>\n<code>{vmess_link}</code>"
+                )
                 bot.reply_to(message, msg, parse_mode="HTML")
             except Exception as e:
                 bot.reply_to(message, "❌ Error al generar V2Ray.")
@@ -246,13 +288,19 @@ def handle_message(message):
             dom = subprocess.getoutput("[ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo '" + ip + "'")
             exp_date = subprocess.getoutput(f"date -d '+{days} days' +'%Y-%m-%d'")
             
-            # Banner
             subprocess.getoutput(f"cat /etc/issue.net > /etc/vps-manager/banner_{user}.net && echo \"<br><font color='cyan'>=======================</font><br><font color='yellow'>👤 Usuario:</font> <font color='white'>{user}</font><br><font color='yellow'>📅 Expira:</font> <font color='white'>{exp_date} ({days} Días)</font><br><font color='cyan'>=======================</font><br>\" >> /etc/vps-manager/banner_{user}.net && sed -i '/Match User {user}/d' /etc/ssh/sshd_config && echo -e '\\nMatch User {user}\\nBanner /etc/vps-manager/banner_{user}.net' >> /etc/ssh/sshd_config && systemctl restart ssh")
             
-            # Descontar crédito si es vendedor
             deduct_credit(uid)
             
-            respuesta = f"✅ <b>CUENTA CREADA</b> ✅\n\n👤 <b>Usuario:</b> {user}\n🔑 <b>Clave:</b> {pwd}\n📅 <b>Expira:</b> {exp_date} ({days} días)\n🌐 <b>Host:</b> {dom}\n\n"
+            respuesta = (
+                f"✅ <b>CUENTA SSH CREADA</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 <b>Usuario:</b> <code>{user}</code>\n"
+                f"🔑 <b>Clave:</b> <code>{pwd}</code>\n"
+                f"📅 <b>Expira:</b> {exp_date} ({days} días)\n"
+                f"🌐 <b>Host:</b> {dom}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+            )
             if not is_admin(uid):
                 respuesta += f"💰 <i>Créditos restantes: {get_credits(uid)}</i>"
                 

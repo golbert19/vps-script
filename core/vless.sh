@@ -44,7 +44,7 @@ instalar_xray_dual() {
     else
         echo -e "${C_YELLOW}[!] Generando certificado SSL autofirmado de respaldo...${C_NC}"
         openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-            -keyout $XRAY_DIR/server.key -out$XRAY_DIR/server.crt \
+            -keyout $XRAY_DIR/server.key -out $XRAY_DIR/server.crt \
             -subj "/C=PE/ST=Lima/L=Lima/O=VPS/CN=$DOMINIO" >/dev/null 2>&1
     fi
     chmod 644 $XRAY_DIR/server.crt $XRAY_DIR/server.key
@@ -154,12 +154,12 @@ EOF
 
 generar_link_vless_ntls() {
     local alias=$1 dom=$2 uuid=$3
-    echo "vless://$uuid@$dom:80?path=\%2Fvless&security=none&encryption=none&type=ws#$alias"
+    echo "vless://$uuid@$dom:80?path=/vless&security=none&encryption=none&type=ws#$alias"
 }
 
 generar_link_vless_tls() {
     local alias=$1 dom=$2 uuid=$3
-    echo "vless://$uuid@$dom:443?path=\%2Fvless&security=tls&encryption=none&type=ws&host=$dom&sni=$dom#$alias"
+    echo "vless://$uuid@$dom:443?path=/vless&security=tls&encryption=none&type=ws&host=$dom&sni=$dom#$alias"
 }
 
 menu_vless() {
@@ -167,7 +167,7 @@ menu_vless() {
     
     while true; do
         clear
-        echo -e "${C_YELLOW}        GESTION DE VLESS (80 / 443)${C_NC}"
+        echo -e "${C_YELLOW}        GESTION DE VLESS (80 / 443)        ${C_NC}"
         echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
         echo -e "${C_CYAN}[1] >${C_NC} Crear Cuenta Vless"
         echo -e "${C_CYAN}[2] >${C_NC} Eliminar Cuenta Vless"
@@ -182,7 +182,7 @@ menu_vless() {
         case $opc in
             1)
                 clear
-                echo -e "${C_YELLOW}      CREAR USUARIO XRAY VLESS${C_NC}"
+                echo -e "${C_YELLOW}      CREAR USUARIO XRAY VLESS      ${C_NC}"
                 echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
                 read -p "Nombre de usuario: " user
                 [ -z "$user" ] && continue
@@ -190,7 +190,7 @@ menu_vless() {
                 
                 UUID=$(uuidgen)
                 EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d")
-                DOM=$(cat$DOM_FILE 2>/dev/null)
+                DOM=$(cat $DOM_FILE 2>/dev/null)
 
                 jq ".inbounds[2].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\"}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 systemctl restart xray
@@ -199,7 +199,7 @@ menu_vless() {
                 LINK_NTLS=$(generar_link_vless_ntls "$user-NTLS" "$DOM" "$UUID")
 
                 clear
-                echo -e "${C_YELLOW}    CUENTA VLESS CREADA EXITOSAMENTE${C_NC}"
+                echo -e "${C_YELLOW}    CUENTA VLESS CREADA EXITOSAMENTE    ${C_NC}"
                 echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
                 echo -e " Alias       : ${C_CYAN}$user${C_NC}"
                 echo -e " Dominio     : ${C_CYAN}$DOM${C_NC}"
@@ -215,7 +215,7 @@ menu_vless() {
                 ;;
             2)
                 clear
-                echo -e "${C_YELLOW}     ELIMINAR USUARIO XRAY VLESS${C_NC}"
+                echo -e "${C_YELLOW}     ELIMINAR USUARIO XRAY VLESS     ${C_NC}"
                 echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
                 read -p "Usuario a eliminar: " user
                 [ -z "$user" ] && continue

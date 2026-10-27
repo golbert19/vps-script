@@ -1,11 +1,11 @@
 #!/bin/bash
 # ==========================================
-# Script de Instalación - Golbert VPS V4.5
+# Script de Instalación - Golbert VPS V5.0 LTS
 # ==========================================
 
 clear
 echo -e "\033[1;36m================================================\033[0m"
-echo -e "\033[1;32m       INSTALADOR GOLBERT VPS V4.5 LTS          \033[0m"
+echo -e "\033[1;32m       INSTALADOR GOLBERT VPS V5.0 LTS          \033[0m"
 echo -e "\033[1;36m================================================\033[0m"
 
 # ==========================================
@@ -64,7 +64,15 @@ wget -O /usr/local/bin/menu https://raw.githubusercontent.com/golbert19/vps-scri
 chmod +x /usr/local/bin/menu
 
 # ==========================================
-# 5. FINALIZACIÓN Y APERTURA AUTOMÁTICA
+# 5. UNIFICACIÓN Y BLINDAJE DE PUERTOS (NGINX)
+# ==========================================
+echo -e "\n\033[1;36m[+] Configurando pasarela de puertos (Fix Ports)...\033[0m"
+wget -O /etc/vps-manager/fix_ports.sh https://raw.githubusercontent.com/golbert19/vps-script/main/fix_ports.sh
+chmod +x /etc/vps-manager/fix_ports.sh
+/etc/vps-manager/fix_ports.sh
+
+# ==========================================
+# 6. FINALIZACIÓN Y APERTURA AUTOMÁTICA
 # ==========================================
 echo -e "\n\033[1;32m[✔] ¡Instalación modular completada con éxito!\033[0m"
 sleep 2

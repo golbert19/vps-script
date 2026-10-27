@@ -23,11 +23,37 @@ def send_welcome(message):
         markup.add("📜 Logs Keys", "🏆 Ranking")
         markup.add("👥 Mis Clientes", "🌐 Lista de IPs")
         bot.reply_to(message, "👑 <b>Bot Maestro Activo</b>", parse_mode="HTML", reply_markup=markup)
+    else:
+        msg = (
+            "⚠️ <b>ACCESO DENEGADO</b> ⚠️\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "No tienes permisos para utilizar este bot.\n\n"
+            "Para adquirir acceso o servicios, contacta a:\n"
+            "👨‍💻 <b>Telegram:</b> @golbert_service\n"
+            "📞 <b>WhatsApp:</b> +51960084993\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"🆔 <b>Tu ID es:</b> <code>{uid}</code>"
+        )
+        bot.reply_to(message, msg, parse_mode="HTML")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     uid = str(message.from_user.id)
-    if uid != ADMIN_ID: return
+    
+    if uid != ADMIN_ID:
+        msg = (
+            "⚠️ <b>ACCESO DENEGADO</b> ⚠️\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "No tienes permisos para utilizar este bot.\n\n"
+            "Para adquirir acceso o servicios, contacta a:\n"
+            "👨‍💻 <b>Telegram:</b> @golbert_service\n"
+            "📞 <b>WhatsApp:</b> +51960084993\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"🆔 <b>Tu ID es:</b> <code>{uid}</code>"
+        )
+        bot.reply_to(message, msg, parse_mode="HTML")
+        return
+        
     text = message.text
     username = message.from_user.username if message.from_user.username else "Usuario"
 
@@ -43,7 +69,7 @@ def handle_message(message):
                 "⏳ <b>Vence:</b> Permanente (Dueño)\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 "⚠️ <b>Sistema:</b> Solo Ubuntu 22.04 | 24.04 | 26.04\n"
-                "👨‍💻 <b>Dueño:</b> @golbertperuvps\n"
+                "👨‍💻 <b>Dueño:</b> @golbert_service\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 "💻 <b>Instalación:</b>\n"
                 "<code>apt update -y && apt install -y wget && wget -O install.sh https://raw.githubusercontent.com/golbert19/vps-script/main/install.sh && chmod +x install.sh && ./install.sh</code>"
@@ -68,4 +94,4 @@ if __name__ == "__main__":
     while True:
         try: bot.infinity_polling(timeout=10, long_polling_timeout=5)
         except: time.sleep(3)
-                     
+            

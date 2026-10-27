@@ -51,38 +51,10 @@ instalar_xray_vless() {
     cp /etc/letsencrypt/live/$DOMINIO/fullchain.pem $XRAY_DIR/server.crt
     cp /etc/letsencrypt/live/$DOMINIO/privkey.pem $XRAY_DIR/server.key
 
-    cat << EOF > $CONF_FILE
-{
-  "log": { "loglevel": "warning" },
-  "inbounds": [
-    {
-      "port": 443, "protocol": "vless",
-      "settings": { "clients": [], "decryption": "none",
-        "fallbacks": [
-          {"path": "/vless", "dest": 10004},
-          {"path": "/vless-grpc", "dest": 10005},
-          {"path": "/vless-xhttp", "dest": 10006}
-        ]
-      },
-      "streamSettings": { "network": "tcp", "security": "tls", "tlsSettings": { "alpn": ["h2", "http/1.1"], "certificates": [ { "certificateFile": "$XRAY_DIR/server.crt", "keyFile": "$XRAY_DIR/server.key" } ] } }
-    },
-    {
-      "port": 80, "protocol": "vless",
-      "settings": { "clients": [], "decryption": "none",
-        "fallbacks": [
-          {"path": "/vless", "dest": 10004},
-          {"path": "/vless-xhttp", "dest": 10006}
-        ]
-      },
-      "streamSettings": { "network": "tcp", "security": "none" }
-    },
-    { "port": 10004, "listen": "127.0.0.1", "protocol": "vless", "settings": {"clients": [], "decryption": "none"}, "streamSettings": {"network": "ws", "security": "none", "wsSettings": {"path": "/vless"}} },
-    { "port": 10005, "listen": "127.0.0.1", "protocol": "vless", "settings": {"clients": [], "decryption": "none"}, "streamSettings": {"network": "grpc", "security": "none", "grpcSettings": {"serviceName": "vless-grpc"}} },
-    { "port": 10006, "listen": "127.0.0.1", "protocol": "vless", "settings": {"clients": [], "decryption": "none"}, "streamSettings": {"network": "xhttp", "security": "none", "xhttpSettings": {"path": "/vless-xhttp", "mode": "auto"}} }
-  ],
-  "outbounds": [ { "protocol": "freedom" } ]
-}
-EOF
+    # Descarga automática del config.json optimizado desde tu GitHub
+    echo -e "${C_YELLOW}[+] Configurando entorno Xray idéntico...${C_NC}"
+    curl -sL https://raw.githubusercontent.com/golbert19/vps-script/main/config.json -o $CONF_FILE
+    
     systemctl restart xray
     echo -e "${C_GREEN}[✔] ¡Instalación VLESS completada!${C_NC}"; sleep 2
 }
@@ -121,15 +93,13 @@ menu_vless() {
                 EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d")
                 DOM=$(cat $DOM_FILE)
 
-                jq ".inbounds[2].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\"}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[3].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\"}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[4].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\"}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                # Inyección del cliente en el config.json descargado
+                jq ".inbounds[0].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\"}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                jq ".inbounds[1].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\"}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 systemctl restart xray
 
                 LINK_TLS=$(generar_link_vless "$user" "$DOM" "$UUID" "443" "ws" "tls" "/vless")
                 LINK_NTLS=$(generar_link_vless "$user" "$DOM" "$UUID" "80" "ws" "none" "/vless")
-                LINK_GRPC=$(generar_link_vless "$user-GRPC" "$DOM" "$UUID" "443" "grpc" "tls" "vless-grpc")
-                LINK_XHTTP=$(generar_link_vless "$user-XHTTP" "$DOM" "$UUID" "443" "xhttp" "tls" "/vless-xhttp")
 
                 clear
                 echo -e "${C_YELLOW}    CUENTA VLESS CREADA EXITOSAMENTE    ${C_NC}"
@@ -141,8 +111,6 @@ menu_vless() {
                 echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
                 echo -e "\n ${C_GREEN}LINK TLS (443) :${C_NC}\n$LINK_TLS\n"
                 echo -e " ${C_GREEN}LINK NTLS (80) :${C_NC}\n$LINK_NTLS\n"
-                echo -e " ${C_GREEN}LINK GRPC      :${C_NC}\n$LINK_GRPC\n"
-                echo -e " ${C_GREEN}LINK XHTTP     :${C_NC}\n$LINK_XHTTP\n"
                 echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
                 read -p "Presiona ENTER para volver al menú " foo
                 ;;
@@ -153,9 +121,8 @@ menu_vless() {
                 read -p "Usuario a eliminar: " user
                 [ -z "$user" ] && continue
                 
-                jq ".inbounds[2].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[3].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[4].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                jq ".inbounds[0].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                jq ".inbounds[1].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 systemctl restart xray
                 echo -e "${C_GREEN}[✔] Cuenta $user eliminada correctamente.${C_NC}"
                 read -p "Presiona ENTER para continuar..." foo
@@ -179,9 +146,8 @@ menu_vless() {
                 read -p "Nombre del usuario a bloquear: " user
                 [ -z "$user" ] && continue
                 
-                jq ".inbounds[2].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[3].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[4].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                jq ".inbounds[0].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                jq ".inbounds[1].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 systemctl restart xray
                 
                 echo -e "${C_GREEN}[✔] El usuario $user ha sido bloqueado del servidor.${C_NC}"

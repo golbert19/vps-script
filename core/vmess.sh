@@ -51,43 +51,15 @@ instalar_xray_vmess() {
     cp /etc/letsencrypt/live/$DOMINIO/fullchain.pem $XRAY_DIR/server.crt
     cp /etc/letsencrypt/live/$DOMINIO/privkey.pem $XRAY_DIR/server.key
 
-    cat << EOF > $CONF_FILE
-{
-  "log": { "loglevel": "warning" },
-  "inbounds": [
-    {
-      "port": 443, "protocol": "vless",
-      "settings": { "clients": [], "decryption": "none",
-        "fallbacks": [
-          {"path": "/vmess", "dest": 10001},
-          {"path": "/vmess-grpc", "dest": 10002},
-          {"path": "/xhttp", "dest": 10003}
-        ]
-      },
-      "streamSettings": { "network": "tcp", "security": "tls", "tlsSettings": { "alpn": ["h2", "http/1.1"], "certificates": [ { "certificateFile": "$XRAY_DIR/server.crt", "keyFile": "$XRAY_DIR/server.key" } ] } }
-    },
-    {
-      "port": 80, "protocol": "vless",
-      "settings": { "clients": [], "decryption": "none",
-        "fallbacks": [
-          {"path": "/vmess", "dest": 10001},
-          {"path": "/xhttp", "dest": 10003}
-        ]
-      },
-      "streamSettings": { "network": "tcp", "security": "none" }
-    },
-    { "port": 10001, "listen": "127.0.0.1", "protocol": "vmess", "settings": {"clients": []}, "streamSettings": {"network": "ws", "security": "none", "wsSettings": {"path": "/vmess"}} },
-    { "port": 10002, "listen": "127.0.0.1", "protocol": "vmess", "settings": {"clients": []}, "streamSettings": {"network": "grpc", "security": "none", "grpcSettings": {"serviceName": "vmess-grpc"}} },
-    { "port": 10003, "listen": "127.0.0.1", "protocol": "vmess", "settings": {"clients": []}, "streamSettings": {"network": "xhttp", "security": "none", "xhttpSettings": {"path": "/xhttp", "mode": "auto"}} }
-  ],
-  "outbounds": [ { "protocol": "freedom" } ]
-}
-EOF
+    # Descarga automática del config.json optimizado de VMess desde tu GitHub
+    echo -e "${C_YELLOW}[+] Configurando entorno Xray idéntico...${C_NC}"
+    curl -sL https://raw.githubusercontent.com/golbert19/vps-script/main/config.json -o $CONF_FILE
+    
     systemctl restart xray
-    echo -e "${C_GREEN}[✔] ¡Instalación completada!${C_NC}"; sleep 2
+    echo -e "${C_GREEN}[✔] ¡Instalación VMESS completada!${C_NC}"; sleep 2
 }
 
-generar_link() {
+generar_link_vmess() {
     local alias=$1 dom=$2 uuid=$3 port=$4 net=$5 tls=$6 path=$7
     local json="{\"v\":\"2\",\"ps\":\"$alias\",\"add\":\"$dom\",\"port\":\"$port\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"$net\",\"type\":\"none\",\"host\":\"$dom\",\"path\":\"$path\",\"tls\":\"$tls\",\"sni\":\"$dom\",\"alpn\":\"\"}"
     echo "vmess://$(echo -n "$json" | base64 -w 0)"
@@ -122,31 +94,24 @@ menu_vmess() {
                 EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d")
                 DOM=$(cat $DOM_FILE)
 
-                jq ".inbounds[2].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\", \"alterId\": 0}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[3].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\", \"alterId\": 0}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[4].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\", \"alterId\": 0}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                # Inyección del cliente en los inbounds del config.json descargado
+                jq ".inbounds[0].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\", \"alterId\": 0}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                jq ".inbounds[1].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\", \"alterId\": 0}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 systemctl restart xray
 
-                LINK_TLS=$(generar_link "$user" "$DOM" "$UUID" "443" "ws" "tls" "/vmess")
-                LINK_NTLS=$(generar_link "$user" "$DOM" "$UUID" "80" "ws" "" "/vmess")
-                LINK_GRPC=$(generar_link "$user-GRPC" "$DOM" "$UUID" "443" "grpc" "tls" "vmess-grpc")
-                LINK_XHTTP=$(generar_link "$user-XHTTP" "$DOM" "$UUID" "443" "xhttp" "tls" "/xhttp")
-                LINK_XHTTP80=$(generar_link "$user-XHTTP80" "$DOM" "$UUID" "80" "xhttp" "" "/xhttp")
+                LINK_TLS=$(generar_link_vmess "$user" "$DOM" "$UUID" "443" "ws" "tls" "/vmess")
+                LINK_NTLS=$(generar_link_vmess "$user" "$DOM" "$UUID" "80" "ws" "" "/vmess")
 
                 clear
                 echo -e "${C_YELLOW}    CUENTA VMESS CREADA EXITOSAMENTE    ${C_NC}"
                 echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
                 echo -e " Alias       : ${C_CYAN}$user${C_NC}"
                 echo -e " Dominio     : ${C_CYAN}$DOM${C_NC}"
-                echo -e " UUID (Pass) : ${C_CYAN}$UUID${C_NC}"
-                echo -e " Red         : ${C_CYAN}WS / GRPC / XHTTP${C_NC}"
+                echo -e " UUID        : ${C_CYAN}$UUID${C_NC}"
                 echo -e " Expira      : ${C_CYAN}$EXP_DATE${C_NC}"
                 echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
                 echo -e "\n ${C_GREEN}LINK TLS (443) :${C_NC}\n$LINK_TLS\n"
                 echo -e " ${C_GREEN}LINK NTLS (80) :${C_NC}\n$LINK_NTLS\n"
-                echo -e " ${C_GREEN}LINK GRPC      :${C_NC}\n$LINK_GRPC\n"
-                echo -e " ${C_GREEN}LINK XHTTP     :${C_NC}\n$LINK_XHTTP\n"
-                echo -e " ${C_GREEN}LINK XHTTP80   :${C_NC}\n$LINK_XHTTP80\n"
                 echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
                 read -p "Presiona ENTER para volver al menú " foo
                 ;;
@@ -157,9 +122,8 @@ menu_vmess() {
                 read -p "Usuario a eliminar: " user
                 [ -z "$user" ] && continue
                 
-                jq ".inbounds[2].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[3].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[4].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                jq ".inbounds[0].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                jq ".inbounds[1].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 systemctl restart xray
                 echo -e "${C_GREEN}[✔] Cuenta $user eliminada correctamente.${C_NC}"
                 read -p "Presiona ENTER para continuar..." foo
@@ -183,10 +147,8 @@ menu_vmess() {
                 read -p "Nombre del usuario a bloquear: " user
                 [ -z "$user" ] && continue
                 
-                # Remueve temporalmente al usuario de los inbounds de Xray para cortarle el acceso
-                jq ".inbounds[2].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[3].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[4].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                jq ".inbounds[0].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                jq ".inbounds[1].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 systemctl restart xray
                 
                 echo -e "${C_GREEN}[✔] El usuario $user ha sido bloqueado del servidor.${C_NC}"

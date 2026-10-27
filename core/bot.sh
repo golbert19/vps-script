@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Módulo: Bot de Telegram del Cliente (Revendedor SSH/V2Ray)
+# Módulo: Bot de Telegram (Menú Maestro Original)
 # ==========================================
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 
@@ -10,7 +10,7 @@ touch "$BOT_DIR/resellers.txt"
 
 clear
 echo -e "${C_CYAN}================================================${C_NC}"
-echo -e "${C_GREEN}    CONFIGURACIÓN DE BOT (VENDEDORES Y V2RAY)   ${C_NC}"
+echo -e "${C_GREEN}    CONFIGURACIÓN DE BOT (MENÚ MAESTRO)         ${C_NC}"
 echo -e "${C_CYAN}================================================${C_NC}"
 
 if [ -f "$BOT_DIR/config.env" ]; then
@@ -32,7 +32,7 @@ if [ ! -f "$BOT_DIR/config.env" ]; then
     echo "ADMIN=\"$ADMIN_ID\"" >> "$BOT_DIR/config.env"
 fi
 
-apt update -y && apt install -y python3 python3-venv python3-pip jq uuid-runtime >/dev/null 2>&1
+apt update -y && apt install -y python3 python3-venv python3-pip jq uuid-runtime net-tools >/dev/null 2>&1
 
 cd "$BOT_DIR"
 if [ ! -d "venv" ]; then
@@ -49,8 +49,8 @@ from telebot import types
 import time
 import uuid
 
+# Cargar configuración
 BOT_DIR = "/etc/vps-manager/telegram_bot"
-RESELLERS_FILE = os.path.join(BOT_DIR, "resellers.txt")
 TOKEN = ""
 ADMIN_ID = ""
 
@@ -63,208 +63,89 @@ with open(os.path.join(BOT_DIR, "config.env"), "r") as f:
 
 bot = telebot.TeleBot(TOKEN)
 
-def load_resellers():
-    resellers = {}
-    if os.path.exists(RESELLERS_FILE):
-        with open(RESELLERS_FILE, "r") as f:
-            for line in f:
-                if ":" in line:
-                    uid, creds = line.strip().split(":")
-                    resellers[uid] = int(creds)
-    return resellers
-
-def save_resellers(resellers):
-    with open(RESELLERS_FILE, "w") as f:
-        for uid, creds in resellers.items():
-            f.write(f"{uid}:{creds}\n")
-
 def is_admin(user_id):
     return str(user_id) == str(ADMIN_ID)
-
-def is_reseller(user_id):
-    return str(user_id) in load_resellers()
-
-def get_credits(user_id):
-    return load_resellers().get(str(user_id), 0)
-
-def deduct_credit(user_id):
-    if is_admin(user_id): return True
-    resellers = load_resellers()
-    uid = str(user_id)
-    if uid in resellers and resellers[uid] > 0:
-        resellers[uid] -= 1
-        save_resellers(resellers)
-        return True
-    return False
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     uid = str(message.from_user.id)
     if is_admin(uid):
+        # TECLADO RESTAURADO EXACTAMENTE COMO EN LA IMAGEN
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-        markup.add("👤 Crear SSH", "❌ Eliminar SSH")
-        markup.add("🛡️ Crear V2Ray (Xray)", "📋 Lista SSH")
-        markup.add("👥 Panel Vendedores", "📊 Info Servidor")
-        bot.reply_to(message, "👑 <b>Panel ADMIN VPS Activo</b>", parse_mode="HTML", reply_markup=markup)
-    elif is_reseller(uid):
-        markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-        markup.add("👤 Crear SSH", "💰 Mis Créditos")
-        bot.reply_to(message, f"🤝 <b>Panel VENDEDOR Activo</b>\nCréditos Disponibles: {get_credits(uid)}", parse_mode="HTML", reply_markup=markup)
+        markup.add("📊 Estado", "📁 Mis Dominios")
+        markup.add("🌐 Dominio A", "🧩 Dominio NS")
+        markup.add("🔑 Generar key")
+        markup.add("📜 Mi Historial", "📈 Mi Uso")
+        markup.add("🆔 Mi ID")
+        markup.add("➕ Add User", "🔍 Buscar ID")
+        markup.add("📜 Logs Keys", "🏆 Ranking")
+        markup.add("👥 Mis Clientes", "🌐 Lista de IPs")
+        
+        bot.reply_to(message, "👑 <b>Panel ADMIN VPS Activo</b>\nBienvenido a tu menú principal.", parse_mode="HTML", reply_markup=markup)
     else:
-        bot.reply_to(message, f"⚠️ <b>Acceso Denegado.</b>\nTu ID es: <code>{uid}</code>", parse_mode="HTML")
+        bot.reply_to(message, f"⚠️ <b>Acceso Denegado.</b>\nNo eres el administrador del bot.\nTu ID es: <code>{uid}</code>", parse_mode="HTML")
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     uid = str(message.from_user.id)
-    if not (is_admin(uid) or is_reseller(uid)):
+    if not is_admin(uid):
         return
+
     text = message.text
+    username = message.from_user.username if message.from_user.username else "Usuario"
 
-    if is_admin(uid):
-        if text == "📊 Info Servidor":
-            ip = subprocess.getoutput("curl -s ipv4.icanhazip.com")
-            ram = subprocess.getoutput("free -m | awk 'NR==2{printf \"%s / %s MB\", $3,$2}'")
-            bot.reply_to(message, f"🌐 <b>IP:</b> {ip}\n⚡ <b>RAM:</b> {ram}", parse_mode="HTML")
-            return
-            
-        elif text == "📋 Lista SSH":
-            users = subprocess.getoutput("awk -F: '$3 >= 1000 && $1 != \"nobody\" {print $1}' /etc/passwd")
-            bot.reply_to(message, f"📋 <b>Usuarios SSH Registrados:</b>\n<code>{users}</code>", parse_mode="HTML")
-            return
+    # ==========================
+    # FUNCIONES PRINCIPALES
+    # ==========================
+    if text == "🔑 Generar key":
+        try:
+            new_key = "VPS-" + str(uuid.uuid4()).upper().replace("-", "")[:12]
+            new_key = f"{new_key[:4]}-{new_key[4:8]}-{new_key[8:12]}"
 
-        elif text == "❌ Eliminar SSH":
-            bot.reply_to(message, "Formato:\n<code>/deluser [usuario]</code>", parse_mode="HTML")
-            return
-            
-        elif text.startswith("/deluser"):
-            try:
-                user = text.split()[1]
-                subprocess.getoutput(f"userdel -f {user}")
-                subprocess.getoutput(f"rm -f /etc/vps-manager/banner_{user}.net")
-                subprocess.getoutput(f"sed -i '/Match User {user}/,+1d' /etc/ssh/sshd_config")
-                subprocess.getoutput("systemctl restart ssh")
-                bot.reply_to(message, f"✅ <b>{user}</b> eliminado.", parse_mode="HTML")
-            except:
-                bot.reply_to(message, "❌ Error.")
-            return
-
-        elif text == "👥 Panel Vendedores":
-            msg = "👥 <b>GESTIÓN DE REVENDEDORES</b>\n\n"
-            msg += "Añadir vendedor (Ej: 10 créditos):\n<code>/addvend ID_TELEGRAM 10</code>\n\n"
-            msg += "Eliminar vendedor:\n<code>/delvend ID_TELEGRAM</code>\n\n"
-            msg += "<b>Vendedores Actuales:</b>\n"
-            res = load_resellers()
-            for r_id, cred in res.items():
-                msg += f"ID: <code>{r_id}</code> - Créditos: {cred}\n"
+            msg = (
+                "✅ <b>KEY GENERADA</b>\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 <b>Cliente:</b> @{username} (ID: <code>{uid}</code>)\n"
+                f"🔑 <b>Key:</b> <code>{new_key}</code>\n"
+                "⏳ <b>Vence:</b> Permanente (Dueño)\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "⚠️ <b>Sistema:</b> Solo Ubuntu 22.04 | 24.04 | 26.04\n"
+                "👨‍💻 <b>Dueño:</b> @golbertperuvps\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "💻 <b>Instalación:</b>\n"
+                "<code>apt update -y && apt install -y wget && wget -O install.sh https://raw.githubusercontent.com/golbert19/vps-script/main/install.sh && chmod +x install.sh && ./install.sh</code>"
+            )
             bot.reply_to(message, msg, parse_mode="HTML")
-            return
-
-        elif text.startswith("/addvend"):
-            try:
-                parts = text.split()
-                r_id = parts[1]
-                creds = int(parts[2])
-                res = load_resellers()
-                res[r_id] = creds
-                save_resellers(res)
-                bot.reply_to(message, f"✅ Vendedor <code>{r_id}</code> agregado con {creds} créditos.", parse_mode="HTML")
-            except:
-                bot.reply_to(message, "❌ Formato: /addvend ID CREDITOS")
-            return
-
-        elif text.startswith("/delvend"):
-            try:
-                r_id = text.split()[1]
-                res = load_resellers()
-                if r_id in res:
-                    del res[r_id]
-                    save_resellers(res)
-                    bot.reply_to(message, f"✅ Vendedor eliminado.", parse_mode="HTML")
-            except:
-                pass
-            return
-            
-        elif text == "🛡️ Crear V2Ray (Xray)":
-            bot.reply_to(message, "Generador V2Ray (VMess):\n<code>/addvmess [usuario] [dias]</code>\nEjemplo: <code>/addvmess carlos 30</code>", parse_mode="HTML")
-            return
-            
-        elif text.startswith("/addvmess"):
-            try:
-                parts = text.split()
-                v_user = parts[1]
-                v_days = parts[2]
-                v_uuid = str(uuid.uuid4())
-                ip = subprocess.getoutput("curl -s ipv4.icanhazip.com")
-                dom = subprocess.getoutput("[ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo '" + ip + "'")
-                
-                vmess_json = f'{{"v":"2","ps":"{v_user}","add":"{dom}","port":"443","id":"{v_uuid}","aid":"0","scy":"auto","net":"ws","type":"none","host":"{dom}","path":"/vmess","tls":"tls","sni":"{dom}","alpn":""}}'
-                import base64
-                vmess_base64 = base64.b64encode(vmess_json.encode('utf-8')).decode('utf-8')
-                vmess_link = f"vmess://{vmess_base64}"
-                
-                msg = (
-                    f"✅ <b>V2RAY VMESS CREADO</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"👤 <b>Usuario:</b> {v_user}\n"
-                    f"🔑 <b>UUID:</b> <code>{v_uuid}</code>\n"
-                    f"📅 <b>Días:</b> {v_days}\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🔗 <b>Enlace Vmess:</b>\n<code>{vmess_link}</code>"
-                )
-                bot.reply_to(message, msg, parse_mode="HTML")
-            except Exception as e:
-                bot.reply_to(message, "❌ Error al generar V2Ray.")
-            return
-
-    if text == "💰 Mis Créditos":
-        bot.reply_to(message, f"💰 <b>Créditos disponibles:</b> {get_credits(uid)}", parse_mode="HTML")
-        return
-
-    elif text == "👤 Crear SSH":
-        bot.reply_to(message, "Comando para crear:\n<code>/adduser [usuario] [clave] [dias]</code>", parse_mode="HTML")
+        except Exception as e:
+            bot.reply_to(message, "❌ Error al generar la Key.")
         return
         
-    elif text.startswith("/adduser"):
-        if get_credits(uid) <= 0 and not is_admin(uid):
-            bot.reply_to(message, "❌ <b>No tienes créditos suficientes.</b> Contacta al administrador.", parse_mode="HTML")
-            return
-            
-        try:
-            parts = text.split()
-            user = parts[1]
-            pwd = parts[2]
-            days = parts[3]
-            
-            cmd = f"useradd -e $(date -d '+{days} days' +'%Y-%m-%d') -s /bin/false -M {user} && echo '{user}:{pwd}' | chpasswd"
-            res_cmd = subprocess.getoutput(cmd)
-            
-            if "already exists" in res_cmd:
-                bot.reply_to(message, "❌ El usuario ya existe.")
-                return
+    elif text == "🆔 Mi ID":
+        bot.reply_to(message, f"🆔 <b>Tu ID de Telegram es:</b> <code>{uid}</code>", parse_mode="HTML")
+        return
 
-            ip = subprocess.getoutput("curl -s ipv4.icanhazip.com")
-            dom = subprocess.getoutput("[ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo '" + ip + "'")
-            exp_date = subprocess.getoutput(f"date -d '+{days} days' +'%Y-%m-%d'")
-            
-            subprocess.getoutput(f"cat /etc/issue.net > /etc/vps-manager/banner_{user}.net && echo \"<br><font color='cyan'>=======================</font><br><font color='yellow'>👤 Usuario:</font> <font color='white'>{user}</font><br><font color='yellow'>📅 Expira:</font> <font color='white'>{exp_date} ({days} Días)</font><br><font color='cyan'>=======================</font><br>\" >> /etc/vps-manager/banner_{user}.net && sed -i '/Match User {user}/d' /etc/ssh/sshd_config && echo -e '\\nMatch User {user}\\nBanner /etc/vps-manager/banner_{user}.net' >> /etc/ssh/sshd_config && systemctl restart ssh")
-            
-            deduct_credit(uid)
-            
-            respuesta = (
-                f"✅ <b>CUENTA SSH CREADA</b>\n"
-                f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 <b>Usuario:</b> <code>{user}</code>\n"
-                f"🔑 <b>Clave:</b> <code>{pwd}</code>\n"
-                f"📅 <b>Expira:</b> {exp_date} ({days} días)\n"
-                f"🌐 <b>Host:</b> {dom}\n"
-                f"━━━━━━━━━━━━━━━━━━━━\n"
-            )
-            if not is_admin(uid):
-                respuesta += f"💰 <i>Créditos restantes: {get_credits(uid)}</i>"
-                
-            bot.reply_to(message, respuesta, parse_mode="HTML")
-        except:
-            bot.reply_to(message, "❌ <b>Error.</b> Formato: /adduser usuario clave dias", parse_mode="HTML")
+    elif text == "📊 Estado":
+        ip = subprocess.getoutput("curl -s ipv4.icanhazip.com")
+        ram = subprocess.getoutput("free -m | awk 'NR==2{printf \"%s / %s MB\", $3,$2}'")
+        cpu = subprocess.getoutput("top -bn1 | grep 'Cpu(s)' | awk '{print 100 - $8}'")
+        uptime = subprocess.getoutput("uptime -p")
+        msg = f"📊 <b>ESTADO DEL VPS</b>\n\n🌐 <b>IP:</b> {ip}\n⚡ <b>RAM Uso:</b> {ram}\n🧠 <b>CPU Uso:</b> {cpu}%\n⏱ <b>Activo:</b> {uptime}"
+        bot.reply_to(message, msg, parse_mode="HTML")
+        return
+
+    elif text == "🌐 Lista de IPs":
+        ips = subprocess.getoutput("netstat -tn 2>/dev/null | grep :22 | awk '{print $5}' | cut -d: -f1 | sort | uniq")
+        if not ips:
+            ips = "Ninguna conexión detectada."
+        bot.reply_to(message, f"🌐 <b>IPs Conectadas al SSH:</b>\n<code>{ips}</code>", parse_mode="HTML")
+        return
+
+    # ==========================
+    # FUNCIONES EN DESARROLLO (Placeholders)
+    # ==========================
+    elif text in ["📁 Mis Dominios", "🌐 Dominio A", "🧩 Dominio NS", "📜 Mi Historial", "📈 Mi Uso", "➕ Add User", "🔍 Buscar ID", "📜 Logs Keys", "🏆 Ranking", "👥 Mis Clientes"]:
+        bot.reply_to(message, f"⚙️ La función <b>{text}</b> requiere vincular el script de backend (Cloudflare/Database).", parse_mode="HTML")
+        return
 
 if __name__ == "__main__":
     while True:
@@ -295,5 +176,5 @@ systemctl stop vps-bot >/dev/null 2>&1
 systemctl enable vps-bot >/dev/null 2>&1
 systemctl restart vps-bot
 
-echo -e "\n${C_GREEN}[✔] ¡Bot del Cliente actualizado exitosamente!${C_NC}"
+echo -e "\n${C_GREEN}[✔] ¡Menú Maestro restaurado exitosamente!${C_NC}"
 read -p "Presione Enter para regresar..."

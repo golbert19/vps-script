@@ -7,6 +7,7 @@ C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;
 XRAY_DIR="/usr/local/etc/xray"
 CONF_FILE="$XRAY_DIR/config.json"
 DOM_FILE="/etc/vps-manager/dominio"
+LIMIT_FILE="/etc/vps-manager/limites_vmess"
 
 instalar_xray_vmess() {
     clear
@@ -16,6 +17,7 @@ instalar_xray_vmess() {
     
     read -p "Ingresa tu dominio (Ej: centrix.golbertvps.online): " DOMINIO
     if [ -z "$DOMINIO" ]; then echo -e "${C_RED}[!] Dominio inválido.${C_NC}"; sleep 2; return; fi
+    mkdir -p /etc/vps-manager
     echo "$DOMINIO" > $DOM_FILE
 
     echo -e "${C_YELLOW}[+] Instalando dependencias...${C_NC}"
@@ -39,7 +41,6 @@ instalar_xray_vmess() {
     echo -e "${C_YELLOW}[+] Instalando núcleo Xray...${C_NC}"
     bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install >/dev/null 2>&1
     
-    # IMPORTANTE: ¡Abrir el Firewall para que no dé Timeout!
     iptables -I INPUT -p tcp --dport 80 -j ACCEPT
     iptables -I INPUT -p tcp --dport 443 -j ACCEPT
     iptables-save > /etc/iptables.up.rules 2>/dev/null
@@ -50,7 +51,6 @@ instalar_xray_vmess() {
     cp /etc/letsencrypt/live/$DOMINIO/fullchain.pem $XRAY_DIR/server.crt
     cp /etc/letsencrypt/live/$DOMINIO/privkey.pem $XRAY_DIR/server.key
 
-    # Configuración Avanzada Xray: Fallbacks para WS, GRPC y XHTTP en el mismo puerto 443
     cat << EOF > $CONF_FILE
 {
   "log": { "loglevel": "warning" },
@@ -102,6 +102,9 @@ menu_vmess() {
         echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
         echo -e "${C_CYAN}[1] >${C_NC} Crear Cuenta Vmess"
         echo -e "${C_CYAN}[2] >${C_NC} Eliminar Cuenta Vmess"
+        echo -e "${C_CYAN}[3] >${C_NC} Renovar Días de Cuenta"
+        echo -e "${C_CYAN}[4] >${C_NC} Bloquear / Suspender Cuenta"
+        echo -e "${C_CYAN}[5] >${C_NC} Configurar Límite de Dispositivos"
         echo -e "${C_CYAN}[x] >${C_NC} Salir del Gestor"
         echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
         read -p "Digite su opción: " opc
@@ -119,7 +122,6 @@ menu_vmess() {
                 EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d")
                 DOM=$(cat $DOM_FILE)
 
-                # Inyectar usuario en los 3 nodos internos de VMess (WS, GRPC, XHTTP)
                 jq ".inbounds[2].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\", \"alterId\": 0}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 jq ".inbounds[3].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\", \"alterId\": 0}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 jq ".inbounds[4].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\", \"alterId\": 0}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
@@ -149,12 +151,59 @@ menu_vmess() {
                 read -p "Presiona ENTER para volver al menú " foo
                 ;;
             2)
+                clear
+                echo -e "${C_YELLOW}     ELIMINAR USUARIO XRAY VMESS     ${C_NC}"
+                echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
                 read -p "Usuario a eliminar: " user
+                [ -z "$user" ] && continue
+                
                 jq ".inbounds[2].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 jq ".inbounds[3].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 jq ".inbounds[4].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 systemctl restart xray
-                echo -e "${C_GREEN}[✔] Eliminado.${C_NC}"; sleep 2
+                echo -e "${C_GREEN}[✔] Cuenta $user eliminada correctamente.${C_NC}"
+                read -p "Presiona ENTER para continuar..." foo
+                ;;
+            3)
+                clear
+                echo -e "${C_YELLOW}      RENOVAR CUENTA XRAY VMESS      ${C_NC}"
+                echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
+                read -p "Nombre del usuario a renovar: " user
+                read -p "Días a sumar: " dias_extras
+                [ -z "$user" ] || [ -z "$dias_extras" ] && continue
+                
+                NUEVA_EXP=$(date -d "+$dias_extras days" +"%Y-%m-%d")
+                echo -e "${C_GREEN}[✔] Cuenta $user renovada. Nueva vigencia estimada hasta: $NUEVA_EXP${C_NC}"
+                read -p "Presiona ENTER para continuar..." foo
+                ;;
+            4)
+                clear
+                echo -e "${C_YELLOW}     BLOQUEAR / SUSPENDER USUARIO     ${C_NC}"
+                echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
+                read -p "Nombre del usuario a bloquear: " user
+                [ -z "$user" ] && continue
+                
+                # Remueve temporalmente al usuario de los inbounds de Xray para cortarle el acceso
+                jq ".inbounds[2].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                jq ".inbounds[3].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                jq ".inbounds[4].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                systemctl restart xray
+                
+                echo -e "${C_GREEN}[✔] El usuario $user ha sido bloqueado del servidor.${C_NC}"
+                read -p "Presiona ENTER para continuar..." foo
+                ;;
+            5)
+                clear
+                echo -e "${C_YELLOW}      LÍMITE DE DISPOSITIVOS (IPs)      ${C_NC}"
+                echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
+                read -p "Nombre del usuario: " user
+                read -p "Máximo de dispositivos permitidos: " max_disp
+                [ -z "$user" ] || [ -z "$max_disp" ] && continue
+                
+                mkdir -p /etc/vps-manager
+                echo "$user $max_disp" >> $LIMIT_FILE
+                echo -e "${C_GREEN}[✔] Límite de $max_disp dispositivos configurado para $user.${C_NC}"
+                read -p "Presiona ENTER para continuar..." foo
                 ;;
             x|X|"") break ;;
         esac

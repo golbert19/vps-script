@@ -62,9 +62,8 @@ openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 \
     -subj "/C=PE/ST=Lima/L=Lima/O=Golbert/CN=golbertvps.online" \
     -keyout /etc/stunnel/stunnel.pem -out /etc/stunnel/stunnel.pem >/dev/null 2>&1
 
-# 3. Configurar Stunnel4 (Escucha en 443 y redirige al 80)
+# 3. Configurar Stunnel4 (Escucha en 443 y redirige al 80) sin conflicto de PID
 cat << 'EOF' > /etc/stunnel/stunnel.conf
-pid = /var/run/stunnel.pid
 cert = /etc/stunnel/stunnel.pem
 client = no
 socket = a:SO_REUSEADDR=1
@@ -92,11 +91,14 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
-# 5. Reiniciar Servicios
+# 5. Limpiar puertos previos y reiniciar Servicios sin errores
+fuser -k 80/tcp 2>/dev/null
+fuser -k 443/tcp 2>/dev/null
+
 systemctl daemon-reload
 systemctl enable ws-python
 systemctl restart ws-python
 systemctl restart stunnel4
 
-echo -e "\n\033[1;32m[✔] SSH WebSocket (Puerto 80) y SSL (Puerto 443) instalados correctamente.\033[0m"
+echo -e "\n\033[1;32m[✔] SSH WebSocket (Puerto 80) y SSL (Puerto 443) instalados correctamente sin conflictos.\033[0m"
 sleep 2

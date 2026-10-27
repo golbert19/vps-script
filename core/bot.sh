@@ -41,9 +41,6 @@ if [ ! -d "venv" ]; then
     pip install pyTelegramBotAPI >/dev/null 2>&1
 fi
 
-# ==========================================
-# SCRIPT DE PYTHON (EL CEREBRO DEL BOT)
-# ==========================================
 cat << 'EOF' > "$BOT_DIR/bot.py"
 import os
 import subprocess
@@ -106,10 +103,10 @@ def send_welcome(message):
     uid = str(message.from_user.id)
     if is_admin(uid):
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-        markup.add("👤 Crear SSH", "❌ Eliminar SSH")
+        # Menú Limpio: Solo el botón de Generar Key
+        markup.add("🔑 Generar Key", "👤 Crear SSH")
         markup.add("🛡️ Crear V2Ray (Xray)", "📋 Lista SSH")
-        markup.add("🔑 Generar Key Script", "👥 Panel Vendedores")
-        markup.add("📊 Info Servidor")
+        markup.add("👥 Panel Vendedores", "📊 Info Servidor")
         bot.reply_to(message, "👑 <b>Panel ADMIN VPS Activo</b>", parse_mode="HTML", reply_markup=markup)
     elif is_reseller(uid):
         markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
@@ -131,11 +128,10 @@ def handle_message(message):
     # MENÚ ADMIN EXCLUSIVO
     # ==========================
     if is_admin(uid):
-        # Generador de Keys para Instalación del Script
-        if text == "🔑 Generar Key Script" or text.startswith("/genkey"):
+        # Generador de Keys Premium
+        if text == "🔑 Generar Key" or text.startswith("/genkey"):
             try:
                 parts = text.split()
-                # Si el admin escribe "/genkey @cliente 123456", toma esos datos; si no, toma los de quien presiona el botón.
                 client_user = parts[1] if len(parts) > 1 else f"@{username}"
                 client_id = parts[2] if len(parts) > 2 else uid
 
@@ -169,22 +165,6 @@ def handle_message(message):
         elif text == "📋 Lista SSH":
             users = subprocess.getoutput("awk -F: '$3 >= 1000 && $1 != \"nobody\" {print $1}' /etc/passwd")
             bot.reply_to(message, f"📋 <b>Usuarios SSH Registrados:</b>\n<code>{users}</code>", parse_mode="HTML")
-            return
-
-        elif text == "❌ Eliminar SSH":
-            bot.reply_to(message, "Formato:\n<code>/deluser [usuario]</code>", parse_mode="HTML")
-            return
-            
-        elif text.startswith("/deluser"):
-            try:
-                user = text.split()[1]
-                subprocess.getoutput(f"userdel -f {user}")
-                subprocess.getoutput(f"rm -f /etc/vps-manager/banner_{user}.net")
-                subprocess.getoutput(f"sed -i '/Match User {user}/,+1d' /etc/ssh/sshd_config")
-                subprocess.getoutput("systemctl restart ssh")
-                bot.reply_to(message, f"✅ <b>{user}</b> eliminado.", parse_mode="HTML")
-            except:
-                bot.reply_to(message, "❌ Error.")
             return
 
         elif text == "👥 Panel Vendedores":
@@ -333,8 +313,9 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
+systemctl stop vps-bot >/dev/null 2>&1
 systemctl enable vps-bot >/dev/null 2>&1
 systemctl restart vps-bot
 
-echo -e "\n${C_GREEN}[✔] ¡Bot de Telegram Aislado configurado e iniciado con éxito!${C_NC}"
+echo -e "\n${C_GREEN}[✔] ¡Bot actualizado! Envía /start en Telegram para ver el nuevo menú.${C_NC}"
 read -p "Presione Enter para regresar..."

@@ -1,4 +1,10 @@
-import os, subprocess, telebot, time, uuid, requests, datetime
+import os
+import subprocess
+import telebot
+import time
+import uuid
+import requests
+import datetime
 from telebot import types
 
 # Cargar Configuración
@@ -123,12 +129,12 @@ def handle_message(message):
 
     # === FUNCIONES COMPARTIDAS (ADMIN Y CLIENTE) ===
     if text == BTN_DOM_A:
-        msg = bot.reply_to(message, "\U0001F310 <b>Crear Dominio A</b>\nIngresa el subdominio y la IP separados por espacio:\nEj: <code>vps1 192.168.1.1</code>", parse_mode="HTML")
+        msg = bot.reply_to(message, f"\U0001F310 <b>Crear Dominio A</b> ({DOMAIN})\nIngresa el subdominio y la IP separados por espacio:\nEj: <code>vps1 192.168.1.1</code>", parse_mode="HTML")
         bot.register_next_step_handler(msg, process_domain_a)
         return
         
     elif text == BTN_DOM_NS:
-        msg = bot.reply_to(message, "\U0001F9E9 <b>Crear Dominio NS</b>\nIngresa el subdominio y destino separados por espacio:\nEj: <code>ns1 vps1.dominio.com</code>", parse_mode="HTML")
+        msg = bot.reply_to(message, f"\U0001F9E9 <b>Crear Dominio NS</b> ({DOMAIN})\nIngresa el subdominio y destino separados por espacio:\nEj: <code>ns1 vps1.dominio.com</code>", parse_mode="HTML")
         bot.register_next_step_handler(msg, process_domain_ns)
         return
         
@@ -157,7 +163,7 @@ def handle_message(message):
                 "\U0001F468\u200D\U0001F4BB <b>Due\u00f1o:</b> @golbertperuvps\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 "\U0001F4BB <b>Instalaci\u00f3n:</b>\n"
-                "<code>apt update -y && apt install -y wget && wget -O install.sh https://raw.githubusercontent.com/golbert19/vps-script/main/install.sh && chmod +x install.sh && ./install.sh</code>"
+                "<code>apt update -y && apt install -y wget && wget -O install.sh https://script.golbertvps.org.pe && chmod +x install.sh && ./install.sh</code>"
             )
             bot.reply_to(message, msg, parse_mode="HTML")
         else:
@@ -179,7 +185,7 @@ def handle_message(message):
             "\U0001F468\u200D\U0001F4BB <b>Due\u00f1o:</b> @golbertperuvps\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
             "\U0001F4BB <b>Instalaci\u00f3n:</b>\n"
-            "<code>apt update -y && apt install -y wget && wget -O install.sh https://raw.githubusercontent.com/golbert19/vps-script/main/install.sh && chmod +x install.sh && ./install.sh</code>"
+            "<code>apt update -y && apt install -y wget && wget -O install.sh https://script.golbertvps.org.pe && chmod +x install.sh && ./install.sh</code>"
         )
         bot.reply_to(message, msg, parse_mode="HTML")
 
@@ -190,6 +196,24 @@ def handle_message(message):
     elif text == BTN_ADD_USR:
         msg = bot.reply_to(message, "\u2795 <b>Autorizar Revendedor al Bot</b>\nIngresa el ID de Telegram y los D\u00cdAS separados por espacio:\nEjemplo: <code>123456789 30</code>", parse_mode="HTML")
         bot.register_next_step_handler(msg, process_add_user)
+
+    elif text == BTN_FIND:
+        msg = bot.reply_to(message, "\U0001F50D <b>Buscar ID de Revendedor</b>\nIngresa el ID de Telegram a consultar:", parse_mode="HTML")
+        bot.register_next_step_handler(msg, process_find_user)
+
+    elif text == BTN_DOM_MIS:
+        resp = cf_api_call("GET", "dns_records")
+        if resp and resp.status_code == 200:
+            records = resp.json().get("result", [])
+            if not records:
+                bot.reply_to(message, f"\U0001F4C1 No hay registros DNS en Cloudflare para <b>{DOMAIN}</b>.", parse_mode="HTML")
+            else:
+                res = f"\U0001F4C1 <b>REGISTROS DNS ({DOMAIN})</b>\n━━━━━━━━━━━━━━━━━━━━\n"
+                for r in records[:20]:
+                    res += f"\U0001F310 <b>{r.get('type')}</b>: <code>{r.get('name')}</code>\n\u2514 IP/Destino: <code>{r.get('content')}</code>\n\n"
+                bot.reply_to(message, res, parse_mode="HTML")
+        else:
+            bot.reply_to(message, "\u274C Error al consultar los dominios en Cloudflare.", parse_mode="HTML")
 
     elif text == BTN_CLIENTS:
         users = load_auth()
@@ -211,6 +235,9 @@ def handle_message(message):
         if not ips: ips = "Ninguna conexi\u00f3n activa."
         bot.reply_to(message, f"\U0001F310 <b>IPs Conectadas:</b>\n<code>{ips}</code>", parse_mode="HTML")
 
+    elif text in [BTN_HIST, BTN_USO, BTN_LOGS, BTN_RANK]:
+        bot.reply_to(message, "\u2139\uFE0F Esta funci\u00f3n se encuentra en desarrollo o almacenamiento local.", parse_mode="HTML")
+
 # --- PROCESADORES INTERNOS ---
 def process_add_user(message):
     if is_menu_button(message.text): return handle_message(message)
@@ -226,6 +253,15 @@ def process_add_user(message):
         bot.reply_to(message, f"\u2705 <b>ACCESO AL BOT CONCEDIDO</b>\n\U0001F194 <b>ID Autorizado:</b> <code>{target_id}</code>\n\u23F3 <b>Vence:</b> {exp_date} ({days} d\u00edas)\n\nEl cliente ya puede entrar al bot, darle /start y generar sus propias keys y dominios.", parse_mode="HTML")
     except: 
         bot.reply_to(message, "\u274C Formato incorrecto. Usa: ID DIAS\nEjemplo: <code>123456789 30</code>", parse_mode="HTML")
+
+def process_find_user(message):
+    if is_menu_button(message.text): return handle_message(message)
+    target_id = message.text.strip()
+    users = load_auth()
+    if target_id in users:
+        bot.reply_to(message, f"\U0001F50D <b>Revendedor Encontrado</b>\n\U0001F194 ID: <code>{target_id}</code>\n\u23F3 Vence: <b>{users[target_id]}</b>", parse_mode="HTML")
+    else:
+        bot.reply_to(message, f"\u274C El ID <code>{target_id}</code> no está registrado en los revendedores autorizados.", parse_mode="HTML")
 
 def process_key_revendedor(message):
     if is_menu_button(message.text): return handle_message(message)
@@ -246,7 +282,7 @@ def process_key_revendedor(message):
             "\U0001F468\u200D\U0001F4BB <b>Due\u00f1o:</b> @golbertperuvps\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
             "\U0001F4BB <b>Instalaci\u00f3n:</b>\n"
-            "<code>apt update -y && apt install -y wget && wget -O install.sh https://raw.githubusercontent.com/golbert19/vps-script/main/install.sh && chmod +x install.sh && ./install.sh</code>"
+            "<code>apt update -y && apt install -y wget && wget -O install.sh https://script.golbertvps.org.pe && chmod +x install.sh && ./install.sh</code>"
         )
         bot.reply_to(message, msg, parse_mode="HTML")
     except ValueError:
@@ -276,9 +312,10 @@ def process_domain_ns(message):
             bot.reply_to(message, f"\u2705 <b>Dominio NS Creado</b>\n\U0001F9E9 {full_domain} -> {target}", parse_mode="HTML")
         else:
             bot.reply_to(message, f"\u274C Error API Cloudflare:\n{resp.text if resp else 'Sin conexi\u00f3n'}")
-    except: bot.reply_to(message, "\u274C Error de formato. Usa: subdominio destino")
+    except: bot.reply_to(message, f"\u274C Error de formato. Usa: subdominio destino")
 
 if __name__ == "__main__":
     while True:
         try: bot.infinity_polling(timeout=10, long_polling_timeout=5)
         except: time.sleep(3)
+    

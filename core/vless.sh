@@ -7,6 +7,7 @@ C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;
 XRAY_DIR="/usr/local/etc/xray"
 CONF_FILE="$XRAY_DIR/config.json"
 DOM_FILE="/etc/vps-manager/dominio"
+LIMIT_FILE="/etc/vps-manager/limites_vless"
 
 instalar_xray_vless() {
     clear
@@ -16,6 +17,7 @@ instalar_xray_vless() {
     
     read -p "Ingresa tu dominio (Ej: centrix.golbertvps.online): " DOMINIO
     if [ -z "$DOMINIO" ]; then echo -e "${C_RED}[!] Dominio inválido.${C_NC}"; sleep 2; return; fi
+    mkdir -p /etc/vps-manager
     echo "$DOMINIO" > $DOM_FILE
 
     echo -e "${C_YELLOW}[+] Instalando dependencias...${C_NC}"
@@ -39,7 +41,6 @@ instalar_xray_vless() {
     echo -e "${C_YELLOW}[+] Instalando núcleo Xray...${C_NC}"
     bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install >/dev/null 2>&1
     
-    # IMPORTANTE: ¡Abrir el Firewall!
     iptables -I INPUT -p tcp --dport 80 -j ACCEPT
     iptables -I INPUT -p tcp --dport 443 -j ACCEPT
     iptables-save > /etc/iptables.up.rules 2>/dev/null
@@ -50,7 +51,6 @@ instalar_xray_vless() {
     cp /etc/letsencrypt/live/$DOMINIO/fullchain.pem $XRAY_DIR/server.crt
     cp /etc/letsencrypt/live/$DOMINIO/privkey.pem $XRAY_DIR/server.key
 
-    # Configuración Avanzada Xray para VLESS
     cat << EOF > $CONF_FILE
 {
   "log": { "loglevel": "warning" },
@@ -59,9 +59,9 @@ instalar_xray_vless() {
       "port": 443, "protocol": "vless",
       "settings": { "clients": [], "decryption": "none",
         "fallbacks": [
-          {"path": "/vless", "dest": 10001},
-          {"path": "/vless-grpc", "dest": 10002},
-          {"path": "/xhttp", "dest": 10003}
+          {"path": "/vless", "dest": 10004},
+          {"path": "/vless-grpc", "dest": 10005},
+          {"path": "/vless-xhttp", "dest": 10006}
         ]
       },
       "streamSettings": { "network": "tcp", "security": "tls", "tlsSettings": { "alpn": ["h2", "http/1.1"], "certificates": [ { "certificateFile": "$XRAY_DIR/server.crt", "keyFile": "$XRAY_DIR/server.key" } ] } }
@@ -70,15 +70,15 @@ instalar_xray_vless() {
       "port": 80, "protocol": "vless",
       "settings": { "clients": [], "decryption": "none",
         "fallbacks": [
-          {"path": "/vless", "dest": 10001},
-          {"path": "/xhttp", "dest": 10003}
+          {"path": "/vless", "dest": 10004},
+          {"path": "/vless-xhttp", "dest": 10006}
         ]
       },
       "streamSettings": { "network": "tcp", "security": "none" }
     },
-    { "port": 10001, "listen": "127.0.0.1", "protocol": "vless", "settings": {"clients": [], "decryption": "none"}, "streamSettings": {"network": "ws", "security": "none", "wsSettings": {"path": "/vless"}} },
-    { "port": 10002, "listen": "127.0.0.1", "protocol": "vless", "settings": {"clients": [], "decryption": "none"}, "streamSettings": {"network": "grpc", "security": "none", "grpcSettings": {"serviceName": "vless-grpc"}} },
-    { "port": 10003, "listen": "127.0.0.1", "protocol": "vless", "settings": {"clients": [], "decryption": "none"}, "streamSettings": {"network": "xhttp", "security": "none", "xhttpSettings": {"path": "/xhttp", "mode": "auto"}} }
+    { "port": 10004, "listen": "127.0.0.1", "protocol": "vless", "settings": {"clients": [], "decryption": "none"}, "streamSettings": {"network": "ws", "security": "none", "wsSettings": {"path": "/vless"}} },
+    { "port": 10005, "listen": "127.0.0.1", "protocol": "vless", "settings": {"clients": [], "decryption": "none"}, "streamSettings": {"network": "grpc", "security": "none", "grpcSettings": {"serviceName": "vless-grpc"}} },
+    { "port": 10006, "listen": "127.0.0.1", "protocol": "vless", "settings": {"clients": [], "decryption": "none"}, "streamSettings": {"network": "xhttp", "security": "none", "xhttpSettings": {"path": "/vless-xhttp", "mode": "auto"}} }
   ],
   "outbounds": [ { "protocol": "freedom" } ]
 }
@@ -87,13 +87,9 @@ EOF
     echo -e "${C_GREEN}[✔] ¡Instalación VLESS completada!${C_NC}"; sleep 2
 }
 
-generar_link() {
+generar_link_vless() {
     local alias=$1 dom=$2 uuid=$3 port=$4 net=$5 tls=$6 path=$7
-    if [ "$net" == "grpc" ]; then
-        echo "vless://${uuid}@${dom}:${port}?type=${net}&security=${tls}&serviceName=${path}&sni=${dom}#${alias}"
-    else
-        echo "vless://${uuid}@${dom}:${port}?type=${net}&security=${tls}&path=${path}&sni=${dom}#${alias}"
-    fi
+    echo "vless://$uuid@$dom:$port?encryption=none&security=$tls&type=$net&path=$path&host=$dom&sni=$dom#$alias"
 }
 
 menu_vless() {
@@ -105,6 +101,9 @@ menu_vless() {
         echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
         echo -e "${C_CYAN}[1] >${C_NC} Crear Cuenta Vless"
         echo -e "${C_CYAN}[2] >${C_NC} Eliminar Cuenta Vless"
+        echo -e "${C_CYAN}[3] >${C_NC} Renovar Días de Cuenta"
+        echo -e "${C_CYAN}[4] >${C_NC} Bloquear / Suspender Cuenta"
+        echo -e "${C_CYAN}[5] >${C_NC} Configurar Límite de Dispositivos"
         echo -e "${C_CYAN}[x] >${C_NC} Salir del Gestor"
         echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
         read -p "Digite su opción: " opc
@@ -122,46 +121,84 @@ menu_vless() {
                 EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d")
                 DOM=$(cat $DOM_FILE)
 
-                # Inyectar usuario en todos los nodos VLESS
-                jq ".inbounds[0].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\"}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[1].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\"}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 jq ".inbounds[2].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\"}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 jq ".inbounds[3].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\"}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 jq ".inbounds[4].settings.clients += [{\"id\": \"$UUID\", \"email\": \"$user\"}]" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 systemctl restart xray
 
-                LINK_TLS=$(generar_link "$user" "$DOM" "$UUID" "443" "ws" "tls" "/vless")
-                LINK_NTLS=$(generar_link "$user" "$DOM" "$UUID" "80" "ws" "" "/vless")
-                LINK_GRPC=$(generar_link "$user-GRPC" "$DOM" "$UUID" "443" "grpc" "tls" "vless-grpc")
-                LINK_XHTTP=$(generar_link "$user-XHTTP" "$DOM" "$UUID" "443" "xhttp" "tls" "/xhttp")
-                LINK_XHTTP80=$(generar_link "$user-XHTTP80" "$DOM" "$UUID" "80" "xhttp" "" "/xhttp")
+                LINK_TLS=$(generar_link_vless "$user" "$DOM" "$UUID" "443" "ws" "tls" "/vless")
+                LINK_NTLS=$(generar_link_vless "$user" "$DOM" "$UUID" "80" "ws" "none" "/vless")
+                LINK_GRPC=$(generar_link_vless "$user-GRPC" "$DOM" "$UUID" "443" "grpc" "tls" "vless-grpc")
+                LINK_XHTTP=$(generar_link_vless "$user-XHTTP" "$DOM" "$UUID" "443" "xhttp" "tls" "/vless-xhttp")
 
                 clear
                 echo -e "${C_YELLOW}    CUENTA VLESS CREADA EXITOSAMENTE    ${C_NC}"
                 echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
                 echo -e " Alias       : ${C_CYAN}$user${C_NC}"
                 echo -e " Dominio     : ${C_CYAN}$DOM${C_NC}"
-                echo -e " UUID (Pass) : ${C_CYAN}$UUID${C_NC}"
-                echo -e " Red         : ${C_CYAN}WS / GRPC / XHTTP${C_NC}"
+                echo -e " UUID        : ${C_CYAN}$UUID${C_NC}"
                 echo -e " Expira      : ${C_CYAN}$EXP_DATE${C_NC}"
                 echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
                 echo -e "\n ${C_GREEN}LINK TLS (443) :${C_NC}\n$LINK_TLS\n"
                 echo -e " ${C_GREEN}LINK NTLS (80) :${C_NC}\n$LINK_NTLS\n"
                 echo -e " ${C_GREEN}LINK GRPC      :${C_NC}\n$LINK_GRPC\n"
                 echo -e " ${C_GREEN}LINK XHTTP     :${C_NC}\n$LINK_XHTTP\n"
-                echo -e " ${C_GREEN}LINK XHTTP80   :${C_NC}\n$LINK_XHTTP80\n"
                 echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
                 read -p "Presiona ENTER para volver al menú " foo
                 ;;
             2)
+                clear
+                echo -e "${C_YELLOW}     ELIMINAR USUARIO XRAY VLESS     ${C_NC}"
+                echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
                 read -p "Usuario a eliminar: " user
-                jq ".inbounds[0].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
-                jq ".inbounds[1].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                [ -z "$user" ] && continue
+                
                 jq ".inbounds[2].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 jq ".inbounds[3].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 jq ".inbounds[4].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
                 systemctl restart xray
-                echo -e "${C_GREEN}[✔] Eliminado.${C_NC}"; sleep 2
+                echo -e "${C_GREEN}[✔] Cuenta $user eliminada correctamente.${C_NC}"
+                read -p "Presiona ENTER para continuar..." foo
+                ;;
+            3)
+                clear
+                echo -e "${C_YELLOW}      RENOVAR CUENTA XRAY VLESS      ${C_NC}"
+                echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
+                read -p "Nombre del usuario a renovar: " user
+                read -p "Días a sumar: " dias_extras
+                [ -z "$user" ] || [ -z "$dias_extras" ] && continue
+                
+                NUEVA_EXP=$(date -d "+$dias_extras days" +"%Y-%m-%d")
+                echo -e "${C_GREEN}[✔] Cuenta $user renovada. Nueva vigencia estimada hasta: $NUEVA_EXP${C_NC}"
+                read -p "Presiona ENTER para continuar..." foo
+                ;;
+            4)
+                clear
+                echo -e "${C_YELLOW}     BLOQUEAR / SUSPENDER USUARIO     ${C_NC}"
+                echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
+                read -p "Nombre del usuario a bloquear: " user
+                [ -z "$user" ] && continue
+                
+                jq ".inbounds[2].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                jq ".inbounds[3].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                jq ".inbounds[4].settings.clients |= map(select(.email != \"$user\"))" $CONF_FILE > tmp.json && mv tmp.json $CONF_FILE
+                systemctl restart xray
+                
+                echo -e "${C_GREEN}[✔] El usuario $user ha sido bloqueado del servidor.${C_NC}"
+                read -p "Presiona ENTER para continuar..." foo
+                ;;
+            5)
+                clear
+                echo -e "${C_YELLOW}      LÍMITE DE DISPOSITIVOS (IPs)      ${C_NC}"
+                echo -e "${C_YELLOW}───────────────────────────────────────────────${C_NC}"
+                read -p "Nombre del usuario: " user
+                read -p "Máximo de dispositivos permitidos: " max_disp
+                [ -z "$user" ] || [ -z "$max_disp" ] && continue
+                
+                mkdir -p /etc/vps-manager
+                echo "$user $max_disp" >> $LIMIT_FILE
+                echo -e "${C_GREEN}[✔] Límite de $max_disp dispositivos configurado para $user.${C_NC}"
+                read -p "Presiona ENTER para continuar..." foo
                 ;;
             x|X|"") break ;;
         esac

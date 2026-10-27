@@ -1,11 +1,12 @@
 #!/bin/bash
 # ==========================================
-# Golbert VPS Premium - Panel V5.0 LTS (Multi-Ubuntu)
+# Golbert VPS Premium - Panel V5.0 LTS (Bilingüe / Multi-Ubuntu)
 # ==========================================
 
 C_RST='\033[0m'; C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'
 C_NEON_BLUE='\033[38;5;39m'; C_NEON_GREEN='\033[38;5;46m'; C_NEON_PURPLE='\033[38;5;141m'; C_NEON_YELLOW='\033[38;5;226m'
 mkdir -p /etc/vps-manager
+[ ! -f /etc/vps-manager/lang ] && echo "es" > /etc/vps-manager/lang
 
 if [ -f /etc/os-release ]; then . /etc/os-release; UBUNTU_VERSION=$VERSION_ID; else UBUNTU_VERSION="24.04"; fi
 
@@ -17,6 +18,22 @@ generar_banner_usuario() {
     sed -i "/Match User $u/d" /etc/ssh/sshd_config
     sed -i "/Banner \/etc\/vps-manager\/banner_${u}.net/d" /etc/ssh/sshd_config
     echo -e "\nMatch User $u\nBanner $banner_file" >> /etc/ssh/sshd_config
+}
+
+menu_idioma() {
+    clear
+    echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗${C_RST}"
+    echo -e "${C_NEON_BLUE}║${C_NEON_GREEN}       🌐 SELECCIONA TU IDIOMA / LANGUAGE     ${C_NEON_BLUE}║${C_RST}"
+    echo -e "${C_NEON_BLUE}╠══════════════════════════════════════════════╣${C_RST}"
+    echo -e "  ${C_NEON_YELLOW}1.${C_RST} 🇪🇸 Español (Spanish)"
+    echo -e "  ${C_NEON_YELLOW}2.${C_RST} 🇺🇸 English (Inglés)"
+    echo -e "${C_NEON_BLUE}╚══════════════════════════════════════════════╝${C_RST}"
+    read -p " Opción / Option: " lang_opt
+    case $lang_opt in
+        1) echo "es" > /etc/vps-manager/lang; echo -e "${C_GREEN}[✔] Idioma cambiado a Español.${C_RST}"; sleep 2 ;;
+        2) echo "en" > /etc/vps-manager/lang; echo -e "${C_GREEN}[✔] Language changed to English.${C_RST}"; sleep 2 ;;
+        *) echo -e "${C_RED}[!] Opción inválida / Invalid option.${C_RST}"; sleep 2 ;;
+    esac
 }
 
 menu_ssh() {
@@ -177,7 +194,6 @@ menu_webpanel() { clear; echo -e "${C_YELLOW}[+] Preparando Panel Web...${C_RST}
 menu_puertos() { 
     clear
     echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗\n║${C_NEON_GREEN}         🔍 ESTADO DE PUERTOS Y SERVICIOS     ${C_NEON_BLUE}║\n╚══════════════════════════════════════════════╝${C_RST}"
-    
     PORT_BHTTP=$(cat /etc/vps-manager/bhttp_port 2>/dev/null || echo "8080")
     PORT_HCR=$(cat /etc/vps-manager/hcr_port 2>/dev/null || echo "8880")
     PORT_SSL=$(cat /etc/vps-manager/ssl_port 2>/dev/null || echo "444")
@@ -205,7 +221,6 @@ menu_puertos() {
     else
         echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Hysteria v1   ➔ Hysteria QUIC"
     fi
-    
     echo -e "${C_NEON_BLUE}────────────────────────────────────────────────${C_RST}"
     read -p "Presione Enter para regresar..."
 }
@@ -218,9 +233,6 @@ menu_checkuser() { clear; echo -e "${C_YELLOW}[+] Iniciando CheckUser API...${C_
 menu_autostart() { clear; grep -q "menu" /root/.bashrc && echo -e "${C_GREEN}[✔] Ya activo.${C_RST}" || (echo -e "\nmenu" >> /root/.bashrc; echo -e "${C_GREEN}[✔] Activado.${C_RST}"); read -p "Enter..." ;}
 menu_banner() { clear; echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗\n║${C_NEON_GREEN}         GESTOR DE BANNER BASE HTML           ${C_NEON_BLUE}║\n╚══════════════════════════════════════════════╝${C_RST}\n  ${C_NEON_YELLOW}1.${C_RST} Banner por Defecto\n  ${C_NEON_YELLOW}2.${C_RST} Personalizado HTML\n"; read -p "Opción: " opt_ban; case $opt_ban in 1) TEXTO="<br><font color='cyan'><b>🌟 BIENVENIDO A GOLBERT VPS 🌟</b></font><br>" ;; 2) echo -e "Pega HTML: "; read -r TEXTO ;; *) TEXTO="Bienvenido" ;; esac; echo "$TEXTO" > /etc/issue.net; echo -e "${C_GREEN}[✔] Banner Global guardado.${C_RST}"; read -p "Presione Enter..." ; }
 
-# ==========================================
-# NUEVA FUNCIÓN: INFORMACIÓN DETALLADA (ESTILO BENCH.SH)
-# ==========================================
 menu_info() {
     clear
     echo -e "${C_CYAN}[+] Recopilando información del sistema, por favor espere...${C_RST}"
@@ -259,17 +271,15 @@ menu_info() {
     curl -s4 -m 3 ipinfo.io/ip >/dev/null && IPV4="✔ Online" || IPV4="x Offline"
     curl -s6 -m 3 ipinfo.io/ip >/dev/null && IPV6="✔ Online" || IPV6="x Offline"
     
-    # Intenta obtener datos de IPinfo
     ORG=$(curl -s -m 3 ipinfo.io/org || echo "Desconocido")
     CITY=$(curl -s -m 3 ipinfo.io/city || echo "Desconocido")
     COUNTRY=$(curl -s -m 3 ipinfo.io/country || echo "Desconocido")
     REGION=$(curl -s -m 3 ipinfo.io/region || echo "Desconocido")
 
-    # Limpia la pantalla para pintar el diseño exacto
     clear
-    C_T='\033[38;5;111m' # Celeste tenue para las Keys
-    C_V='\033[38;5;114m' # Verde agua para los Values
-    C_L='\033[38;5;239m' # Gris para las líneas divisorias
+    C_T='\033[38;5;111m'
+    C_V='\033[38;5;114m'
+    C_L='\033[38;5;239m'
 
     print_line() {
         printf "${C_T}%-22s${C_RST} : ${C_V}%s${C_RST}\n" "$1" "$2"
@@ -299,11 +309,10 @@ menu_info() {
     print_line "Region" "$REGION"
     echo -e "${C_L}---------------------------------------------------------${C_RST}"
     
-    # Test I/O Rápido (Simulado instantáneo para no congelar el menú por 5 minutos)
     echo -e "${C_T}Calculando I/O Speed...${C_RST}"
     IO_RES=$(dd if=/dev/zero of=test_$$ bs=64k count=16k conv=fdatasync 2>&1 | awk -F, '{print $3}' | tr -d ' ')
     rm -f test_$$
-    echo -e "\033[1A\033[K\c" # Borra la línea de cálculo
+    echo -e "\033[1A\033[K\c"
     print_line "I/O Speed (average)" "$IO_RES"
     
     echo -e "${C_L}---------------------------------------------------------${C_RST}"
@@ -321,10 +330,72 @@ draw_bar() {
 }
 
 # ==========================================
-# MENÚ PRINCIPAL ESTRUCTURADO Y COMPACTO
+# BUCLE PRINCIPAL (SOPORTE BILINGÜE)
 # ==========================================
 while true; do
     clear
+    SYS_LANG=$(cat /etc/vps-manager/lang 2>/dev/null || echo "es")
+    
+    if [ "$SYS_LANG" == "en" ]; then
+        M_TITLE="🌟 GOLBERT VPS PREMIUM - V5.0 LTS PANEL 🌟"
+        M_OS="💻 OS        "
+        M_IP="🌐 IP        "
+        M_DOM="🎯 Domain    "
+        M_CPU="🧠 CPU Usage "
+        M_RAM="⚡ RAM Usage "
+        M_CON="👥 Connected "
+        M_ACT="active users"
+        M_CAT1="[ ACCOUNT MANAGEMENT ]"
+        M_OPT1="👤 SSH Management (Users, Limit, HWID)"
+        M_OPT2="🤝 Reseller Management (Credits)"
+        M_CAT2="[ TOOLS & SYSTEM ]"
+        M_OPT3="🛠️ Installers & Protocols Manager"
+        M_OPT4="🎨 Configure HTML Welcome Banner"
+        M_OPT5="🔍 Ports Monitor (Active / Inactive)"
+        M_OPT6="⚙️ Domain Manager & SSL Certificates"
+        M_OPT7="🤖 Link Telegram Bot"
+        M_OPT8="🌐 Generate Web Panel (Dashboard UI)"
+        M_OPT9="🔄 Update Panel (From GitHub)"
+        M_OPT10="🤖 Enable Auto-Start on Login"
+        M_OPT11="🖥️ VPS Specifications & Capacity"
+        M_OPT12="🛡️ Firewall Manager (Rules & Security)"
+        M_OPT13="👥 Install CheckUser (Multi-App Monitor)"
+        M_OPT14="🌍 Change Language (ES/EN)"
+        M_OPT88="❌ Uninstall Script"
+        M_OPT0="🚪 Exit"
+        M_SEL="Select an option: "
+        M_ERR="Invalid option."
+    else
+        M_TITLE="🌟 GOLBERT VPS PREMIUM - PANEL V5.0 LTS 🌟"
+        M_OS="💻 SO        "
+        M_IP="🌐 IP        "
+        M_DOM="🎯 Dominio   "
+        M_CPU="🧠 CPU Uso   "
+        M_RAM="⚡ RAM Uso   "
+        M_CON="👥 Conectados"
+        M_ACT="usuarios activos"
+        M_CAT1="[ GESTIÓN DE CUENTAS ]"
+        M_OPT1="👤 Gestión de SSH (Usuarios, Límite, HWID)"
+        M_OPT2="🤝 Gestión de Revendedores (Créditos)"
+        M_CAT2="[ HERRAMIENTAS Y SISTEMA ]"
+        M_OPT3="🛠️ Gestor de Instalaciones y Protocolos"
+        M_OPT4="🎨 Configurar Banner HTML de Bienvenida"
+        M_OPT5="🔍 Monitor de Puertos (Activos / Inactivos)"
+        M_OPT6="⚙️ Gestor de Dominio y Certificados SSL"
+        M_OPT7="🤖 Vincular Bot de Telegram"
+        M_OPT8="🌐 Generar Panel Web (Dashboard UI)"
+        M_OPT9="🔄 Actualizar Panel (Desde GitHub)"
+        M_OPT10="🤖 Activar Auto-Inicio al Loguearse"
+        M_OPT11="🖥️ Especificaciones y Capacidad del VPS"
+        M_OPT12="🛡️ Gestor de Firewall (Reglas y Seguridad)"
+        M_OPT13="👥 Instalar CheckUser (Monitor Multi-App)"
+        M_OPT14="🌍 Cambiar Idioma (ES/EN)"
+        M_OPT88="❌ Desinstalar Script"
+        M_OPT0="🚪 Salir"
+        M_SEL="Seleccione una opción: "
+        M_ERR="Opción inválida."
+    fi
+
     OS=$(cat /etc/os-release | grep -w PRETTY_NAME | head -n 1 | cut -d "=" -f 2 | sed 's/"//g')
     IP=$(curl -s --max-time 3 ipv4.icanhazip.com || hostname -I | awk '{print $1}')
     RAM_TOTAL=$(free -m | awk 'NR==2{print $2}'); RAM_USED=$(free -m | awk 'NR==2{print $3}')
@@ -336,41 +407,42 @@ while true; do
     SUBDOMINIO=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "No Configurado" )
 
     echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗${C_RST}"
-    echo -e "${C_NEON_BLUE}║ ${C_NEON_YELLOW}🌟 GOLBERT VPS PREMIUM - PANEL V5.0 LTS 🌟   ${C_NEON_BLUE}║${C_RST}"
+    echo -e "${C_NEON_BLUE}║ ${C_NEON_YELLOW}${M_TITLE}   ${C_NEON_BLUE}║${C_RST}"
     echo -e "${C_NEON_BLUE}╠══════════════════════════════════════════════╣${C_RST}"
-    echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}💻 SO         :${C_RST} $OS"
-    echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}🌐 IP         :${C_RST} $IP"
-    echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}🎯 Dominio    :${C_RST} $SUBDOMINIO"
-    echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}🧠 CPU Uso    :${C_RST} $CPU_BAR"
-    echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}⚡ RAM Uso    :${C_RST} $RAM_BAR ($RAM_STR)"
-    echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}👥 Conectados :${C_RST} $CONECTADOS usuarios activos"
+    echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}${M_OS}:${C_RST} $OS"
+    echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}${M_IP}:${C_RST} $IP"
+    echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}${M_DOM}:${C_RST} $SUBDOMINIO"
+    echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}${M_CPU}:${C_RST} $CPU_BAR"
+    echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}${M_RAM}:${C_RST} $RAM_BAR ($RAM_STR)"
+    echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}${M_CON}:${C_RST} $CONECTADOS $M_ACT"
     echo -e "${C_NEON_BLUE}╠══════════════════════════════════════════════╣${C_RST}"
-    echo -e "${C_NEON_PURPLE}  [ GESTIÓN DE CUENTAS ]${C_RST}"
-    echo -e "  ${C_NEON_YELLOW}1.${C_RST} 👤 Gestión de SSH (Usuarios, Límite, HWID)"
-    echo -e "  ${C_NEON_YELLOW}2.${C_RST} 🤝 Gestión de Revendedores (Créditos)"
+    echo -e "${C_NEON_PURPLE}  ${M_CAT1}${C_RST}"
+    echo -e "  ${C_NEON_YELLOW}1.${C_RST} ${M_OPT1}"
+    echo -e "  ${C_NEON_YELLOW}2.${C_RST} ${M_OPT2}"
     echo -e "${C_NEON_BLUE}╠══════════════════════════════════════════════╣${C_RST}"
-    echo -e "${C_NEON_PURPLE}  [ HERRAMIENTAS Y SISTEMA ]${C_RST}"
-    echo -e "  ${C_NEON_YELLOW}3.${C_RST} 🛠️ Gestor de Instalaciones y Protocolos"
-    echo -e "  ${C_NEON_YELLOW}4.${C_RST} 🎨 Configurar Banner HTML de Bienvenida"
-    echo -e "  ${C_NEON_YELLOW}5.${C_RST} 🔍 Monitor de Puertos (Activos / Inactivos)"
-    echo -e "  ${C_NEON_YELLOW}6.${C_RST} ⚙️ Gestor de Dominio y Certificados SSL"
-    echo -e "  ${C_NEON_YELLOW}7.${C_RST} 🤖 Vincular Bot de Telegram"
-    echo -e "  ${C_NEON_YELLOW}8.${C_RST} 🌐 Generar Panel Web (Dashboard UI)"
-    echo -e "  ${C_NEON_YELLOW}9.${C_RST} 🔄 Actualizar Panel (Desde GitHub)"
-    echo -e "  ${C_NEON_YELLOW}10.${C_RST}🤖 Activar Auto-Inicio al Loguearse"
-    echo -e "  ${C_NEON_YELLOW}11.${C_RST}🖥️ Especificaciones y Capacidad del VPS"
-    echo -e "  ${C_NEON_YELLOW}12.${C_RST}🛡️ Gestor de Firewall (Reglas y Seguridad)"
-    echo -e "  ${C_NEON_YELLOW}13.${C_RST}👥 Instalar CheckUser (Monitor Multi-App)"
+    echo -e "${C_NEON_PURPLE}  ${M_CAT2}${C_RST}"
+    echo -e "  ${C_NEON_YELLOW}3.${C_RST} ${M_OPT3}"
+    echo -e "  ${C_NEON_YELLOW}4.${C_RST} ${M_OPT4}"
+    echo -e "  ${C_NEON_YELLOW}5.${C_RST} ${M_OPT5}"
+    echo -e "  ${C_NEON_YELLOW}6.${C_RST} ${M_OPT6}"
+    echo -e "  ${C_NEON_YELLOW}7.${C_RST} ${M_OPT7}"
+    echo -e "  ${C_NEON_YELLOW}8.${C_RST} ${M_OPT8}"
+    echo -e "  ${C_NEON_YELLOW}9.${C_RST} ${M_OPT9}"
+    echo -e "  ${C_NEON_YELLOW}10.${C_RST}${M_OPT10}"
+    echo -e "  ${C_NEON_YELLOW}11.${C_RST}${M_OPT11}"
+    echo -e "  ${C_NEON_YELLOW}12.${C_RST}${M_OPT12}"
+    echo -e "  ${C_NEON_YELLOW}13.${C_RST}${M_OPT13}"
+    echo -e "  ${C_NEON_YELLOW}14.${C_RST}${M_OPT14}"
     echo -e "${C_NEON_BLUE}╠══════════════════════════════════════════════╣${C_RST}"
-    echo -e "  ${C_RED}88.${C_RST} ❌ Desinstalar Script   |   ${C_RED}0.${C_RST} 🚪 Salir"
+    echo -e "  ${C_RED}88.${C_RST} ${M_OPT88}   |   ${C_RED}0.${C_RST} ${M_OPT0}"
     echo -e "${C_NEON_BLUE}╚══════════════════════════════════════════════╝${C_RST}"
-    echo -n -e "${C_YELLOW}Seleccione una opción: ${C_RST}"
+    echo -n -e "${C_YELLOW}${M_SEL}${C_RST} "
     read opcion
 
     case $opcion in
         1) menu_ssh ;; 2) menu_revendedores ;; 3) menu_instaladores ;; 4) menu_banner ;; 5) menu_puertos ;; 
         6) menu_dominio ;; 7) menu_bot ;; 8) menu_webpanel ;; 9) menu_update ;; 10) menu_autostart ;; 11) menu_info ;;
-        12) menu_firewall ;; 13) menu_checkuser ;; 88) uninstall_script ;; 0) clear; exit 0 ;;
-        *) echo -e "\n${C_RED}[!] Opción inválida.${C_RST}"; sleep 1 ;;
+        12) menu_firewall ;; 13) menu_checkuser ;; 14) menu_idioma ;; 88) uninstall_script ;; 0) clear; exit 0 ;;
+        *) echo -e "\n${C_RED}[!] ${M_ERR}${C_RST}"; sleep 1 ;;
     esac
 done

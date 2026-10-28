@@ -35,9 +35,12 @@ echo -e "\033[1;32m[✔] Key validada correctamente.\033[0m"
 sleep 1
 
 # ==========================================
-# 2. CREACIÓN DE DIRECTORIOS
+# 2. CREACIÓN DE DIRECTORIOS Y DEPENDENCIAS
 # ==========================================
-echo -e "\n\033[1;36m[+] Preparando sistema...\033[0m"
+echo -e "\n\033[1;36m[+] Preparando sistema e instalando dependencias base...\033[0m"
+apt-get update -y >/dev/null 2>&1
+apt-get install -y curl wget jq net-tools iptables ufw cron python3 >/dev/null 2>&1
+
 mkdir -p /etc/vps-manager/core
 mkdir -p /usr/local/bin
 

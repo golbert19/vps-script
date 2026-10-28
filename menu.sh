@@ -42,7 +42,7 @@ menu_ssh() {
         echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗${C_RST}"
         echo -e "${C_NEON_BLUE}║${C_NEON_GREEN}         🛰️ GESTION DE SSH (USUARIOS)         ${C_NEON_BLUE}║${C_RST}"
         echo -e "${C_NEON_BLUE}╠══════════════════════════════════════════════╣${C_RST}"
-        echo -e "  ${C_NEON_YELLOW}1${C_RST} ➔ Crear Cuenta SSH (Normal / HWID)"
+        echo -e "  ${C_NEON_YELLOW}1${C_RST} ➔ Crear Cuenta SSH (Normal / HWID / Token)"
         echo -e "  ${C_NEON_YELLOW}2${C_RST} ➔ Eliminar Cuenta SSH"
         echo -e "  ${C_NEON_YELLOW}3${C_RST} ➔ Renovar Cuenta SSH"
         echo -e "  ${C_NEON_YELLOW}4${C_RST} ➔ Lista de Miembros y Vencimiento"
@@ -58,13 +58,36 @@ menu_ssh() {
         case $opt in
             1) 
                 clear; echo -e "${C_CYAN}================================================${C_RST}\n${C_YELLOW}      CREAR USUARIO SSH / HWID PROTECTION       ${C_RST}\n${C_CYAN}================================================${C_RST}"
-                echo -e " [${C_GREEN}1${C_RST}] Cuenta Normal\n [${C_GREEN}2${C_RST}] Cuenta HWID"; read -p "Opción: " tipo_creacion
-                read -p "Usuario: " user; read -p "Contraseña: " pass; read -p "Días: " dias; read -p "Límite Conexiones: " limite
+                echo -e " [${C_GREEN}1${C_RST}] Cuenta Normal\n [${C_GREEN}2${C_RST}] Cuenta HWID\n [${C_GREEN}3${C_RST}] Cuenta por Token (App)"; read -p "Opción: " tipo_creacion
+                
+                if [ "$tipo_creacion" == "3" ]; then
+                    echo -e "${C_YELLOW}* Deje en blanco para generar un Token aleatorio.${C_RST}"
+                    read -p "Ingrese Token: " token_input
+                    if [ -z "$token_input" ]; then
+                        token_input="TK-$(cat /dev/urandom | tr -dc 'A-Z0-9' | fold -w 6 | head -n 1)"
+                    fi
+                    user="$token_input"
+                    pass="$token_input"
+                    echo -e " 🔑 Token asignado: ${C_GREEN}$user${C_RST}"
+                else
+                    read -p "Usuario: " user
+                    read -p "Contraseña: " pass
+                fi
+                
+                read -p "Días: " dias; read -p "Límite Conexiones: " limite
                 [ -z "$limite" ] && limite=1
                 EXP_DATE=$(date -d "+$dias days" +"%Y-%m-%d")
                 useradd -e $EXP_DATE -s /bin/false -M $user; echo "$user:$pass" | chpasswd
                 echo "$limite" > "/etc/vps-manager/limite_${user}"
-                if [ "$tipo_creacion" == "2" ]; then touch "/etc/vps-manager/hwid_${user}"; HWID_MSG="✅ (Bloqueado al Login)"; else rm -f "/etc/vps-manager/hwid_${user}"; HWID_MSG="❌ (Libre)"; fi
+                
+                if [ "$tipo_creacion" == "2" ]; then 
+                    touch "/etc/vps-manager/hwid_${user}"; HWID_MSG="✅ (Bloqueado al Login)"
+                elif [ "$tipo_creacion" == "3" ]; then 
+                    rm -f "/etc/vps-manager/hwid_${user}"; HWID_MSG="❌ (Autenticación Token)"
+                else 
+                    rm -f "/etc/vps-manager/hwid_${user}"; HWID_MSG="❌ (Libre)"
+                fi
+                
                 generar_banner_usuario "$user" "$EXP_DATE" "$dias" "$limite"
                 systemctl restart ssh 2>/dev/null
                 
@@ -87,8 +110,12 @@ menu_ssh() {
                 fi
 
                 clear; echo -e "${C_CYAN}================================================${C_RST}\n${C_GREEN}        ✅ CUENTA CREADA EXITOSAMENTE ✅        ${C_RST}\n${C_CYAN}================================================${C_RST}"
-                echo -e " 👤 Usuario       : ${C_YELLOW}$user${C_RST}"
-                echo -e " 🔑 Clave         : ${C_YELLOW}$pass${C_RST}"
+                if [ "$tipo_creacion" == "3" ]; then
+                    echo -e " 🔑 Token App     : ${C_YELLOW}$user${C_RST}"
+                else
+                    echo -e " 👤 Usuario       : ${C_YELLOW}$user${C_RST}"
+                    echo -e " 🔑 Clave         : ${C_YELLOW}$pass${C_RST}"
+                fi
                 echo -e " 📅 Vence         : ${C_YELLOW}$EXP_DATE ($dias días)${C_RST}"
                 echo -e " 🔒 Límite IPs    : ${C_YELLOW}$limite${C_RST}"
                 echo -e " 🛡️ Protecc. HWID : ${C_YELLOW}$HWID_MSG${C_RST}"
@@ -217,9 +244,9 @@ menu_puertos() {
     fi
 
     if systemctl is-active --quiet hysteria.service || ss -lnup 2>/dev/null | grep -q "hysteria"; then
-        echo -e "  🔹 [${C_NEON_GREEN}ACTIVO   ${C_RST}] Hysteria v1   ➔ Hysteria QUIC"
+        echo -e "  🔹 [${C_NEON_GREEN}ACTIVO${C_RST}] Hysteria v1   ➔ Hysteria QUIC"
     else
-        echo -e "  🔸 [${C_RED}INACTIVO ${C_RST}] Hysteria v1   ➔ Hysteria QUIC"
+        echo -e "  🔸 [${C_RED}INACTIVO${C_RST}] Hysteria v1   ➔ Hysteria QUIC"
     fi
     echo -e "${C_NEON_BLUE}────────────────────────────────────────────────${C_RST}"
     read -p "Presione Enter para regresar..."
@@ -337,7 +364,7 @@ draw_bar() {
     local perc=$1; local filled=$((perc / 10)); local empty=$((10 - filled)); local bar=""
     for ((i=0; i<filled; i++)); do bar="${bar}█"; done
     for ((i=0; i<empty; i++)); do bar="${bar}░"; done
-    echo -e "[$bar] ${perc}%" 
+    echo -e "[$bar]${perc}%" 
 }
 
 # Helper visual para servicios

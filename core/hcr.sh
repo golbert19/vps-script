@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Módulo: HCR Proxy Server (Nativo Systemd)
+# Módulo: HCR Proxy Server (Nativo Systemd con Espejos)
 # ==========================================
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 HCR_DIR="/etc/vps-manager/hcr"
@@ -13,7 +13,6 @@ echo -e "${C_CYAN}================================================${C_NC}"
 read -p "Ingresa el puerto para HCR [Por defecto 8880]: " INPUT_PORT
 HCR_PORT=${INPUT_PORT:-8880}
 
-# Guardamos el puerto elegido para que el monitor de puertos lo lea
 mkdir -p /etc/vps-manager
 echo "$HCR_PORT" > /etc/vps-manager/hcr_port
 
@@ -21,7 +20,6 @@ echo -e "${C_YELLOW}[+] Preparando entorno y deteniendo servicios antiguos...${C
 apt update -y >/dev/null 2>&1
 apt install -y wget iptables net-tools psmisc ufw >/dev/null 2>&1
 
-# Limpiamos el servicio viejo si existe y detenemos cualquier proceso en el puerto
 systemctl stop hcr.service >/dev/null 2>&1
 systemctl disable hcr.service >/dev/null 2>&1
 rm -f /etc/systemd/system/hcr.service
@@ -31,15 +29,32 @@ fuser -k ${HCR_PORT}/tcp >/dev/null 2>&1
 mkdir -p $HCR_DIR
 cd $HCR_DIR || exit 1
 
-echo -e "${C_YELLOW}[+] Descargando binario HCR Server desde GitHub...${C_NC}"
-# Descargamos SÓLO el binario. Asegúrate de tener el archivo "hcr-server" subido en la carpeta "core" de tu GitHub.
+echo -e "${C_YELLOW}[+] Descargando binario HCR Server...${C_NC}"
+# 1. Intentar desde tu propio repositorio
 wget -qO hcr-server "https://raw.githubusercontent.com/golbert19/vps-script/main/core/hcr-server"
+
+# 2. Si falla (archivo de 0 bytes o 404), usar espejos alternativos
+if [ "$(stat -c%s "hcr-server" 2>/dev/null || echo 0)" -lt 1000 ]; then
+    echo -e "${C_YELLOW}[!] Buscando en espejos externos activos...${C_NC}"
+    URLS=(
+        "https://raw.githubusercontent.com/ChumoGH/ChumoGH-Script/master/BINARIOS/hcr"
+        "https://raw.githubusercontent.com/powermx/hcr/main/hcr"
+        "https://raw.githubusercontent.com/rudi9999/ADMRufu/main/Plugins/hcr"
+    )
+    for url in "${URLS[@]}"; do
+        wget -qO hcr-server "$url"
+        # Si el archivo pesa más de 500KB, es el binario correcto
+        if [ "$(stat -c%s "hcr-server" 2>/dev/null || echo 0)" -gt 500000 ]; then
+            break
+        fi
+    done
+fi
+
 chmod +x hcr-server
 
-# Verificamos que el binario se haya descargado y no sea un error 404 (archivo vacío)
-if [ "$(stat -c%s "hcr-server" 2>/dev/null || echo 0)" -lt 1000 ]; then
-    echo -e "${C_RED}[✘] Error Crítico: El archivo hcr-server no se descargó correctamente.${C_NC}"
-    echo -e "Asegúrate de haber subido el binario 'hcr-server' a la carpeta 'core' de tu repositorio."
+# Verificación final de integridad
+if [ "$(stat -c%s "hcr-server" 2>/dev/null || echo 0)" -lt 500000 ]; then
+    echo -e "${C_RED}[✘] Error Crítico: No se pudo descargar el binario desde ningún servidor.${C_NC}"
     read -p "Presione Enter para regresar..."
     exit 1
 fi
@@ -77,7 +92,6 @@ IP_VPS=$(curl -s ipv4.icanhazip.com)
 DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_VPS" )
 
 clear
-# Verificamos si el servicio arrancó correctamente
 if systemctl is-active --quiet hcr-server.service; then
     echo -e "${C_GREEN}[✔] ¡Motor HCR Oficial instalado y operando con éxito!${C_NC}"
     echo -e "${C_CYAN}================================================${C_NC}"

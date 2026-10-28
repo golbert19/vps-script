@@ -340,6 +340,15 @@ draw_bar() {
     echo -e "[$bar] ${perc}%" 
 }
 
+# Helper visual para servicios
+chk_svc() {
+    if systemctl is-active --quiet "$1"; then
+        echo -e "${C_NEON_GREEN}ON ${C_RST}"
+    else
+        echo -e "${C_RED}OFF${C_RST}"
+    fi
+}
+
 # ==========================================
 # BUCLE PRINCIPAL (SOPORTE BILINGÜE)
 # ==========================================
@@ -354,8 +363,7 @@ while true; do
         M_DOM="🎯 Domain    "
         M_CPU="🧠 CPU Usage "
         M_RAM="⚡ RAM Usage "
-        M_CON="👥 Connected "
-        M_ACT="active users"
+        M_USR="👥 Users     "
         M_CAT1="[ ACCOUNT MANAGEMENT ]"
         M_OPT1="👤 SSH Management (Users, Limit, HWID)"
         M_OPT2="🤝 Reseller Management (Credits)"
@@ -384,8 +392,7 @@ while true; do
         M_DOM="🎯 Dominio   "
         M_CPU="🧠 CPU Uso   "
         M_RAM="⚡ RAM Uso   "
-        M_CON="👥 Conectados"
-        M_ACT="usuarios activos"
+        M_USR="👥 Usuarios  "
         M_CAT1="[ GESTIÓN DE CUENTAS ]"
         M_OPT1="👤 Gestión de SSH (Usuarios, Límite, HWID)"
         M_OPT2="🤝 Gestión de Revendedores (Créditos)"
@@ -416,8 +423,19 @@ while true; do
     RAM_BAR=$(draw_bar $RAM_PER)
     CPU_PER=$(top -bn1 | grep "Cpu(s)" | awk '{print 100 - $8}' | cut -d'.' -f1); [ -z "$CPU_PER" ] && CPU_PER=0
     CPU_BAR=$(draw_bar $CPU_PER)
+    
+    # Contadores de Usuarios
+    TOTAL_USUARIOS=$(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | wc -l)
     CONECTADOS=$(ps -ef | grep -E "sshd|dropbear" | grep -v root | grep -v grep | wc -l)
     SUBDOMINIO=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "No Configurado" )
+
+    # Estado de Servicios (Bloque Visual Integrado)
+    ST_SSH=$(chk_svc ssh)
+    ST_NGINX=$(chk_svc nginx)
+    ST_XRAY=$(chk_svc xray)
+    ST_HCR=$(chk_svc hcr-server)
+    ST_STUNNEL=$(chk_svc stunnel4)
+    ST_WS=$(chk_svc ws-python)
 
     echo -e "${C_NEON_BLUE}╔══════════════════════════════════════════════╗${C_RST}"
     echo -e "${C_NEON_BLUE}║ ${C_NEON_YELLOW}${M_TITLE}   ${C_NEON_BLUE}║${C_RST}"
@@ -427,7 +445,10 @@ while true; do
     echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}${M_DOM}:${C_RST} $SUBDOMINIO"
     echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}${M_CPU}:${C_RST} $CPU_BAR"
     echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}${M_RAM}:${C_RST} $RAM_BAR ($RAM_STR)"
-    echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}${M_CON}:${C_RST} $CONECTADOS $M_ACT"
+    echo -e "${C_NEON_BLUE}║ ${C_NEON_GREEN}${M_USR}:${C_RST} $TOTAL_USUARIOS Creados | $CONECTADOS En Línea"
+    echo -e "${C_NEON_BLUE}╠══════════════════════════════════════════════╣${C_RST}"
+    echo -e "  ${C_NEON_BLUE}SSH : ${ST_SSH}   ${C_NEON_BLUE}NGINX : ${ST_NGINX}   ${C_NEON_BLUE}XRAY : ${ST_XRAY}"
+    echo -e "  ${C_NEON_BLUE}STUNNEL : ${ST_STUNNEL} ${C_NEON_BLUE}SSH-WS : ${ST_WS}  ${C_NEON_BLUE}HCR : ${ST_HCR}"
     echo -e "${C_NEON_BLUE}╠══════════════════════════════════════════════╣${C_RST}"
     echo -e "${C_NEON_PURPLE}  ${M_CAT1}${C_RST}"
     echo -e "  ${C_NEON_YELLOW}1.${C_RST} ${M_OPT1}"

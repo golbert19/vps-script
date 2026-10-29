@@ -20,20 +20,21 @@ check_port() {
     fi
 }
 
-# Lista de chequeo de servicios
+# Lista de chequeo exacta
 check_port "SSH Principal" "22"
 check_port "WS HTTP / Dropbear" "80"
 check_port "SSL / Trojan" "443"
 check_port "Stunnel Proxy" "444"
 check_port "Nginx Gateway" "8442"
 check_port "Python WS Proxy" "8080"
+check_port "BHTTP Proxy" "8180"
 check_port "Web Panel UI" "8181"
-check_port "HCR Server" "8888"
+check_port "HCR Server" "8880"
 check_port "OpenVPN" "1194"
-check_port "BadVPN UDPGW" "7200"
-check_port "BadVPN UDPGW" "7300"
+check_port "BadVPN UDPGW (1)" "7200"
+check_port "BadVPN UDPGW (2)" "7300"
 check_port "UDP Custom" "2000"
-check_port "UDP Custom" "25000"
+check_port "ZivPN" "25000"
 
 echo -e "${C_CYAN}================================================${C_NC}"
 read -p "Presiona Enter para regresar al menú..."

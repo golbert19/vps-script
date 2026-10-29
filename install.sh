@@ -17,12 +17,11 @@ barra_porcentaje() {
     local pid=$!
     
     local progreso=0
-    tput civis # Oculta el cursor intermitente para que se vea limpio
+    tput civis # Oculta el cursor intermitente
     
     while kill -0 $pid 2>/dev/null; do
         progreso=$((progreso + 1))
-        # Congelar en 99% hasta que el comando termine realmente
-        [ $progreso -gt 99 ] && progreso=99 
+        [ $progreso -gt 99 ] && progreso=99 # Congelar en 99% hasta terminar
         
         local filled=$((progreso / 5))
         local empty=$((20 - filled))
@@ -67,8 +66,9 @@ fi
 echo -e "\n${C_CYAN}Verificando Key...${C_NC}"
 sleep 1
 
-# ⚠️ IMPORTANTE: AQUÍ ABAJO DEBES PONER EL COMANDO ORIGINAL QUE CONECTABA CON TU BOT
-# verificacion=$(curl -s "http://TU_IP/validar?key=$input_key")
+# ⚠️ IMPORTANTE: Aquí va la validación con tu bot de Telegram si la usas.
+# Si tienes una API, descomenta y adapta estas líneas:
+# verificacion=$(curl -s "http://TU_API/validar?key=$input_key")
 # if [ "$verificacion" != "ACTIVA" ]; then
 #     echo -e "${C_RED}[!] Key inválida o expirada.${C_NC}"
 #     exit 1
@@ -89,7 +89,7 @@ barra_porcentaje "$CMD_DEP" "Instalando dependencias base"
 CMD_DIR="mkdir -p /etc/vps-manager/core && mkdir -p /usr/local/bin"
 barra_porcentaje "$CMD_DIR" "Creando directorios del sistema"
 
-# Descarga de Módulos
+# Descarga de Módulos Core
 CMD_MODS="wget -qO /etc/vps-manager/proxy.py https://raw.githubusercontent.com/golbert19/vps-script/main/core/proxy.py && \
 wget -qO /etc/vps-manager/limiter.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/limiter.sh && \
 wget -qO /etc/vps-manager/core/setup_dns.sh https://raw.githubusercontent.com/golbert19/vps-script/main/core/setup_dns.sh && \
@@ -104,13 +104,51 @@ barra_porcentaje "$CMD_MENU" "Instalando Panel Principal"
 
 # Pasarela Nginx (Fix Ports)
 CMD_FIX="wget -qO /etc/vps-manager/fix_ports.sh https://raw.githubusercontent.com/golbert19/vps-script/main/fix_ports.sh && \
-chmod +x /etc/vps-manager/fix_ports.sh && /etc/vps-manager/fix_ports.sh"
+chmod +x /etc/vps-manager/fix_ports.sh && bash /etc/vps-manager/fix_ports.sh"
 barra_porcentaje "$CMD_FIX" "Configurando pasarela de puertos"
+
+# ==========================================
+# 3. CONFIGURACIÓN DE SEGURIDAD CLOUD (OPCIONAL)
+# ==========================================
+clear
+echo -e "${C_CYAN}================================================${C_NC}"
+echo -e "${C_GREEN}    CONFIGURACIÓN DE ACCESO ROOT (OPCIONAL)     ${C_NC}"
+echo -e "${C_CYAN}================================================${C_NC}"
+echo -e "${C_YELLOW}NOTA: Este paso es SOLO para servidores de AWS, Azure, Google Cloud"
+echo -e "u Oracle Cloud, los cuales bloquean el acceso root por contraseña."
+echo -e "Si tu máquina es de otro proveedor y ya tienes acceso normal,"
+echo -e "no hay necesidad de cambiarlo.${C_NC}\n"
+
+read -p "¿Es un servidor Cloud y deseas habilitar la contraseña Root? (s/N): " config_root
+config_root=${config_root:-n}
+
+if [[ "$config_root" == "s" || "$config_root" == "S" ]]; then
+    echo -e "\n${C_CYAN}[+] Configurando nueva contraseña para 'root'...${C_NC}"
+    passwd root
+    
+    echo -e "\n${C_YELLOW}[+] Desbloqueando acceso Root y PasswordAuthentication en SSH...${C_NC}"
+    cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+    
+    sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/g' /etc/ssh/sshd_config
+    sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+    
+    rm -f /etc/ssh/sshd_config.d/60-cloudimg-settings.conf 2>/dev/null
+    rm -f /etc/ssh/sshd_config.d/50-cloud-init.conf 2>/dev/null
+    
+    systemctl restart ssh >/dev/null 2>&1
+    systemctl restart sshd >/dev/null 2>&1
+    
+    echo -e "${C_GREEN}[✔] ¡Contraseña Root y acceso SSH configurados con éxito!${C_NC}"
+    sleep 4
+else
+    echo -e "${C_YELLOW}[!] Omitiendo configuración. Se mantiene el acceso actual.${C_NC}"
+    sleep 2
+fi
 
 # ==========================================
 # FINALIZACIÓN
 # ==========================================
-echo -e "\n${C_GREEN}[✔] ¡Instalación modular completada con éxito!${C_NC}"
+echo -e "\n${C_GREEN}[✔] ¡Instalación de Golbert VPS V5.0 LTS completada con éxito!${C_NC}"
 sleep 2
 
 # Iniciar el menú automáticamente

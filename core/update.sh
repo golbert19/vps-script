@@ -1,66 +1,27 @@
 #!/bin/bash
-# ==========================================
-# SCRIPT DE ACTUALIZACIÓN AUTOMÁTICA - GOLBERT VPS
-# ==========================================
-
-C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'
-C_CYAN='\033[1;36m'; C_NC='\033[0m'
+C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 
 clear
 echo -e "${C_CYAN}================================================${C_NC}"
-echo -e " 🔄 ${C_YELLOW}ACTUALIZANDO GOLBERT VPS V5.0 LTS${C_NC}"
+echo -e " 🔄 ${C_YELLOW}ACTUALIZADOR DE PANEL - GOLBERT VPS${C_NC}"
 echo -e "${C_CYAN}================================================${C_NC}"
+echo -e "${C_YELLOW}[+] Conectando con GitHub para descargar actualizaciones...${C_NC}"
 
-# 1. Definir directorios de trabajo
-INSTALL_DIR="/etc/vps-manager"
-CORE_DIR="$INSTALL_DIR/core"
-ROOT_CORE="/root/core"
+# Creamos un directorio temporal para la descarga limpia
+mkdir -p /etc/vps-manager/temp_update
+cd /etc/vps-manager/temp_update
 
-echo -e "${C_YELLOW}[+] Verificando directorios y permisos...${C_NC}"
-mkdir -p "$CORE_DIR" "$ROOT_CORE"
+# Descargar el menú principal con barra de progreso visible
+echo -e "${C_CYAN}[1/2] Actualizando Menú Principal...${C_NC}"
+wget --progress=bar:force https://raw.githubusercontent.com/golbert19/vps-script/main/menu.sh -O /usr/local/bin/menu
+chmod +x /usr/local/bin/menu
 
-# 2. Descargar o actualizar los archivos desde tu repositorio de GitHub
-REPO_URL="https://raw.githubusercontent.com/golbert19/vps-script/main"
+# Descargar el actualizador maestro si existe
+echo -e "${C_CYAN}[2/2] Sincronizando scripts del sistema...${C_NC}"
+wget --progress=bar:force https://raw.githubusercontent.com/golbert19/vps-script/main/install.sh -O /etc/vps-manager/install.sh 2>/dev/null
 
-echo -e "${C_YELLOW}[+] Descargando componentes actualizados...${C_NC}"
-
-# Separamos los scripts según su ubicación real en tu repositorio de GitHub
-SCRIPTS_ROOT=("menu.sh" "user.sh")
-SCRIPTS_CORE=("sshws.sh" "xray_manager.sh")
-
-# Descargar scripts de la raíz (/main/)
-for script in "${SCRIPTS_ROOT[@]}"; do
-    wget -q -O "$CORE_DIR/$script" "$REPO_URL/$script" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        cp -f "$CORE_DIR/$script" "$ROOT_CORE/$script" 2>/dev/null
-        chmod +x "$CORE_DIR/$script" "$ROOT_CORE/$script" 2>/dev/null
-        echo -e "    • Actualizado: $script"
-    else
-        echo -e "    • ${C_RED}Error al actualizar $script (verifique la URL)${C_NC}"
-    fi
-done
-
-# Descargar scripts de la subcarpeta (/main/core/)
-for script in "${SCRIPTS_CORE[@]}"; do
-    wget -q -O "$CORE_DIR/$script" "$REPO_URL/core/$script" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        cp -f "$CORE_DIR/$script" "$ROOT_CORE/$script" 2>/dev/null
-        chmod +x "$CORE_DIR/$script" "$ROOT_CORE/$script" 2>/dev/null
-        echo -e "    • Actualizado: $script"
-    else
-        echo -e "    • ${C_RED}Error al actualizar $script (verifique la URL)${C_NC}"
-    fi
-done
-
-# 3. Crear accesos directos globales en el sistema
-if [ -f "$CORE_DIR/menu.sh" ]; then
-    ln -sf "$CORE_DIR/menu.sh" /usr/bin/menu
-    ln -sf "$CORE_DIR/menu.sh" /usr/bin/vps
-    chmod +x /usr/bin/menu /usr/bin/vps
-fi
-
-echo -e "${C_CYAN}================================================${C_NC}"
-echo -e " ✅ ${C_GREEN}¡ACTUALIZACIÓN COMPLETADA CON ÉXITO!${C_NC}"
-echo -e " Escribe ${C_YELLOW}menu${C_NC} o ${C_YELLOW}vps${C_NC} para abrir el panel principal."
-echo -e "${C_CYAN}================================================${C_NC}"
+echo -e "\n${C_GREEN}[✔] ¡Actualización completada con éxito!${C_NC}"
+echo -e "${C_YELLOW}El panel se reiniciará para aplicar los cambios.${C_NC}"
 sleep 2
+clear
+menu

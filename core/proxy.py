@@ -1,90 +1,80 @@
-#!/usr/bin/env python3
 import socket
 import threading
-import select
 import sys
+import os
+import subprocess
 
-LISTENING_ADDR = '0.0.0.0'
-LISTENING_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 80
-DEFAULT_HOST = '127.0.0.1:22'
-BUFLEN = 4096 * 4
-TIMEOUT = 60
+def get_user_info(username):
+    # Obtener fecha de expiración del usuario del sistema Linux
+    try:
+        cmd = f"chage -l {username} | grep 'Account expires'"
+        output = subprocess.check_output(cmd, shell=True).decode('utf-8')
+        # Ejemplo de salida: Account expires : Nov 03, 2026
+        expiry_date = output.split(':')[1].strip()
+        return expiry_date
+    except:
+        return "Ilimitado"
 
-class ClientThread(threading.Thread):
-    def __init__(self, client_socket):
-        threading.Thread.__init__(self)
-        self.client = client_socket
-        self.target = None
+def handle_client(client_socket):
+    try:
+        request = client_socket.recv(2048).decode('utf-8', errors='ignore')
+        if not request:
+            client_socket.close()
+            return
 
-    def run(self):
-        try:
-            # Leer el payload completo enviado por la app (HTTP Injector / E-Proxy)
-            payload = self.client.recv(BUFLEN).decode('utf-8', errors='ignore')
-            if not payload:
-                self.client.close()
-                return
+        # Responder al Payload WebSocket
+        response = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"
+        client_socket.sendall(response.encode('utf-8'))
 
-            # Conectar internamente al puerto SSH local (22)
-            host, port = DEFAULT_HOST.split(':')
-            self.target = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.target.connect((host, int(port)))
+        # Conectar al servicio SSH local (puerto 22)
+        ssh_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        ssh_socket.connect(('127.0.0.1', 22))
 
-            # Responder al cliente según lo que solicite el payload
-            if 'upgrade: websocket' in payload.lower() or 'connection: upgrade' in payload.lower():
-                response = (
-                    "HTTP/1.1 101 Switching Protocols\r\n"
-                    "Upgrade: websocket\r\n"
-                    "Connection: Upgrade\r\n"
-                    "Server: GolbertVPS-Proxy\r\n\r\n"
-                )
-            else:
-                response = (
-                    "HTTP/1.1 200 Connection established\r\n"
-                    "Proxy-Agent: GolbertVPS-Engine\r\n"
-                    "Connection: keep-alive\r\n\r\n"
-                )
+        # Opcional: Enviar cabecera o mensaje informativo inicial de bienvenida al socket
+        # (Esto es lo que algunas apps leen como detalles de cuenta)
+        welcome_msg = "\n==============================\n" \
+                      " Usuario: Activo en Golbert VPS \n" \
+                      " Estado: Conexión Exitosa     \n" \
+                      "==============================\n\n"
+        client_socket.sendall(welcome_msg.encode('utf-8'))
 
-            self.client.sendall(response.encode('utf-8'))
-            self.forward_traffic()
+        # Hilos concurrentes de transferencia
+        t1 = threading.Thread(target=transfer, args=(client_socket, ssh_socket))
+        t2 = threading.Thread(target=transfer, args=(ssh_socket, client_socket))
+        t1.daemon = True
+        t2.daemon = True
+        t1.start()
+        t2.start()
+    except Exception:
+        client_socket.close()
 
-        except Exception:
-            pass
-        finally:
-            if self.client:
-                self.client.close()
-            if self.target:
-                self.target.close()
-
-    def forward_traffic(self):
-        sockets = [self.client, self.target]
+def transfer(src, dst):
+    try:
         while True:
-            r, _, e = select.select(sockets, [], sockets, TIMEOUT)
-            if e or not r:
-                break
-            for sock in r:
-                data = sock.recv(BUFLEN)
-                if not data:
-                    return
-                if sock is self.client:
-                    self.target.sendall(data)
-                else:
-                    self.client.sendall(data)
+            data = src.recv(8192)
+            if not data: break
+            dst.sendall(data)
+    except Exception:
+        pass
+    finally:
+        try: src.close()
+        except: pass
+        try: dst.close()
+        except: pass
 
 def main():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind((LISTENING_ADDR, LISTENING_PORT))
-    server.listen(128)
-    print(f"[*] Proxy Multi-Payload activo en el puerto {LISTENING_PORT}")
-
+    server.bind(('0.0.0.0', 80))
+    server.listen(500)
+    print("Proxy WebSocket con inyección de estado escuchando en puerto 80...")
     while True:
         try:
-            client_sock, _ = server.accept()
-            handler = ClientThread(client_sock)
-            handler.daemon = True
-            handler.start()
-        except KeyboardInterrupt:
-            break
+            client, addr = server.accept()
+            threading.Thread(target=handle_client, args=(client,)).daemon = True
+            client.start() if hasattr(client, 'start') else None
+        except Exception:
+            continue
 
 if __name__ == '__main__':
     main()

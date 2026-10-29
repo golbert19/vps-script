@@ -200,16 +200,16 @@ def handle_message(message):
             new_key = f"{new_key[:4]}-{new_key[4:8]}-{new_key[8:12]}"
             exp_date = load_auth().get(uid, "Desconocido")
             msg = (
-                "\u2705 <b>KEY GENERADA</b>\n"
+                "✅ <b>KEY GENERADA</b>\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
-                f"\U0001F464 <b>Vendedor:</b> @{username} (ID: <code>{uid}</code>)\n"
-                f"\U0001F511 <b>Key:</b> <code>{new_key}</code>\n"
-                f"\u23F3 <b>Tu panel vence:</b> {exp_date}\n"
+                f"👤 <b>Vendedor:</b> @{username} (ID: <code>{uid}</code>)\n"
+                f"🔑 <b>Key:</b> <code>{new_key}</code>\n"
+                f"⏳ <b>Vence:</b> {exp_date}\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
-                "\u26A0\uFE0F <b>Sistema:</b> Ubuntu 22.04|24.04|26.04\n"
-                "\U0001F468\u200D\U0001F4BB <b>Due\u00f1o:</b> @golbertperuvps\n"
+                "⚠️ Compatible con Ubuntu (22.04, 24.04, 26.04) y las últimas versiones de Debian (11 y 12).\n"
+                "👨‍💻 <b>Dueño:</b> @golbertperuvps\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
-                "\U0001F4BB <b>Instalaci\u00f3n:</b>\n"
+                "💻 <b>Instalación:</b>\n"
                 "<code>apt update -y && apt install -y wget && wget -O install.sh https://script.golbertvps.org.pe && chmod +x install.sh && ./install.sh</code>"
             )
             bot.reply_to(message, msg, parse_mode="HTML")
@@ -222,22 +222,22 @@ def handle_message(message):
         new_key = "VPS-" + str(uuid.uuid4()).upper().replace("-", "")[:12]
         new_key = f"{new_key[:4]}-{new_key[4:8]}-{new_key[8:12]}"
         msg = (
-            "\u2705 <b>KEY GENERADA (DUE\u00d1O)</b>\n"
+            "✅ <b>KEY GENERADA (DUEÑO)</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            f"\U0001F464 <b>Cliente:</b> @{username} (ID: <code>{uid}</code>)\n"
-            f"\U0001F511 <b>Key:</b> <code>{new_key}</code>\n"
-            "\u23F3 <b>Vence:</b> Permanente\n"
+            f"👤 <b>Cliente:</b> @{username} (ID: <code>{uid}</code>)\n"
+            f"🔑 <b>Key:</b> <code>{new_key}</code>\n"
+            "⏳ <b>Vence:</b> Permanente\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "\u26A0\uFE0F <b>Sistema:</b> Ubuntu 22.04|24.04|26.04\n"
-            "\U0001F468\u200D\U0001F4BB <b>Due\u00f1o:</b> @golbertperuvps\n"
+            "⚠️ Compatible con Ubuntu (22.04, 24.04, 26.04) y las últimas versiones de Debian (11 y 12).\n"
+            "👨‍💻 <b>Dueño:</b> @golbertperuvps\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "\U0001F4BB <b>Instalaci\u00f3n:</b>\n"
+            "💻 <b>Instalación:</b>\n"
             "<code>apt update -y && apt install -y wget && wget -O install.sh https://script.golbertvps.org.pe && chmod +x install.sh && ./install.sh</code>"
         )
         bot.reply_to(message, msg, parse_mode="HTML")
 
     elif text == BTN_KEY_R:
-        msg = bot.reply_to(message, "\U0001F91D <b>Key de Instalaci\u00f3n por D\u00edas</b>\nIngresa los <b>D\u00cdAS</b> de validez para esta instalaci\u00f3n.\nEjemplo: <code>30</code>", parse_mode="HTML")
+        msg = bot.reply_to(message, "\U0001F91D <b>Key de Instalación por Días</b>\nIngresa los <b>DÍAS</b> de validez para esta instalación.\nEjemplo: <code>30</code>", parse_mode="HTML")
         bot.register_next_step_handler(msg, process_key_revendedor)
 
     elif text == BTN_DOM_MIS:
@@ -415,21 +415,21 @@ def process_key_revendedor(message):
         exp_date = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d")
         username = message.from_user.username or "Usuario"
         msg = (
-            "\u2705 <b>KEY DE INSTALACI\u00d3N CREADA</b>\n"
+            "✅ <b>KEY GENERADA (REVENDEDOR)</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            f"\U0001F464 <b>Cliente:</b> @{username} (ID: <code>{message.from_user.id}</code>)\n"
-            f"\U0001F511 <b>Key:</b> <code>{new_key}</code>\n"
-            f"\u23F3 <b>Vence:</b> {exp_date} ({days} D\u00edas)\n"
+            f"👤 <b>Vendedor:</b> @{username} (ID: <code>{message.from_user.id}</code>)\n"
+            f"🔑 <b>Key:</b> <code>{new_key}</code>\n"
+            f"⏳ <b>Vence:</b> {exp_date} ({days} Días)\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "\u26A0\uFE0F <b>Sistema:</b> Ubuntu 22.04|24.04|26.04\n"
-            "\U0001F468\u200D\U0001F4BB <b>Due\u00f1o:</b> @golbertperuvps\n"
+            "⚠️ Compatible con Ubuntu (22.04, 24.04, 26.04) y las últimas versiones de Debian (11 y 12).\n"
+            "👨‍💻 <b>Dueño:</b> @golbertperuvps\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "\U0001F4BB <b>Instalaci\u00f3n:</b>\n"
+            "💻 <b>Instalación:</b>\n"
             "<code>apt update -y && apt install -y wget && wget -O install.sh https://script.golbertvps.org.pe && chmod +x install.sh && ./install.sh</code>"
         )
         bot.reply_to(message, msg, parse_mode="HTML")
     except ValueError:
-        bot.reply_to(message, "\u274C Error. Ingresa solo un n\u00famero (Ej: 30).", parse_mode="HTML")
+        bot.reply_to(message, "❌ Error. Ingresa solo un número (Ej: 30).", parse_mode="HTML")
 
 # ==========================================
 # RUTINAS CLOUDFLARE
@@ -441,12 +441,14 @@ def process_domain_a(message):
         sub, ip = message.text.split()
         full_domain = f"{sub}.{DOMAIN}"
         data = {"type": "A", "name": full_domain, "content": ip, "ttl": 1, "proxied": False}
-        resp = cf_api_call("POST", "dns_records", data)
+        
+        resp = cf_api_call("POST", "dns_records", data=data)
         if resp and resp.status_code == 200:
-            bot.reply_to(message, f"\u2705 <b>Dominio A Creado</b>\n\U0001F310 {full_domain} -> {ip}", parse_mode="HTML")
+            bot.reply_to(message, f"✅ <b>Dominio A Creado Exitosamente:</b>\n<code>{full_domain}</code> ➔ <code>{ip}</code>", parse_mode="HTML")
         else:
-            bot.reply_to(message, f"\u274C Error API Cloudflare:\n{resp.text if resp else 'Sin conexi\u00f3n'}")
-    except: bot.reply_to(message, "\u274C Error de formato. Usa: subdominio IP")
+            bot.reply_to(message, "❌ <b>Error al crear el registro A en Cloudflare.</b>", parse_mode="HTML")
+    except ValueError:
+        bot.reply_to(message, "❌ Formato incorrecto. Debes usar: subdominio IP", parse_mode="HTML")
 
 def process_domain_ns(message):
     if is_menu_button(message.text): return handle_message(message)
@@ -454,14 +456,18 @@ def process_domain_ns(message):
         sub, target = message.text.split()
         full_domain = f"{sub}.{DOMAIN}"
         data = {"type": "NS", "name": full_domain, "content": target, "ttl": 1, "proxied": False}
-        resp = cf_api_call("POST", "dns_records", data)
+        
+        resp = cf_api_call("POST", "dns_records", data=data)
         if resp and resp.status_code == 200:
-            bot.reply_to(message, f"\u2705 <b>Dominio NS Creado</b>\n\U0001F9E9 {full_domain} -> {target}", parse_mode="HTML")
+            bot.reply_to(message, f"✅ <b>Dominio NS Creado Exitosamente:</b>\n<code>{full_domain}</code> ➔ <code>{target}</code>", parse_mode="HTML")
         else:
-            bot.reply_to(message, f"\u274C Error API Cloudflare:\n{resp.text if resp else 'Sin conexi\u00f3n'}")
-    except: bot.reply_to(message, f"\u274C Error de formato. Usa: subdominio destino")
+            bot.reply_to(message, "❌ <b>Error al crear el registro NS en Cloudflare.</b>", parse_mode="HTML")
+    except ValueError:
+        bot.reply_to(message, "❌ Formato incorrecto. Debes usar: subdominio destino", parse_mode="HTML")
 
-if __name__ == "__main__":
-    while True:
-        try: bot.infinity_polling(timeout=10, long_polling_timeout=5)
-        except: time.sleep(3)
+# Bucle principal del bot
+while True:
+    try:
+        bot.polling(none_stop=True)
+    except Exception as e:
+        time.sleep(5)

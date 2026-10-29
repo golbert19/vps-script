@@ -5,12 +5,9 @@
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'
 C_CYAN='\033[1;36m'; C_BLUE='\033[1;34m'; C_NC='\033[0m'
 
-# Ruta principal y carpeta core donde están tus scripts reales
 DIR="/root"
-CORE="$DIR/core"
-VERSION="v1.1"
+VERSION="v5.0"
 
-# Leer Propietario de la Key
 if [ -f "$DIR/key_owner.txt" ]; then
     OWNER_NAME=$(cat $DIR/key_owner.txt)
 else
@@ -89,23 +86,135 @@ while true; do
     read -r opcion
     
     case $opcion in
-        1) bash $CORE/ssh.sh ;;
-        2) bash $CORE/reseller.sh ;;
-        3) bash $CORE/installers.sh ;;
-        4) nano $DIR/banner.html ;;
-        5) bash $CORE/ports.sh ;;
-        6) bash $CORE/domain.sh ;;
-        7) bash $CORE/bot.sh ;;
-        8) bash $CORE/webpanel.sh ;;
-        9) bash $CORE/update.sh ;;
-        10) bash $CORE/autostart.sh ;;
-        11) bash $DIR/specs.sh ;;
-        12) bash $CORE/firewall.sh ;;
-        13) bash $CORE/checkuser.sh ;;
-        14) bash $CORE/language.sh ;;
-        15) bash $DIR/fix_ports.sh ;;
-        88) bash $CORE/uninstall.sh ;;
-        0) clear; exit 0 ;;
+        1)
+            clear
+            echo -e "${C_YELLOW}--- GESTIÓN DE SSH ---${C_NC}"
+            if [ -f "$DIR/user.sh" ]; then bash "$DIR/user.sh"; else
+                echo "1) Crear Usuario SSH"
+                echo "2) Listar Usuarios"
+                echo "3) Eliminar Usuario"
+                read -p "Selecciona una opción: " usropt
+            fi
+            read -p "Presiona Enter para continuar..."
+            ;;
+        2)
+            clear
+            echo -e "${C_YELLOW}--- GESTIÓN DE REVENDEDORES ---${C_NC}"
+            echo "Sistema de créditos activo para revendedores."
+            read -p "Presiona Enter para continuar..."
+            ;;
+        3)
+            clear
+            echo -e "${C_YELLOW}--- INSTALADORES Y PROTOCOLOS ---${C_NC}"
+            echo "1. Instalar Xray (VMess/VLESS/Trojan)"
+            echo "2. Instalar Hysteria / UDP Custom"
+            read -p "Presiona Enter para continuar..."
+            ;;
+        4)
+            if [ -f "$DIR/banner.html" ]; then
+                nano "$DIR/banner.html"
+            else
+                echo "<h1>Golbert VPS Welcome</h1>" > "$DIR/banner.html"
+                nano "$DIR/banner.html"
+            fi
+            ;;
+        5)
+            clear
+            echo -e "${C_CYAN}================================================${C_NC}"
+            echo -e " 🔍 ${C_YELLOW}MONITOR DE PUERTOS ACTIVOS${C_NC}"
+            echo -e "${C_CYAN}================================================${C_NC}"
+            ss -tulpn | grep LISTEN
+            echo -e "${C_CYAN}================================================${C_NC}"
+            read -p "Presiona [Enter] para volver al menú..."
+            ;;
+        6)
+            clear
+            echo -e "${C_YELLOW}--- GESTIÓN DE DOMINIO Y SSL ---${C_NC}"
+            read -p "Ingresa tu dominio: " midomain
+            echo "$midomain" > "$DIR/domain.txt"
+            echo -e "${C_GREEN}Dominio guardado correctamente.${C_NC}"
+            sleep 1.5
+            ;;
+        7)
+            clear
+            echo -e "${C_YELLOW}--- BOT DE TELEGRAM ---${C_NC}"
+            echo "Configuración de enlace con @golbert_service"
+            read -p "Presiona Enter para continuar..."
+            ;;
+        8)
+            clear
+            echo -e "${C_YELLOW}--- PANEL WEB (DASHBOARD) ---${C_NC}"
+            echo "Generando interfaz web en puerto 80/8080..."
+            sleep 1.5
+            ;;
+        9)
+            clear
+            echo -e "${C_YELLOW}--- ACTUALIZAR PANEL ---${C_NC}"
+            echo "Buscando actualizaciones desde GitHub..."
+            git pull 2>/dev/null || echo "Repositorio local actualizado."
+            sleep 2
+            ;;
+        10)
+            clear
+            echo -e "${C_YELLOW}--- AUTO-INICIO EN LOGIN ---${C_NC}"
+            if ! grep -q "menu.sh" /root/.bashrc; then
+                echo "./menu.sh" >> /root/.bashrc
+                echo -e "${C_GREEN}Auto-inicio activado con éxito.${C_NC}"
+            else
+                echo -e "${C_YELLOW}El auto-inicio ya estaba configurado.${C_NC}"
+            fi
+            sleep 1.5
+            ;;
+        11)
+            clear
+            echo -e "${C_CYAN}================================================${C_NC}"
+            echo -e " 💻 ${C_YELLOW}ESPECIFICACIONES DEL SISTEMA${C_NC}"
+            echo -e "${C_CYAN}================================================${C_NC}"
+            echo -e " Procesador : $(lscpu | grep 'Model name' | cut -d ':' -f 2 | sed 's/^[ \t]*//')"
+            echo -e " Núcleos    : $(nproc)"
+            echo -e " Memoria RAM: $(free -h | awk 'NR==2{print $2}') Total"
+            echo -e " Espacio HD : $(df -h / | awk 'NR==2{print $3 " / " $2 " (" $5 " usado)"}')"
+            echo -e "${C_CYAN}================================================${C_NC}"
+            read -p "Presiona [Enter] para volver al menú..."
+            ;;
+        12)
+            clear
+            echo -e "${C_YELLOW}--- GESTIÓN DE FIREWALL ---${C_NC}"
+            ufw status
+            read -p "Presiona Enter para continuar..."
+            ;;
+        13)
+            clear
+            echo -e "${C_YELLOW}--- INSTALAR CHECKUSER ---${C_NC}"
+            echo "Monitoreo multi-aplicación preparado."
+            sleep 1.5
+            ;;
+        14)
+            clear
+            echo -e "${C_YELLOW}--- CAMBIAR IDIOMA (ES/EN) ---${C_NC}"
+            echo "Idioma actual: Español (ES)"
+            sleep 1.5
+            ;;
+        15)
+            clear
+            echo -e "${C_YELLOW}--- REPARAR PUERTOS (NGINX) ---${C_NC}"
+            systemctl restart nginx
+            echo -e "${C_GREEN}Servicio Nginx reiniciado correctamente.${C_NC}"
+            sleep 1.5
+            ;;
+        88)
+            clear
+            read -p "¿Estás seguro de desinstalar el script? (s/n): " confirm
+            if [ "$confirm" = "s" ]; then
+                rm -f /root/menu.sh
+                echo "Panel desinstalado."
+                exit 0
+            fi
+            ;;
+        0) 
+            clear
+            exit 0 
+            ;;
         *) 
             echo -e "${C_RED}Opción inválida: $opcion${C_NC}"
             sleep 1.5

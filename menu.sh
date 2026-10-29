@@ -5,13 +5,12 @@
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'
 C_CYAN='\033[1;36m'; C_BLUE='\033[1;34m'; C_NC='\033[0m'
 
-# ==========================================
-# RUTA DE TUS SCRIPTS MÓDULOS
-# ==========================================
-DIR="/root" # Cambia a /etc/vps-manager si prefieres esa ruta
-
+# Rutas de tus directorios en el VPS
+DIR="/root"
+CORE="$DIR/core"
 VERSION="v1.1"
 
+# Leer Propietario de la Key
 if [ -f "$DIR/key_owner.txt" ]; then
     OWNER_NAME=$(cat $DIR/key_owner.txt)
 else
@@ -86,26 +85,30 @@ while true; do
     echo -e " ${C_CYAN}WhatsApp Oficial :${C_NC} +51960084993"
     echo -e "${C_CYAN}================================================${C_NC}"
     
-    read -p " Select an option: " opcion
+    echo -en "\033[1;32m Select an option: \033[0m"
+    read -r opcion
     
     case $opcion in
         1) bash $DIR/user.sh ;;
-        2) bash $DIR/reseller.sh ;;
-        3) bash $DIR/installers.sh ;;
+        2) bash $CORE/reseller.sh ;;
+        3) bash $CORE/installers.sh ;;
         4) nano $DIR/banner.html ;;
-        5) bash $DIR/ports.sh ;;
-        6) bash $DIR/domain.sh ;;
-        7) bash $DIR/bot.sh ;;
-        8) bash $DIR/webpanel.sh ;;
-        9) bash $DIR/update.sh ;;
-        10) bash $DIR/autostart.sh ;;
+        5) bash $CORE/ports.sh ;;
+        6) bash $CORE/domain.sh ;;
+        7) bash $CORE/bot.sh ;;
+        8) bash $CORE/webpanel.sh ;;
+        9) bash $CORE/update.sh ;;
+        10) bash $CORE/autostart.sh ;;
         11) bash $DIR/specs.sh ;;
-        12) bash $DIR/firewall.sh ;;
-        13) bash $DIR/checkuser.sh ;;
-        14) bash $DIR/language.sh ;;
+        12) bash $CORE/firewall.sh ;;
+        13) bash $CORE/checkuser.sh ;;
+        14) bash $CORE/language.sh ;;
         15) bash $DIR/fix_ports.sh ;;
-        88) bash $DIR/uninstall.sh ;;
+        88) bash $CORE/uninstall.sh ;;
         0) clear; exit 0 ;;
-        *) echo -e "${C_RED}Opción inválida.${C_NC}"; sleep 2 ;;
+        *) 
+            echo -e "${C_RED}Opción inválida: $opcion${C_NC}"
+            sleep 1.5
+            ;;
     esac
 done

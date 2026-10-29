@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Módulo: Creación Rápida de Cuentas y Protocolos
+# Módulo: Creación de Cuentas, Protocolos & Banner
 # Golbert VPS V5.0 LTS
 # ==========================================
 
@@ -54,7 +54,7 @@ PORT_SSL=443
 systemctl is-active --quiet stunnel4 && PORT_SSL=$(grep "accept =" /etc/stunnel/stunnel.conf | awk '{print $3}')
 
 # Detección de puertos personalizados
-PORT_UDP="7300" # Por defecto UDP Custom / BadVPN
+PORT_UDP="7300"
 [ -f /etc/udp/port.txt ] && PORT_UDP=$(cat /etc/udp/port.txt)
 
 PORT_BHTTP=8080
@@ -69,6 +69,28 @@ if [ -f /root/client.ovpn ] || [ -f /var/www/html/client.ovpn ]; then
     OVPN_LINK="http://$DOMAIN/client.ovpn"
 fi
 
+# ==========================================
+# Configurar el Banner de Conexión Personalizado (/etc/issue.net)
+# ==========================================
+cat << EOF > /etc/issue.net
+==================================================
+        🌟 GOLBERT VPS - ACCESO AUTORIZADO 🌟        
+==================================================
+ 👤 Usuario     : $USERNAME
+ 📅 Vencimiento : $DAYS días ($EXPIRES)
+ 🌐 Servidor    : $VPS_IP
+==================================================
+ ¡Conexión establecida correctamente!
+ Respete las políticas de uso del servidor.
+==================================================
+EOF
+
+# Asegurar que SSH lea este banner en las conexiones
+if ! grep -q "Banner /etc/issue.net" /etc/ssh/sshd_config; then
+    echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config
+    systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
+fi
+
 # Mostrar credenciales de acceso detalladas para el cliente
 clear
 echo -e "${C_CYAN}================================================${C_NC}"
@@ -76,7 +98,7 @@ echo -e " ✅ ${C_GREEN}DATOS DE ACCESO COMPLETOS${C_NC}"
 echo -e "${C_CYAN}================================================${C_NC}"
 echo -e " 👤 Usuario      : $USERNAME"
 echo -e " 🔑 Contraseña   : $PASSWORD"
-echo -e " 📅 Vencimiento  : $DAYS days ($EXPIRES)"
+echo -e " 📅 Vencimiento  : $DAYS días ($EXPIRES)"
 echo -e "${C_CYAN}------------------------------------------------${C_NC}"
 echo -e " 🌐 Host / IP    : $VPS_IP"
 echo -e " 🎯 Dominio/SNI  : $DOMAIN"
@@ -86,7 +108,6 @@ echo -e "    • SSH Directo  : $PORT_SSH"
 echo -e "    • SSH WebSocket: $PORT_WS (Payloads HTTP)"
 echo -e "    • SSH SSL/TLS  : $PORT_SSL (Stunnel)"
 
-# Mostrar métodos adicionales si están activos
 if systemctl is-active --quiet udp-custom || systemctl is-active --quiet badvpn; then
 echo -e "    • UDP Custom   : $PORT_UDP"
 fi

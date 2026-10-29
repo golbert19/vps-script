@@ -1,17 +1,13 @@
 #!/bin/bash
 # ==========================================
-# Panel Principal - Golbert VPS V5.0 LTS
+# Panel Principal - Golbert VPS V5.0 LTS (Optimizado UI)
 # ==========================================
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 
-C_RED='\033[1;31m'
-C_GREEN='\033[1;32m'
-C_YELLOW='\033[1;33m'
-C_CYAN='\033[1;36m'
-C_NC='\033[0m'
+C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 
-# Cargar traducciones de idioma
+# Cargar traducciones
 [ -f /etc/vps-manager/languages.sh ] && source /etc/vps-manager/languages.sh || {
     LANG_FILE="/etc/vps-manager/lang.txt"
     [ -f "$LANG_FILE" ] && current_lang=$(cat "$LANG_FILE") || current_lang="es"
@@ -83,22 +79,14 @@ while true; do
     echo -e ""
     echo -e "${C_YELLOW}$t_mgmt${C_NC}"
     echo -e " ${C_CYAN}1.${C_NC} 👤 SSH Management (Users, Limit, HWID)"
-    echo -e " ${C_CYAN}2.${C_NC} 🤝 Reseller Management (Credits)"
+    echo -e " ${C_CYAN}2.${C_NC} ⚡ Xray/V2Ray Management (VMess, VLESS, Trojan)"
+    echo -e " ${C_CYAN}3.${C_NC} 🤝 Reseller Management (Credits)"
     echo -e ""
     echo -e "${C_YELLOW}$t_tools${C_NC}"
-    echo -e " ${C_CYAN}3.${C_NC} 🛠️ Installers & Protocols Manager"
-    echo -e " ${C_CYAN}4.${C_NC} 🎨 Configure HTML Welcome Banner"
-    echo -e " ${C_CYAN}5.${C_NC} 🔍 Ports Monitor (Active / Inactive)"
-    echo -e " ${C_CYAN}6.${C_NC} 🌐 Domain Manager & SSL Certificates"
-    echo -e " ${C_CYAN}7.${C_NC} 🤖 Link Telegram Bot"
-    echo -e " ${C_CYAN}8.${C_NC} 🌐 Generate Web Panel (Dashboard UI)"
-    echo -e " ${C_CYAN}9.${C_NC} 🔄 Update Panel (From GitHub)"
-    echo -e " ${C_CYAN}10.${C_NC} 🚀 Enable Auto-Start on Login"
-    echo -e " ${C_CYAN}11.${C_NC} 💻 VPS Specifications & Capacity"
-    echo -e " ${C_CYAN}12.${C_NC} 🛡️ Firewall Manager (Rules & Security)"
-    echo -e " ${C_CYAN}13.${C_NC} 👥 Install CheckUser (Multi-App Monitor)"
-    echo -e " ${C_CYAN}14.${C_NC} 🌍 Change Language (ES/EN/PT)"
-    echo -e " ${C_CYAN}15.${C_NC} 🔧 Repair / Fix Ports (Nginx Gateway)"
+    echo -e " ${C_CYAN}4.${C_NC} 🛠️ Installers & Protocols Manager"
+    echo -e " ${C_CYAN}5.${C_NC} ⚙️ System & Security (Firewall, Ports, Specs)"
+    echo -e " ${C_CYAN}6.${C_NC} 🌐 Domain, Web Panel & Bot Config"
+    echo -e " ${C_CYAN}7.${C_NC} 🔄 Panel Settings (Update, Language, PHP)"
     echo -e "${C_CYAN}================================================${C_NC}"
     echo -e " ${C_RED}88. ❌ Uninstall Script   |   0. 🚪 Exit${C_NC}"
     echo -e "${C_CYAN}================================================${C_NC}"
@@ -109,9 +97,13 @@ while true; do
     read -p " $t_select" opcion
     
     case $opcion in
+        # ================= GESTIÓN DE CUENTAS =================
         1) [ -f /etc/vps-manager/core/user.sh ] && bash /etc/vps-manager/core/user.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-        2) [ -f /etc/vps-manager/core/bot.sh ] && bash /etc/vps-manager/core/bot.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-        3)
+        2) [ -f /etc/vps-manager/core/xray_manager.sh ] && bash /etc/vps-manager/core/xray_manager.sh || echo "Módulo V2Ray/Xray no encontrado" ; sleep 2 ;;
+        3) [ -f /etc/vps-manager/core/bot.sh ] && bash /etc/vps-manager/core/bot.sh || echo "Módulo no encontrado" ; sleep 2 ;;
+        
+        # ================= HERRAMIENTAS Y SISTEMA =================
+        4)
             while true; do
                 clear
                 echo -e "${C_CYAN}================================================${C_NC}"
@@ -134,77 +126,90 @@ while true; do
                 echo -e " 15. ⚙️ TCP BBR Optimizer"
                 echo -e " 0. 🚪 VOLVER al Menú Principal"
                 echo -e "${C_CYAN}================================================${C_NC}"
-                read -p "Selecciona el protocolo a instalar/gestionar: " sub_op
-
+                read -p "Selecciona el protocolo: " sub_op
                 case $sub_op in
-                    1) [ -f /etc/vps-manager/core/xray_manager.sh ] && bash /etc/vps-manager/core/xray_manager.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    2) [ -f /etc/vps-manager/core/vmess.sh ] && bash /etc/vps-manager/core/vmess.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    3) [ -f /etc/vps-manager/core/vless.sh ] && bash /etc/vps-manager/core/vless.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    4) [ -f /etc/vps-manager/core/trojan.sh ] && bash /etc/vps-manager/core/trojan.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    5) [ -f /etc/vps-manager/core/slowdns.sh ] && bash /etc/vps-manager/core/slowdns.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    6) [ -f /etc/vps-manager/core/badvpn.sh ] && bash /etc/vps-manager/core/badvpn.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    7) [ -f /etc/vps-manager/core/hcr.sh ] && bash /etc/vps-manager/core/hcr.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    8) [ -f /etc/vps-manager/core/hysteria.sh ] && bash /etc/vps-manager/core/hysteria.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    9) [ -f /etc/vps-manager/core/udp_custom.sh ] && bash /etc/vps-manager/core/udp_custom.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    10) [ -f /etc/vps-manager/core/bhttp.sh ] && bash /etc/vps-manager/core/bhttp.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    11) [ -f /etc/vps-manager/core/sshws.sh ] && bash /etc/vps-manager/core/sshws.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    12) [ -f /etc/vps-manager/core/ssl.sh ] && bash /etc/vps-manager/core/ssl.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    13) [ -f /etc/vps-manager/core/setup_openvpn.sh ] && bash /etc/vps-manager/core/setup_openvpn.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    14) [ -f /etc/vps-manager/core/zivpn.sh ] && bash /etc/vps-manager/core/zivpn.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    15) [ -f /etc/vps-manager/core/bbr.sh ] && bash /etc/vps-manager/core/bbr.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-                    0) break ;;
-                    *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
+                    1) bash /etc/vps-manager/core/xray_manager.sh ;; 2) bash /etc/vps-manager/core/vmess.sh ;;
+                    3) bash /etc/vps-manager/core/vless.sh ;; 4) bash /etc/vps-manager/core/trojan.sh ;;
+                    5) bash /etc/vps-manager/core/slowdns.sh ;; 6) bash /etc/vps-manager/core/badvpn.sh ;;
+                    7) bash /etc/vps-manager/core/hcr.sh ;; 8) bash /etc/vps-manager/core/hysteria.sh ;;
+                    9) bash /etc/vps-manager/core/udp_custom.sh ;; 10) bash /etc/vps-manager/core/bhttp.sh ;;
+                    11) bash /etc/vps-manager/core/sshws.sh ;; 12) bash /etc/vps-manager/core/ssl.sh ;;
+                    13) bash /etc/vps-manager/core/setup_openvpn.sh ;; 14) bash /etc/vps-manager/core/zivpn.sh ;;
+                    15) bash /etc/vps-manager/core/bbr.sh ;; 0) break ;; *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
                 esac
             done
             ;;
-        4) [ -f /etc/vps-manager/core/banner.sh ] && bash /etc/vps-manager/core/banner.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-        5) netstat -tulnp | grep -E 'ssh|nginx|xray|stunnel|python|hcr' ; read -p "Presiona Enter para continuar..." ;;
-        6) [ -f /etc/vps-manager/core/domain.sh ] && bash /etc/vps-manager/core/domain.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-        7) [ -f /etc/vps-manager/core/bot.sh ] && bash /etc/vps-manager/core/bot.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-        8) [ -f /etc/vps-manager/core/webpanel.sh ] && bash /etc/vps-manager/core/webpanel.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-        9) [ -f /etc/vps-manager/core/update.sh ] && bash /etc/vps-manager/core/update.sh || { [ -f /etc/vps-manager/update.sh ] && bash /etc/vps-manager/update.sh; } || echo "Módulo no encontrado" ; sleep 2 ;;
-        10) echo "Auto-Start configurado." ; sleep 2 ;;
-        11) [ -f /etc/vps-manager/core/specs.sh ] && bash /etc/vps-manager/core/specs.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-        12) [ -f /etc/vps-manager/core/firewall.sh ] && bash /etc/vps-manager/core/firewall.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-        13) [ -f /etc/vps-manager/core/checkuser.sh ] && bash /etc/vps-manager/core/checkuser.sh || echo "Módulo no encontrado" ; sleep 2 ;;
-        14)
+        5)
             while true; do
                 clear
                 echo -e "${C_CYAN}================================================${C_NC}"
-                echo -e " 🌍 CHANGE LANGUAGE / CAMBIAR IDIOMA / IDIOMA"
+                echo -e " ⚙️  SYSTEM & SECURITY TOOLS"
                 echo -e "${C_CYAN}================================================${C_NC}"
-                echo -e " 1. 🇪🇸 Español"
-                echo -e " 2. 🇺🇸 English"
-                echo -e " 3. 🇧🇷 Português"
-                echo -e " 0. 🚪 Volver al Menú"
+                echo -e " 1. 🔍 Monitor de Puertos (Active / Inactive)"
+                echo -e " 2. 💻 VPS Specifications & Capacity"
+                echo -e " 3. 🛡️ Firewall Manager (Rules & Security)"
+                echo -e " 4. 🔧 Repair / Fix Ports (Nginx Gateway)"
+                echo -e " 5. 👥 Install CheckUser (Multi-App Monitor)"
+                echo -e " 6. 🚀 Enable Auto-Start on Login"
+                echo -e " 0. 🚪 VOLVER al Menú Principal"
                 echo -e "${C_CYAN}================================================${C_NC}"
-                read -p "Selecciona una opción / Select option: " lang_op
-                
-                case $lang_op in
-                    1)
-                        echo "es" > /etc/vps-manager/lang.txt
-                        echo -e "\n${C_GREEN}[✔] Idioma cambiado a Español.${C_NC}"
-                        sleep 1.5
-                        break
-                        ;;
-                    2)
-                        echo "en" > /etc/vps-manager/lang.txt
-                        echo -e "\n${C_GREEN}[✔] Language changed to English.${C_NC}"
-                        sleep 1.5
-                        break
-                        ;;
-                    3)
-                        echo "pt" > /etc/vps-manager/lang.txt
-                        echo -e "\n${C_GREEN}[✔] Idioma alterado para Português.${C_NC}"
-                        sleep 1.5
-                        break
-                        ;;
-                    0) break ;;
-                    *) echo -e "${C_RED}Opción inválida / Invalid option.${C_NC}"; sleep 1 ;;
+                read -p "Selecciona una opción: " sys_op
+                case $sys_op in
+                    1) [ -f /etc/vps-manager/core/ports.sh ] && bash /etc/vps-manager/core/ports.sh || { netstat -tulnp | grep LISTEN; read -p "Presiona Enter para continuar..."; } ;;
+                    2) bash /etc/vps-manager/core/specs.sh ;; 3) bash /etc/vps-manager/core/firewall.sh ;;
+                    4) bash /etc/vps-manager/core/fix_ports.sh ;; 5) bash /etc/vps-manager/core/checkuser.sh ;;
+                    6) echo "Auto-Start configurado." ; sleep 2 ;;
+                    0) break ;; *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
                 esac
             done
             ;;
-        15) [ -f /etc/vps-manager/core/fix_ports.sh ] && bash /etc/vps-manager/core/fix_ports.sh || echo "Script no encontrado" ; sleep 2 ;;
+        6)
+            while true; do
+                clear
+                echo -e "${C_CYAN}================================================${C_NC}"
+                echo -e " 🌐  DOMAIN, WEB PANEL & BOT CONFIG"
+                echo -e "${C_CYAN}================================================${C_NC}"
+                echo -e " 1. 🌐 Domain Manager & SSL Certificates"
+                echo -e " 2. 🌐 Generate Web Panel (Dashboard UI)"
+                echo -e " 3. 🤖 Link Telegram Bot"
+                echo -e " 4. 🎨 Configure HTML Welcome Banner"
+                echo -e " 0. 🚪 VOLVER al Menú Principal"
+                echo -e "${C_CYAN}================================================${C_NC}"
+                read -p "Selecciona una opción: " web_op
+                case $web_op in
+                    1) bash /etc/vps-manager/core/domain.sh ;; 2) bash /etc/vps-manager/core/webpanel.sh ;;
+                    3) bash /etc/vps-manager/core/bot.sh ;; 4) bash /etc/vps-manager/core/banner.sh ;;
+                    0) break ;; *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
+                esac
+            done
+            ;;
+        7)
+            while true; do
+                clear
+                echo -e "${C_CYAN}================================================${C_NC}"
+                echo -e " 🔄  PANEL SETTINGS & UPDATES"
+                echo -e "${C_CYAN}================================================${C_NC}"
+                echo -e " 1. 🔄 Update Panel (From GitHub)"
+                echo -e " 2. 🌍 Change Language (ES/EN/PT)"
+                echo -e " 3. 🐘 Instalar PHP 8.5.12 (VPS)"
+                echo -e " 0. 🚪 VOLVER al Menú Principal"
+                echo -e "${C_CYAN}================================================${C_NC}"
+                read -p "Selecciona una opción: " set_op
+                case $set_op in
+                    1) bash /etc/vps-manager/core/update.sh ;;
+                    2)
+                        echo -e "\n1. 🇪🇸 Español | 2. 🇺🇸 English | 3. 🇧🇷 Português"
+                        read -p "Opción: " lang_op
+                        [ "$lang_op" = "1" ] && echo "es" > /etc/vps-manager/lang.txt
+                        [ "$lang_op" = "2" ] && echo "en" > /etc/vps-manager/lang.txt
+                        [ "$lang_op" = "3" ] && echo "pt" > /etc/vps-manager/lang.txt
+                        echo -e "${C_GREEN}[✔] Idioma actualizado.${C_NC}"; sleep 1; break
+                        ;;
+                    3) bash /etc/vps-manager/core/php.sh ;;
+                    0) break ;; *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
+                esac
+            done
+            ;;
         88) read -p "¿Desinstalar script? (s/n): " des; [ "$des" = "s" ] && exit 0 ;;
         0) clear ; exit 0 ;;
         *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;

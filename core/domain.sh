@@ -3,7 +3,7 @@
 # Módulo: Gestor de Dominio y SSL (Actualizado)
 # ==========================================
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
-DOM_FILE="/etc/vps-manager/dominio"
+DOM_FILE="/etc/vps-manager/domain.txt"
 mkdir -p /etc/vps-manager
 
 tramitar_ssl() {

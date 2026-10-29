@@ -1,55 +1,50 @@
 #!/bin/bash
 # ==========================================
-# Módulo: Especificaciones y Capacidad del VPS
+# Módulo: Especificaciones Avanzadas del Sistema
 # ==========================================
-C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'
-C_CYAN='\033[1;36m'; C_BLUE='\033[1;34m'; C_NC='\033[0m'
+C_CYAN='\033[1;36m'
+C_GREEN='\033[1;32m'
+C_YELLOW='\033[1;33m'
+C_NC='\033[0m'
 
 clear
 echo -e "${C_CYAN}================================================${C_NC}"
-echo -e " 💻        ESPECIFICACIONES DEL SISTEMA         💻"
+echo -e " 💻 ${C_YELLOW}ESPECIFICACIONES AVANZADAS - GOLBERT VPS${C_NC}"
 echo -e "${C_CYAN}================================================${C_NC}"
 
-# Recopilar información de hardware
-OS_NAME=$(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)
-KERNEL_VER=$(uname -r)
-ARCH=$(uname -m)
-HOSTNAME=$(hostname)
-UPTIME=$(uptime -p | sed 's/up //')
-CPU_MODEL=$(grep "model name" /proc/cpuinfo | head -n1 | cut -d':' -f2 | xargs)
-CPU_CORES=$(nproc)
-CPU_LOAD=$(top -bn1 | grep "Cpu(s)" | awk '{print 100 - $8"%"}')
-RAM_TOTAL=$(free -m | awk 'NR==2{print $2}')
-RAM_USED=$(free -m | awk 'NR==2{print $3}')
-RAM_FREE=$(free -m | awk 'NR==2{print $4}')
-RAM_PERC=$(free -m | awk 'NR==2{printf "%d", $3*100/$2}')
-DISK_TOTAL=$(df -h / | awk 'NR==2{print $2}')
-DISK_USED=$(df -h / | awk 'NR==2{print $3}')
-DISK_FREE=$(df -h / | awk 'NR==2{print $4}')
-DISK_PERC=$(df -h / | awk 'NR==2{print $5}')
-PUBLIC_IP=$(curl -sS ifconfig.me || echo "No disponible")
+# Obtener geolocalización e IP pública mediante API rápida
+geo_data=$(curl -sS ipinfo.io 2>/dev/null)
+ip_pub=$(echo "$geo_data" | grep -i '"ip"' | cut -d'"' -f4)
+ciudad=$(echo "$geo_data" | grep -i '"city"' | cut -d'"' -f4)
+region=$(echo "$geo_data" | grep -i '"region"' | cut -d'"' -f4)
+pais=$(echo "$geo_data" | grep -i '"country"' | cut -d'"' -f4)
+org=$(echo "$geo_data" | grep -i '"org"' | cut -d'"' -f4)
 
-echo -e " ${C_YELLOW}🔹 INFORMACIÓN GENERAL:${C_NC}"
-echo -e " Hostname    : $HOSTNAME"
-echo -e " Sistema     : $OS_NAME ($ARCH)"
-echo -e " Kernel      : $KERNEL_VER"
-echo -e " Tiempo Act. : $UPTIME"
-echo -e " IP Pública  : $PUBLIC_IP"
+# Datos del sistema
+os_name=$(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)
+kernel_ver=$(uname -r)
+arch=$(uname -m)
+cpu_model=$(grep 'model name' /proc/cpuinfo | head -n1 | cut -d':' -f2 | xargs)
+cpu_cores=$(nproc)
+uptime_sys=$(uptime -p | sed 's/up //')
+load_avg=$(awk '{print $1", "$2", "$3}' /proc/loadavg)
 
-echo -e "\n ${C_YELLOW}🔹 PROCESADOR (CPU):${C_NC}"
-echo -e " Modelo      : $CPU_MODEL"
-echo -e " Núcleos     : $CPU_CORES Cores"
-echo -e " Uso Actual  : $CPU_LOAD"
+# Memoria y Disco
+ram_info=$(free -h | awk 'NR==2 {print "Total: " $2 " | Usada: " $3 " | Libre: " $4}')
+disk_info=$(df -h / | awk 'NR==2 {print "Total: " $2 " | Usado: " $3 " | Libre: " $4 " (" $5 " usado)"}')
 
-echo -e "\n ${C_YELLOW}🔹 MEMORIA RAM:${C_NC}"
-echo -e " Total       : ${RAM_TOTAL} MB"
-echo -e " En uso      : ${RAM_USED} MB (${RAM_PERC}%)"
-echo -e " Disponible  : ${RAM_FREE} MB"
-
-echo -e "\n ${C_YELLOW}🔹 ALMACENAMIENTO (DISCO /):${C_NC}"
-echo -e " Total       : $DISK_TOTAL"
-echo -e " Usado       : $DISK_USED ($DISK_PERC)"
-echo -e " Libre       : $DISK_FREE"
-
+echo -e " 🖥️ OS Principal  : $os_name"
+echo -e " ⚙️ Kernel Linux  : $kernel_ver ($arch)"
+echo -e " ⏱️ Uptime        : $uptime_sys"
+echo -e " 📊 Load Average  : $load_avg"
+echo -e "${C_CYAN}------------------------------------------------${C_NC}"
+echo -e " 🌐 IP Pública    : ${ip_pub:-No disponible}"
+echo -e " 🏢 Proveedor/AS  : ${org:-Desconocido}"
+echo -e " 📍 Ubicación     : ${ciudad:-N/D}, ${region:-N/D} (${pais:-N/D})"
+echo -e "${C_CYAN}------------------------------------------------${C_NC}"
+echo -e " 🧠 Procesador    : $cpu_model"
+echo -e " 🚀 Núcleos CPU   : $cpu_cores Cores"
+echo -e " 💾 Memoria RAM   : $ram_info"
+echo -e " 💽 Espacio Disco : $disk_info"
 echo -e "${C_CYAN}================================================${C_NC}"
-read -p " Presiona Enter para regresar al menú..."
+read -p "Presiona Enter para regresar al menú..."

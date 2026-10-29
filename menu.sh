@@ -53,12 +53,36 @@ while true; do
     total_users=$(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | wc -l)
     online_users=$(ps -u root | grep sshd | wc -l)
 
+    # =========================================================
+    # DETECCIÓN LÓGICA DE PROCESOS EN TIEMPO REAL
+    # Evalúa si el servicio está activo en systemd o corriendo en RAM
+    # =========================================================
+    
+    # 1. SSH
     [ "$(systemctl is-active ssh)" = "active" ] && s_ssh="${C_GREEN}ON${C_NC}" || s_ssh="${C_RED}OFF${C_NC}"
+    
+    # 2. NGINX
     [ "$(systemctl is-active nginx)" = "active" ] && s_nginx="${C_GREEN}ON${C_NC}" || s_nginx="${C_RED}OFF${C_NC}"
+    
+    # 3. XRAY
     [ "$(systemctl is-active xray)" = "active" ] && s_xray="${C_GREEN}ON${C_NC}" || s_xray="${C_RED}OFF${C_NC}"
+    
+    # 4. STUNNEL
     [ "$(systemctl is-active stunnel4)" = "active" ] && s_stunnel="${C_GREEN}ON${C_NC}" || s_stunnel="${C_RED}OFF${C_NC}"
-    [ "$(systemctl is-active ws-python)" = "active" ] && s_ws="${C_GREEN}ON${C_NC}" || s_ws="${C_RED}OFF${C_NC}"
-    [ "$(systemctl is-active hcr)" = "active" ] || [ -f /etc/vps-manager/hcr.pid ] && s_hcr="${C_GREEN}ON${C_NC}" || s_hcr="${C_RED}OFF${C_NC}"
+    
+    # 5. SSH-WS (Python) - Busca lógicamente el proceso "proxy.py" en la memoria
+    if [ "$(systemctl is-active ws-python)" = "active" ] || pgrep -f "proxy.py" > /dev/null || pgrep -f "ws.py" > /dev/null; then 
+        s_ws="${C_GREEN}ON${C_NC}"
+    else 
+        s_ws="${C_RED}OFF${C_NC}"
+    fi
+    
+    # 6. HCR Server - Busca el binario "hcr-server" ejecutándose en vivo en el sistema
+    if pgrep -x "hcr-server" > /dev/null || [ "$(systemctl is-active hcr)" = "active" ]; then 
+        s_hcr="${C_GREEN}ON${C_NC}"
+    else 
+        s_hcr="${C_RED}OFF${C_NC}"
+    fi
 
     echo -e "${C_CYAN}================================================${C_NC}"
     echo -e " 🌟 ${C_YELLOW}GOLBERT VPS PREMIUM - V5.0 LTS PANEL${C_NC} 🌟"

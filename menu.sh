@@ -5,24 +5,24 @@
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'
 C_CYAN='\033[1;36m'; C_BLUE='\033[1;34m'; C_NC='\033[0m'
 
-# 1. Variables de Control y Versión
+# ==========================================
+# RUTA DE TUS SCRIPTS MÓDULOS
+# ==========================================
+DIR="/root" # Cambia a /etc/vps-manager si prefieres esa ruta
+
 VERSION="v1.1"
 
-# 2. Leer Propietario de la Key
-if [ -f "/etc/vps-manager/key_owner.txt" ]; then
-    OWNER_NAME=$(cat /etc/vps-manager/key_owner.txt)
+if [ -f "$DIR/key_owner.txt" ]; then
+    OWNER_NAME=$(cat $DIR/key_owner.txt)
 else
-    OWNER_NAME="Golbert VPS" # Valor por defecto
+    OWNER_NAME="Golbert VPS"
 fi
 
-# ==========================================
-# Funciones de Recopilación de Datos
-# ==========================================
 get_system_info() {
     OS_NAME=$(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)
     KERNEL_VER=$(uname -r)
     VPS_IP=$(curl -sS ifconfig.me || ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-    DOMAIN=$(cat /etc/vps-manager/domain.txt 2>/dev/null || echo "No configurado")
+    DOMAIN=$(cat $DIR/domain.txt 2>/dev/null || echo "No configurado")
     CPU_USAGE=$(top -bn1 | grep load | awk '{printf "%.2f%%", $(NF-2)}')
     RAM_USAGE=$(free -m | awk 'NR==2{printf "%s / %s MB", $3, $2}')
     RAM_PERC=$(free -m | awk 'NR==2{printf "%d", $3*100/$2}')
@@ -30,23 +30,14 @@ get_system_info() {
 }
 
 check_services() {
-    # SSH
     systemctl is-active --quiet ssh && SSH_ST="${C_GREEN}ON${C_NC}" || SSH_ST="${C_RED}OFF${C_NC}"
-    # NGINX
     systemctl is-active --quiet nginx && NGINX_ST="${C_GREEN}ON${C_NC}" || NGINX_ST="${C_RED}OFF${C_NC}"
-    # XRAY
     systemctl is-active --quiet xray && XRAY_ST="${C_GREEN}ON${C_NC}" || XRAY_ST="${C_RED}OFF${C_NC}"
-    # STUNNEL
     systemctl is-active --quiet stunnel4 && STUNNEL_ST="${C_GREEN}ON${C_NC}" || STUNNEL_ST="${C_RED}OFF${C_NC}"
-    # SSH-WS (Python Proxy)
     systemctl is-active --quiet ws-python && WS_ST="${C_GREEN}ON${C_NC}" || WS_ST="${C_RED}OFF${C_NC}"
-    # HCR / Hysteria
     systemctl is-active --quiet hysteria && HCR_ST="${C_GREEN}ON${C_NC}" || HCR_ST="${C_RED}OFF${C_NC}"
 }
 
-# ==========================================
-# Bucle Principal del Menú
-# ==========================================
 while true; do
     get_system_info
     check_services
@@ -91,7 +82,6 @@ while true; do
     echo -e "${C_CYAN}================================================${C_NC}"
     echo -e " ${C_RED}88.${C_NC} ❌ Uninstall Script   ${C_CYAN}|${C_NC}   ${C_RED}0.${C_NC} 🚪 Exit"
     echo -e "${C_CYAN}================================================${C_NC}"
-    
     echo -e " ${C_CYAN}Soporte Telegram :${C_NC} @golbert_service"
     echo -e " ${C_CYAN}WhatsApp Oficial :${C_NC} +51960084993"
     echo -e "${C_CYAN}================================================${C_NC}"
@@ -99,22 +89,22 @@ while true; do
     read -p " Select an option: " opcion
     
     case $opcion in
-        1) bash /etc/vps-manager/core/ssh_manager.sh ;;
-        2) bash /etc/vps-manager/core/reseller.sh ;;
-        3) bash /etc/vps-manager/core/installers.sh ;;
-        4) nano /etc/vps-manager/core/banner.html ;;
-        5) bash /etc/vps-manager/core/ports.sh ;;
-        6) bash /etc/vps-manager/core/domain.sh ;;
-        7) bash /etc/vps-manager/core/bot.sh ;;
-        8) bash /etc/vps-manager/core/webpanel.sh ;;
-        9) bash /etc/vps-manager/core/update.sh ;;
-        10) bash /etc/vps-manager/core/autostart.sh ;;
-        11) bash /etc/vps-manager/core/specs.sh ;;
-        12) bash /etc/vps-manager/core/firewall.sh ;;
-        13) bash /etc/vps-manager/core/checkuser.sh ;;
-        14) bash /etc/vps-manager/core/language.sh ;;
-        15) bash /etc/vps-manager/core/fix_ports.sh ;;
-        88) bash /etc/vps-manager/core/uninstall.sh ;;
+        1) bash $DIR/user.sh ;;
+        2) bash $DIR/reseller.sh ;;
+        3) bash $DIR/installers.sh ;;
+        4) nano $DIR/banner.html ;;
+        5) bash $DIR/ports.sh ;;
+        6) bash $DIR/domain.sh ;;
+        7) bash $DIR/bot.sh ;;
+        8) bash $DIR/webpanel.sh ;;
+        9) bash $DIR/update.sh ;;
+        10) bash $DIR/autostart.sh ;;
+        11) bash $DIR/specs.sh ;;
+        12) bash $DIR/firewall.sh ;;
+        13) bash $DIR/checkuser.sh ;;
+        14) bash $DIR/language.sh ;;
+        15) bash $DIR/fix_ports.sh ;;
+        88) bash $DIR/uninstall.sh ;;
         0) clear; exit 0 ;;
         *) echo -e "${C_RED}Opción inválida.${C_NC}"; sleep 2 ;;
     esac

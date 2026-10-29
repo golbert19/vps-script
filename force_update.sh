@@ -16,16 +16,32 @@ echo -e "${C_CYAN}================================================${C_NC}"
 echo -e "${C_YELLOW}[+] Reparando estructura de carpetas...${C_NC}"
 mkdir -p /etc/vps-manager/core /root/core
 
-# 2. URL base de tu repositorio en GitHub (Asegúrate de que coincida con tu usuario y repo)
+# 2. URL base de tu repositorio en GitHub
 REPO_URL="https://raw.githubusercontent.com/golbert19/vps-script/main"
 
 # 3. Descargar cada componente crítico directamente
 echo -e "${C_YELLOW}[+] Descargando archivos actualizados...${C_NC}"
-SCRIPTS=("menu.sh" "sshws.sh" "xray_manager.sh" "user.sh")
 
-for script in "${SCRIPTS[@]}"; do
+SCRIPTS_ROOT=("menu.sh" "user.sh")
+SCRIPTS_CORE=("sshws.sh" "xray_manager.sh")
+
+# Descargar scripts de la raíz (/main/)
+for script in "${SCRIPTS_ROOT[@]}"; do
     rm -f /etc/vps-manager/core/$script /root/core/$script 2>/dev/null
     wget -q -O /etc/vps-manager/core/$script "$REPO_URL/$script"
+    if [ $? -eq 0 ]; then
+        cp -f /etc/vps-manager/core/$script /root/core/$script
+        chmod +x /etc/vps-manager/core/$script /root/core/$script
+        echo -e "    • [OK] $script actualizado."
+    else
+        echo -e "    • ${C_RED}[X] Error al descargar $script${C_NC}"
+    fi
+done
+
+# Descargar scripts de la subcarpeta (/main/core/)
+for script in "${SCRIPTS_CORE[@]}"; do
+    rm -f /etc/vps-manager/core/$script /root/core/$script 2>/dev/null
+    wget -q -O /etc/vps-manager/core/$script "$REPO_URL/core/$script"
     if [ $? -eq 0 ]; then
         cp -f /etc/vps-manager/core/$script /root/core/$script
         chmod +x /etc/vps-manager/core/$script /root/core/$script

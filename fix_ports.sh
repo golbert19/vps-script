@@ -84,3 +84,4 @@ else
 fi
 
 echo -e "${C_GREEN}[✔] ¡Sistema configurado! Puertos 80 y 443 libres para otros protocolos.${C_NC}"
+read -p "Presione Enter para regresar..."

@@ -20,15 +20,16 @@ echo -e "${C_YELLOW}[+] Verificando directorios y permisos...${C_NC}"
 mkdir -p "$CORE_DIR" "$ROOT_CORE"
 
 # 2. Descargar o actualizar los archivos desde tu repositorio de GitHub
-# (Reemplaza la URL de GitHub por la de tu repositorio oficial)
 REPO_URL="https://raw.githubusercontent.com/golbert19/vps-script/main"
 
 echo -e "${C_YELLOW}[+] Descargando componentes actualizados...${C_NC}"
 
-# Lista de scripts principales a actualizar
-SCRIPTS=("menu.sh" "sshws.sh" "xray_manager.sh" "user.sh")
+# Separamos los scripts según su ubicación real en tu repositorio de GitHub
+SCRIPTS_ROOT=("menu.sh" "user.sh")
+SCRIPTS_CORE=("sshws.sh" "xray_manager.sh")
 
-for script in "${SCRIPTS[@]}"; do
+# Descargar scripts de la raíz (/main/)
+for script in "${SCRIPTS_ROOT[@]}"; do
     wget -q -O "$CORE_DIR/$script" "$REPO_URL/$script" 2>/dev/null
     if [ $? -eq 0 ]; then
         cp -f "$CORE_DIR/$script" "$ROOT_CORE/$script" 2>/dev/null
@@ -39,7 +40,19 @@ for script in "${SCRIPTS[@]}"; do
     fi
 done
 
-# 3. Crear accesos directos globales en el sistema para evitar comandos caídos
+# Descargar scripts de la subcarpeta (/main/core/)
+for script in "${SCRIPTS_CORE[@]}"; do
+    wget -q -O "$CORE_DIR/$script" "$REPO_URL/core/$script" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        cp -f "$CORE_DIR/$script" "$ROOT_CORE/$script" 2>/dev/null
+        chmod +x "$CORE_DIR/$script" "$ROOT_CORE/$script" 2>/dev/null
+        echo -e "    • Actualizado: $script"
+    else
+        echo -e "    • ${C_RED}Error al actualizar $script (verifique la URL)${C_NC}"
+    fi
+done
+
+# 3. Crear accesos directos globales en el sistema
 if [ -f "$CORE_DIR/menu.sh" ]; then
     ln -sf "$CORE_DIR/menu.sh" /usr/bin/menu
     ln -sf "$CORE_DIR/menu.sh" /usr/bin/vps

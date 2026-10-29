@@ -1,4 +1,3 @@
-cat << 'EOF' > /root/core/proxy.py
 import socket
 import threading
 
@@ -33,30 +32,30 @@ def handle_client(client_socket):
 
         t1 = threading.Thread(target=transfer, args=(client_socket, ssh_socket))
         t2 = threading.Thread(target=transfer, args=(ssh_socket, client_socket))
-        t1.daemon = True; t2.daemon = True
-        t1.start(); t2.start()
+        t1.daemon = True
+        t2.daemon = True
+        t1.start()
+        t2.start()
     except:
-        client_socket.close()
+        try: client_socket.close()
+        except: pass
 
 def main():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind(('0.0.0.0', 80))
-    server.listen(500)
+    # Cola grande (500) para soportar multiconexiones sin rechazos
+    server.listen(500) 
     while True:
         try:
             client, addr = server.accept()
-            threading.Thread(target=handle_client, args=(client,)).daemon = True
-            client.start()
+            # AQUÍ ESTABA EL ERROR: Ahora sí iniciamos el hilo (Thread) correctamente
+            t = threading.Thread(target=handle_client, args=(client,))
+            t.daemon = True
+            t.start()
         except:
             continue
 
 if __name__ == '__main__':
     main()
-EOF
-
-# Aplicar permisos y reiniciar el servicio limpiamente
-cp -f /root/core/proxy.py /etc/vps-manager/core/proxy.py
-chmod +x /root/core/proxy.py /etc/vps-manager/core/proxy.py
-systemctl restart ws-python
-echo "¡Proxy restaurado a su versión estable original!"
+    

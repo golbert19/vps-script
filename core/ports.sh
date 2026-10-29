@@ -1,5 +1,3 @@
-mkdir -p /etc/vps-manager/core
-cat << 'EOF' > /etc/vps-manager/core/ports.sh
 #!/bin/bash
 # ==========================================
 # Monitor Visual de Puertos - Golbert VPS
@@ -15,7 +13,6 @@ echo -e "${C_CYAN}================================================${C_NC}"
 check_port() {
     local name="$1"
     local port="$2"
-    # Busca el puerto exacto en los servicios que están escuchando
     if netstat -tuln 2>/dev/null | grep -qE ":$port\b"; then
         printf " %-20s : ${C_GREEN}ACTIVO${C_NC}   (Puerto %s)\n" "$name" "$port"
     else
@@ -40,6 +37,3 @@ check_port "UDP Custom" "25000"
 
 echo -e "${C_CYAN}================================================${C_NC}"
 read -p "Presiona Enter para regresar al menú..."
-EOF
-
-chmod +x /etc/vps-manager/core/ports.sh

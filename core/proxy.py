@@ -1,45 +1,22 @@
+cat << 'EOF' > /root/core/proxy.py
 import socket
 import threading
-import sys
-import subprocess
-
-def get_user_expiration(username):
-    try:
-        cmd = f"chage -l {username} | grep 'Account expires'"
-        output = subprocess.check_output(cmd, shell=True).decode('utf-8')
-        return output.split(':')[1].strip()
-    except:
-        return "Ilimitado"
 
 def handle_client(client_socket):
     try:
-        request = client_socket.recv(2048).decode('utf-8', errors='ignore')
+        request = client_socket.recv(2048)
         if not request:
             client_socket.close()
             return
 
-        # 1. Responder al protocolo WebSocket
-        response = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"
-        client_socket.sendall(response.encode('utf-8'))
-
-        # 2. Conectar al servicio SSH local (puerto 22)
+        # Conectar al SSH local
         ssh_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         ssh_socket.connect(('127.0.0.1', 22))
 
-        # 3. Inyectar datos de banner formateados para que la app los capture en el log
-        # (Aquí puedes ajustar el formato visual exacto que lee tu app)
-        banner_info = (
-            "\r\n"
-            "========================================\r\n"
-            "        GOLBERT VPS - CONEXIÓN          \r\n"
-            "========================================\r\n"
-            " Estado    : Conectado Exitosamente      \r\n"
-            " Servidor  : Operativo                   \r\n"
-            "========================================\r\n\r\n"
-        )
-        client_socket.sendall(banner_info.encode('utf-8'))
+        # Respuesta clásica de WebSocket que acepta tu payload
+        response = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"
+        client_socket.sendall(response.encode('utf-8'))
 
-        # 4. Puente de transferencia bidireccional de datos
         def transfer(src, dst):
             try:
                 while True:
@@ -56,12 +33,9 @@ def handle_client(client_socket):
 
         t1 = threading.Thread(target=transfer, args=(client_socket, ssh_socket))
         t2 = threading.Thread(target=transfer, args=(ssh_socket, client_socket))
-        t1.daemon = True
-        t2.daemon = True
-        t1.start()
-        t2.start()
-
-    except Exception:
+        t1.daemon = True; t2.daemon = True
+        t1.start(); t2.start()
+    except:
         client_socket.close()
 
 def main():
@@ -79,3 +53,10 @@ def main():
 
 if __name__ == '__main__':
     main()
+EOF
+
+# Aplicar permisos y reiniciar el servicio limpiamente
+cp -f /root/core/proxy.py /etc/vps-manager/core/proxy.py
+chmod +x /root/core/proxy.py /etc/vps-manager/core/proxy.py
+systemctl restart ws-python
+echo "¡Proxy restaurado a su versión estable original!"

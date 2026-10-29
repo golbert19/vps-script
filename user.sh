@@ -1,38 +1,110 @@
 #!/bin/bash
-C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
+# ==========================================
+# Módulo: Creación Rápida de Cuentas y Protocolos
+# Golbert VPS V5.0 LTS
+# ==========================================
+
+C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'
+C_CYAN='\033[1;36m'; C_NC='\033[0m'
 
 clear
 echo -e "${C_CYAN}================================================${C_NC}"
-echo -e "        CREAR USUARIO SSH / HWID PROTECTION     "
+echo -e " 👤 ${C_YELLOW}CREACIÓN DE CUENTA & MÉTODOS DISPONIBLES${C_NC}"
 echo -e "${C_CYAN}================================================${C_NC}"
-echo -e " [1] Cuenta Normal"
-echo -e " [2] Cuenta HWID"
-echo -e " [3] Cuenta por Token (App)"
-echo -e " [0] Regresar al Menú Principal"
-echo -e "${C_CYAN}================================================${C_NC}"
-read -p " Opción: " opt_user
 
-case $opt_user in
-    1)
-        read -p " Usuario: " username
-        read -p " Contraseña: " password
-        useradd -M -s /bin/false $username
-        (echo "$password"; echo "$password") | passwd $username >/dev/null 2>&1
-        echo -e "${C_GREEN}Usuario $username creado con éxito.${C_NC}"
-        sleep 2
-        ;;
-    2)
-        # Aquí va la lógica HWID
-        ;;
-    3)
-        # Aquí va la lógica de Tokens Hysteria
-        ;;
-    0)
-        # Sale del script user.sh y el bucle de menu.sh vuelve a cargar
-        exit 0 
-        ;;
-    *)
-        echo "Opción inválida."
-        sleep 2
-        ;;
-esac
+# Pedir usuario
+read -p " Ingresa el nombre de usuario: " USERNAME
+if [ -z "$USERNAME" ]; then
+    echo -e "${C_RED}[X] El nombre de usuario no puede estar vacío.${C_NC}"
+    exit 1
+fi
+
+# Verificar si ya existe
+if id "$USERNAME" &>/dev/null; then
+    echo -e "${C_RED}[X] El usuario '$USERNAME' ya existe en el sistema.${C_NC}"
+    exit 1
+fi
+
+# Pedir contraseña
+read -p " Ingresa la contraseña: " PASSWORD
+if [ -z "$PASSWORD" ]; then
+    echo -e "${C_RED}[X] La contraseña no puede estar vacía.${C_NC}"
+    exit 1
+fi
+
+# Pedir días de duración (por defecto 30 días)
+read -p " Días de vigencia (Ej: 30): " DAYS
+[ -z "$DAYS" ] && DAYS=30
+
+# Calcular fecha de expiración
+EXPIRES=$(date -d "+$DAYS days" +"%Y-%m-%d")
+
+# Crear usuario en el sistema Linux
+useradd -e "$EXPIRES" -s /bin/false -M "$USERNAME" &>/dev/null
+echo "$USERNAME:$PASSWORD" | chpasswd &>/dev/null
+
+# Obtener IP y Dominio del servidor
+VPS_IP=$(curl -sS ifconfig.me || hostname -I | awk '{print $1}')
+DOMAIN=$(cat /root/domain.txt 2>/dev/null || cat /etc/xray/domain 2>/dev/null || echo "$VPS_IP")
+
+# Detectar puertos activos de cada protocolo
+PORT_SSH=22
+PORT_WS=80
+PORT_SSL=443
+systemctl is-active --quiet stunnel4 && PORT_SSL=$(grep "accept =" /etc/stunnel/stunnel.conf | awk '{print $3}')
+
+# Detección de puertos personalizados
+PORT_UDP="7300" # Por defecto UDP Custom / BadVPN
+[ -f /etc/udp/port.txt ] && PORT_UDP=$(cat /etc/udp/port.txt)
+
+PORT_BHTTP=8080
+[ -f /etc/bhttp/port.txt ] && PORT_BHTTP=$(cat /etc/bhttp/port.txt)
+
+PORT_HCR=8880
+[ -f /etc/hcr/port.txt ] && PORT_HCR=$(cat /etc/hcr/port.txt)
+
+# Enlace de descarga OpenVPN
+OVPN_LINK="No configurado"
+if [ -f /root/client.ovpn ] || [ -f /var/www/html/client.ovpn ]; then
+    OVPN_LINK="http://$DOMAIN/client.ovpn"
+fi
+
+# Mostrar credenciales de acceso detalladas para el cliente
+clear
+echo -e "${C_CYAN}================================================${C_NC}"
+echo -e " ✅ ${C_GREEN}DATOS DE ACCESO COMPLETOS${C_NC}"
+echo -e "${C_CYAN}================================================${C_NC}"
+echo -e " 👤 Usuario      : $USERNAME"
+echo -e " 🔑 Contraseña   : $PASSWORD"
+echo -e " 📅 Vencimiento  : $DAYS days ($EXPIRES)"
+echo -e "${C_CYAN}------------------------------------------------${C_NC}"
+echo -e " 🌐 Host / IP    : $VPS_IP"
+echo -e " 🎯 Dominio/SNI  : $DOMAIN"
+echo -e "${C_CYAN}------------------------------------------------${C_NC}"
+echo -e " 🔌 Puertos & Protocolos Activos:"
+echo -e "    • SSH Directo  : $PORT_SSH"
+echo -e "    • SSH WebSocket: $PORT_WS (Payloads HTTP)"
+echo -e "    • SSH SSL/TLS  : $PORT_SSL (Stunnel)"
+
+# Mostrar métodos adicionales si están activos
+if systemctl is-active --quiet udp-custom || systemctl is-active --quiet badvpn; then
+echo -e "    • UDP Custom   : $PORT_UDP"
+fi
+
+if systemctl is-active --quiet bhttp || ss -tulpn | grep -q ":$PORT_BHTTP"; then
+echo -e "    • bHTTP Proxy  : $PORT_BHTTP"
+fi
+
+if systemctl is-active --quiet hcr || ss -tulpn | grep -q ":$PORT_HCR"; then
+echo -e "    • HCR Nativo   : $PORT_HCR"
+fi
+
+if systemctl is-active --quiet xray; then
+echo -e "    • Xray VLESS/VM: 80 / 443"
+fi
+
+echo -e "${C_CYAN}------------------------------------------------${C_NC}"
+echo -e " 📂 Perfil OpenVPN:"
+echo -e "    • Enlace       : $OVPN_LINK"
+echo -e "${C_CYAN}================================================${C_NC}"
+read -p " Presiona [Enter] para volver al menú..."

@@ -5,7 +5,7 @@
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'
 C_CYAN='\033[1;36m'; C_BLUE='\033[1;34m'; C_NC='\033[0m'
 
-# Rutas de tus directorios en el VPS
+# Ruta principal y carpeta core donde están tus scripts reales
 DIR="/root"
 CORE="$DIR/core"
 VERSION="v1.1"
@@ -89,7 +89,7 @@ while true; do
     read -r opcion
     
     case $opcion in
-        1) bash $DIR/user.sh ;;
+        1) bash $CORE/ssh.sh ;;
         2) bash $CORE/reseller.sh ;;
         3) bash $CORE/installers.sh ;;
         4) nano $DIR/banner.html ;;

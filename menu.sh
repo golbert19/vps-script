@@ -11,6 +11,25 @@ C_YELLOW='\033[1;33m'
 C_CYAN='\033[1;36m'
 C_NC='\033[0m'
 
+# Cargar idioma activo (es, en, pt)
+LANG_FILE="/etc/vps-manager/lang.txt"
+[ -f "$LANG_FILE" ] && current_lang=$(cat "$LANG_FILE") || current_lang="es"
+
+# Textos dinámicos según idioma
+if [ "$current_lang" = "en" ]; then
+    t_mgmt="[ ACCOUNT MANAGEMENT ]"
+    t_tools="[ TOOLS & SYSTEM ]"
+    t_select="Select an option: "
+elif [ "$current_lang" = "pt" ]; then
+    t_mgmt="[ GERENCIAMENTO DE CONTAS ]"
+    t_tools="[ FERRAMENTAS & SISTEMA ]"
+    t_select="Selecione uma opção: "
+else
+    t_mgmt="[ GESTIÓN DE CUENTAS ]"
+    t_tools="[ HERRAMIENTAS Y SISTEMA ]"
+    t_select="Selecciona una opción: "
+fi
+
 # Función para las barras de progreso gráficas
 draw_bar() {
     local percent=$1
@@ -74,11 +93,11 @@ while true; do
     echo -e " STUNNEL : $s_stunnel SSH-WS : $s_ws    HCR : $s_hcr"
     echo -e "${C_CYAN}================================================${C_NC}"
     echo -e ""
-    echo -e "${C_YELLOW}[ ACCOUNT MANAGEMENT ]${C_NC}"
+    echo -e "${C_YELLOW}$t_mgmt${C_NC}"
     echo -e " ${C_CYAN}1.${C_NC} 👤 SSH Management (Users, Limit, HWID)"
     echo -e " ${C_CYAN}2.${C_NC} 🤝 Reseller Management (Credits)"
     echo -e ""
-    echo -e "${C_YELLOW}[ TOOLS & SYSTEM ]${C_NC}"
+    echo -e "${C_YELLOW}$t_tools${C_NC}"
     echo -e " ${C_CYAN}3.${C_NC} 🛠️ Installers & Protocols Manager"
     echo -e " ${C_CYAN}4.${C_NC} 🎨 Configure HTML Welcome Banner"
     echo -e " ${C_CYAN}5.${C_NC} 🔍 Ports Monitor (Active / Inactive)"
@@ -99,7 +118,7 @@ while true; do
     echo -e " ${C_CYAN}WhatsApp Oficial : +51960084993${C_NC}"
     echo -e "${C_CYAN}================================================${C_NC}"
     
-    read -p " Select an option: " opcion
+    read -p " $t_select" opcion
     
     case $opcion in
         1) [ -f /etc/vps-manager/core/user.sh ] && bash /etc/vps-manager/core/user.sh || echo "Módulo no encontrado" ; sleep 2 ;;
@@ -164,7 +183,7 @@ while true; do
             while true; do
                 clear
                 echo -e "${C_CYAN}================================================${C_NC}"
-                echo -e " 🌍 CHANGE LANGUAGE / CAMBIAR IDIOMA"
+                echo -e " 🌍 CHANGE LANGUAGE / CAMBIAR IDIOMA / IDIOMA"
                 echo -e "${C_CYAN}================================================${C_NC}"
                 echo -e " 1. 🇪🇸 Español"
                 echo -e " 2. 🇺🇸 English"
@@ -197,7 +216,7 @@ while true; do
                 esac
             done
             ;;
-        15) [ -f /etc/vps-manager/fix_ports.sh ] && bash /etc/vps-manager/fix_ports.sh || echo "Script no encontrado" ; sleep 2 ;;
+        15) [ -f /etc/vps-manager/core/fix_ports.sh ] && bash /etc/vps-manager/core/fix_ports.sh || echo "Script no encontrado" ; sleep 2 ;;
         88) read -p "¿Desinstalar script? (s/n): " des; [ "$des" = "s" ] && exit 0 ;;
         0) clear ; exit 0 ;;
         *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;

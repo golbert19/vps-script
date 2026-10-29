@@ -25,11 +25,10 @@ case $opt in
         cat << 'EOF' > /etc/vps-manager/core/proxy.py
 import socket
 import threading
-import sys
 
 def handle_client(client_socket):
     try:
-        request = client_socket.recv(1024).decode('utf-8', errors='ignore')
+        request = client_socket.recv(2048)
         if not request:
             client_socket.close()
             return
@@ -40,27 +39,28 @@ def handle_client(client_socket):
         ssh_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         ssh_socket.connect(('127.0.0.1', 22))
 
+        def transfer(src, dst):
+            try:
+                while True:
+                    data = src.recv(8192)
+                    if not data: break
+                    dst.sendall(data)
+            except:
+                pass
+            finally:
+                try: src.close()
+                except: pass
+                try: dst.close()
+                except: pass
+
         t1 = threading.Thread(target=transfer, args=(client_socket, ssh_socket))
         t2 = threading.Thread(target=transfer, args=(ssh_socket, client_socket))
         t1.daemon = True
         t2.daemon = True
         t1.start()
         t2.start()
-    except Exception:
-        client_socket.close()
-
-def transfer(src, dst):
-    try:
-        while True:
-            data = src.recv(8192)
-            if not data: break
-            dst.sendall(data)
-    except Exception:
-        pass
-    finally:
-        try: src.close()
-        except: pass
-        try: dst.close()
+    except:
+        try: client_socket.close()
         except: pass
 
 def main():
@@ -71,9 +71,10 @@ def main():
     while True:
         try:
             client, addr = server.accept()
-            threading.Thread(target=handle_client, args=(client,)).daemon = True
-            client.start() if hasattr(client, 'start') else None # Fix thread start
-        except Exception:
+            t = threading.Thread(target=handle_client, args=(client,))
+            t.daemon = True
+            t.start()
+        except:
             continue
 
 if __name__ == '__main__':

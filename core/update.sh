@@ -13,14 +13,14 @@ echo -e "${C_YELLOW}[+] Conectando con GitHub para descargar toda la actualizaci
 REPO_URL="https://raw.githubusercontent.com/golbert19/vps-script/main"
 
 # 1. Actualizar menú principal y archivos base
-echo -e "\n${C_CYAN}[1/3] Actualizando Menú Principal y Base...${C_NC}"
+echo -e "\n${C_CYAN}[1/4] Actualizando Menú Principal y Base...${C_NC}"
 wget --progress=bar:force "$REPO_URL/menu.sh" -O /usr/local/bin/menu
 wget --progress=bar:force "$REPO_URL/languages.sh" -O /etc/vps-manager/languages.sh 2>/dev/null
 wget --progress=bar:force "$REPO_URL/install.sh" -O /etc/vps-manager/install.sh 2>/dev/null
 
 chmod +x /usr/local/bin/menu /etc/vps-manager/languages.sh /etc/vps-manager/install.sh 2>/dev/null
 
-# 2. Lista completa de todos los submódulos de la carpeta core (Actualizado)
+# 2. Lista completa de todos los submódulos de la carpeta core
 CORE_FILES=(
     "specs.sh" "fix_ports.sh" "domain.sh" "banner.sh" "update.sh" 
     "user.sh" "bot.sh" "webpanel.sh" "firewall.sh" "checkuser.sh"
@@ -30,7 +30,7 @@ CORE_FILES=(
     "php.sh" "ports.sh"
 )
 
-echo -e "\n${C_CYAN}[2/3] Sincronizando todos los submódulos de la carpeta core...${C_NC}"
+echo -e "\n${C_CYAN}[2/4] Sincronizando todos los submódulos de la carpeta core...${C_NC}"
 mkdir -p /etc/vps-manager/core
 
 for file in "${CORE_FILES[@]}"; do
@@ -40,8 +40,12 @@ for file in "${CORE_FILES[@]}"; do
 done
 
 # 3. Verificación final de permisos globales
-echo -e "\n${C_CYAN}[3/3] Aplicando permisos de ejecución y optimizando...${C_NC}"
+echo -e "\n${C_CYAN}[3/4] Aplicando permisos de ejecución y optimizando...${C_NC}"
 chmod +x /etc/vps-manager/core/*.sh 2>/dev/null
+
+# 4. Sincronizar número de versión local con GitHub
+echo -e "\n${C_CYAN}[4/4] Sincronizando registro de versión...${C_NC}"
+wget -qO /etc/vps-manager/version "$REPO_URL/version" 2>/dev/null
 
 echo -e "\n${C_GREEN}[✔] ¡Actualización completa finalizada con éxito!${C_NC}"
 echo -e "${C_YELLOW}Todos los instaladores y módulos están al día.${C_NC}"

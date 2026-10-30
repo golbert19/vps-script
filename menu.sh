@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Panel Principal - Golbert VPS V5.0 LTS (Optimizado UI + Auto-Update)
+# Panel Principal - Golbert VPS V5.0 LTS (Optimizado UI + Auto-Update Fix)
 # ==========================================
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
@@ -22,7 +22,7 @@ BG_RED='\033[41;1;37m'
 }
 
 # ---------------------------------------------------------
-# SISTEMA DE VERSIONES AUTOMÁTICAS
+# SISTEMA DE VERSIONES AUTOMÁTICAS (CORREGIDO)
 # ---------------------------------------------------------
 LOCAL_VERSION="1.1"
 [ -f /etc/vps-manager/version ] && LOCAL_VERSION=$(cat /etc/vps-manager/version) || echo "$LOCAL_VERSION" > /etc/vps-manager/version
@@ -31,8 +31,15 @@ LOCAL_VERSION="1.1"
 REMOTE_VERSION=$(curl -sS --max-time 2 https://raw.githubusercontent.com/golbert19/vps-script/main/version 2>/dev/null)
 
 UPDATE_AVAILABLE=0
-if [ -n "$REMOTE_VERSION" ] && [ "$REMOTE_VERSION" != "$LOCAL_VERSION" ]; then
-    UPDATE_AVAILABLE=1
+# Validar que la respuesta de GitHub no esté vacía y no sea un error 404
+if [[ -n "$REMOTE_VERSION" ]] && [[ ! "$REMOTE_VERSION" =~ "404" ]] && [[ ! "$REMOTE_VERSION" =~ "Not Found" ]]; then
+    # Limpiar espacios o saltos de línea invisibles para comparar correctamente
+    REMOTE_VERSION=$(echo "$REMOTE_VERSION" | tr -d '\n' | tr -d '\r' | tr -d ' ')
+    LOCAL_VERSION=$(echo "$LOCAL_VERSION" | tr -d '\n' | tr -d '\r' | tr -d ' ')
+    
+    if [ "$REMOTE_VERSION" != "$LOCAL_VERSION" ]; then
+        UPDATE_AVAILABLE=1
+    fi
 fi
 # ---------------------------------------------------------
 

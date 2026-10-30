@@ -1,77 +1,61 @@
 #!/bin/bash
 # ==========================================
-# Módulo: SSL / TLS Proxy (Stunnel4)
-# Puerto Dinámico con Prevención de Conflictos
+# Instalador SSL/TLS - Golbert VPS V5.0 LTS
 # ==========================================
-C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
-SSL_DIR="/etc/stunnel"
+C_ORANGE='\033[38;5;214m'; C_BLUE='\033[1;34m'; C_CYAN='\033[1;36m'; C_GREEN='\033[1;32m'; C_RED='\033[1;31m'; C_NC='\033[0m'
+
+DEFAULT_PORT=444
 
 clear
-echo -e "${C_CYAN}================================================${C_NC}"
-echo -e "${C_GREEN}     INSTALADOR SSL / TLS (STUNNEL4 - SSH)      ${C_NC}"
-echo -e "${C_CYAN}================================================${C_NC}"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e "               ${C_BLUE}INSTALACIÓN DE SSL/TLS STUNNEL${C_NC}"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e "\n${C_ORANGE}Instalando paquetes SSL y generando certificados...${C_NC}"
 
-read -p "Ingresa el puerto para SSL/TLS [Por defecto 444]: " INPUT_PORT
-SSL_PORT=${INPUT_PORT:-444}
+apt-get install stunnel4 openssl -y > /dev/null 2>&1
+systemctl stop stunnel4 > /dev/null 2>&1
 
-# 1. Sistema Anti-Conflictos: Verificar si el puerto ya está en uso
-if ss -lntp 2>/dev/null | grep -q ":$SSL_PORT "; then
-    echo -e "\n${C_RED}[!] ERROR CRÍTICO: El puerto $SSL_PORT ya está en uso por otro servicio.${C_NC}"
-    echo -e "${C_YELLOW}Por favor, elige un puerto diferente para evitar conflictos de red.${C_NC}"
-    read -p "Presione Enter para regresar..."
-    exit 1
-fi
+openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 -subj "/C=PE/ST=Lima/L=Lima/O=GolbertVPS/CN=golbertvps.net.pe" -keyout /etc/stunnel/stunnel.pem -out /etc/stunnel/stunnel.pem > /dev/null 2>&1
 
-mkdir -p /etc/vps-manager
-echo "$SSL_PORT" > /etc/vps-manager/ssl_port
+sleep 1.5 
+echo -e "${C_CYAN}[OK] Paquetes y certificados instalados${C_NC}\n"
 
-echo -e "${C_YELLOW}[+] Instalando Stunnel4 y utilidades...${C_NC}"
-apt update -y >/dev/null 2>&1
-apt install -y stunnel4 iptables ufw openssl >/dev/null 2>&1
+while true; do
+    read -p "$(echo -e "${C_ORANGE}Puerto de escucha (--port) [Default $DEFAULT_PORT]: ${C_NC}")" INPUT_PORT
+    FINAL_PORT=${INPUT_PORT:-$DEFAULT_PORT}
 
-echo -e "${C_YELLOW}[+] Configurando Reglas de Enrutamiento (Stunnel)...${C_NC}"
-cat << EOF > $SSL_DIR/stunnel.conf
-pid = /var/run/stunnel.pid
-cert = $SSL_DIR/stunnel.pem
+    if ! [[ "$FINAL_PORT" =~ ^[0-9]+$ ]]; then
+        echo -e " ${C_RED}[!] Error: Debes ingresar un número válido.${C_NC}\n"
+        continue
+    fi
+    if netstat -tuln | grep -qE ":$FINAL_PORT\b"; then
+        echo -e " ${C_RED}[!] Error: El puerto $FINAL_PORT ya está en uso. Elige otro.${C_NC}\n"
+    else
+        break
+    fi
+done
+
+echo -e "\n${C_GREEN}[OK] Configurando Stunnel4 en el puerto $FINAL_PORT...${C_NC}"
+
+cat << EOF > /etc/stunnel/stunnel.conf
+cert = /etc/stunnel/stunnel.pem
 client = no
+socket = a:SO_REUSEADDR=1
 socket = l:TCP_NODELAY=1
 socket = r:TCP_NODELAY=1
 
-[ssh-tls]
-accept = $SSL_PORT
+[stunnel]
+accept = $FINAL_PORT
 connect = 127.0.0.1:22
 EOF
 
-# Habilitar servicio en el arranque
 sed -i 's/ENABLED=0/ENABLED=1/g' /etc/default/stunnel4
-
-# Si no hay un SSL generado por domain.sh, creamos uno provisional para que el servicio no falle
-if [ ! -f "$SSL_DIR/stunnel.pem" ]; then
-    echo -e "${C_YELLOW}[+] Generando Certificado SSL Local Provisional...${C_NC}"
-    openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 \
-        -subj "/C=US/ST=CA/L=LosAngeles/O=GolbertVPS/CN=golbert" \
-        -keyout $SSL_DIR/stunnel.pem -out $SSL_DIR/stunnel.pem >/dev/null 2>&1
-    chmod 600 $SSL_DIR/stunnel.pem
-fi
-
-echo -e "${C_YELLOW}[+] Abriendo puerto $SSL_PORT en el Firewall...${C_NC}"
-iptables -D INPUT -p tcp --dport $SSL_PORT -j ACCEPT 2>/dev/null
-iptables -I INPUT -p tcp --dport $SSL_PORT -j ACCEPT
-iptables-save > /etc/iptables.up.rules 2>/dev/null
-ufw allow ${SSL_PORT}/tcp >/dev/null 2>&1
-
-echo -e "${C_YELLOW}[+] Iniciando Servicio SSL/TLS...${C_NC}"
-systemctl restart stunnel4
+systemctl daemon-reload
 systemctl enable stunnel4 >/dev/null 2>&1
+systemctl restart stunnel4
 
-IP_VPS=$(curl -s ipv4.icanhazip.com)
-DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_VPS" )
-
-clear
-echo -e "${C_GREEN}[✔] ¡Conexión SSL/TLS instalada y asegurada sin conflictos!${C_NC}"
-echo -e "${C_CYAN}================================================${C_NC}"
-echo -e " 🌐 Host / Dominio : ${C_YELLOW}$DOM${C_NC}"
-echo -e " 🎯 Puerto SSL/TLS : ${C_YELLOW}$SSL_PORT${C_NC}"
-echo -e " ⚡ Destino Proxy  : ${C_YELLOW}SSH Local (127.0.0.1:22)${C_NC}"
-echo -e "${C_CYAN}================================================${C_NC}"
-read -p "Presione Enter para regresar al menú..."
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e " ${C_GREEN}✅ INSTALACIÓN COMPLETADA EXITOSAMENTE${C_NC}"
+echo -e " ${C_CYAN}▶️ Protocolo corriendo en el puerto : $FINAL_PORT${C_NC}"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+read -p " Presiona Enter para volver al menú..."

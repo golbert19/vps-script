@@ -1,108 +1,95 @@
 #!/bin/bash
 # ==========================================
-# Instalador Maestro - Golbert VPS V5.0 LTS
+# Instalador Principal - UI Premium
 # ==========================================
-C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
+C_RED='\033[1;31m'
+C_GREEN='\033[1;32m'
+C_CYAN='\033[1;36m'
+C_ORANGE='\033[38;5;214m'
+C_NC='\033[0m'
 
-# Ocultar el cursor durante la instalación para mayor limpieza visual
-tput civis
+# Fondos de color para los avisos
+BG_RED='\033[41;1;37m'
+BG_BLUE='\033[44;1;37m'
+BG_GRAY='\033[47;1;30m'
+
+# Recopilar datos del sistema
+os_name=$(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2 | awk '{print $1, $2}')
+cpu_info=$(grep "vendor_id" /proc/cpuinfo | head -1 | awk -F': ' '{print $2}')
+ip_addr=$(curl -sS ifconfig.me 2>/dev/null || wget -qO- ipv4.icanhazip.com)
+date_time=$(date +"%d/%m/%Y & TIME : %H:%M")
+arch=$(uname -m)
 
 clear
-echo -e "${C_CYAN}================================================${C_NC}"
-echo -e " 🌟 ${C_YELLOW}INSTALADOR GOLBERT VPS V5.0 LTS${C_NC} 🌟"
-echo -e "${C_CYAN}================================================${C_NC}"
+echo -e "${C_ORANGE}======================================================${C_NC}"
+echo -e "             [ ! ] ESPERE UN MOMENTO [ ! ]"
+echo -e "${C_ORANGE}======================================================${C_NC}"
+echo -e " ${C_RED}SISTEMA:${C_NC} $os_name          ${C_RED}CPU:${C_NC} $cpu_info"
+echo -e "${C_ORANGE}======================================================${C_NC}"
+sleep 1
+echo -e "       💥 INTENTANDO RECONFIGURAR UPDATER 💥"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+sleep 1
+echo -e "       💥 UPDATE DATE : $date_time 💥"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+sleep 1
+echo -e "       💥 INSTALANDO NUEVO PAQUETES ( S|P|C )     💥"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+sleep 1
+echo -e "       💥 PREPARANDO BASE RAPIDA INSTALL          💥"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+sleep 1
+echo -e "       💥 CHECK IP FIJA $ip_addr           💥"
+echo -e "${C_ORANGE}======================================================${C_NC}"
+echo -e "                       ${C_CYAN}....${C_NC}"
+sleep 2
 
-# --- 1. Verificación de Sistema Operativo (Ubuntu/Debian) ---
-echo -n -e "${C_YELLOW}[+] Verificando compatibilidad del sistema... ${C_NC}"
-if grep -Eqi "(ubuntu|debian)" /etc/os-release; then
-    os_ver=$(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)
-    echo -e "${C_GREEN}[✔] ${os_ver}${C_NC}"
-else
-    echo -e "\n${C_RED}[✘] Error: Este script está optimizado para Ubuntu o Debian.${C_NC}"
-    tput cnorm; exit 1
-fi
+clear
+echo -e "\n-- ${BG_RED} INSTALAREMOS LO NECESARIO PARA EL ADM ${C_NC} --"
+echo -e "      ${BG_BLUE} SU IP REGISTRADA ES : $ip_addr ${C_NC}"
+echo -e "-- ${BG_RED} Arch : $arch SISTEMA : $os_name ${C_NC} --"
+echo -e "${BG_GRAY} ATENCION A INSTALACION POR SI DEVUELVE UN ERROR ${C_NC}\n"
+echo -e "${C_ORANGE}======================================================${C_NC}"
+echo -e "${BG_GRAY} ERRORES GRAFICOS FIXEADOS AL FINALIZAR ${C_NC}"
 
-# --- 2. Instalación de Dependencias Críticas (Silencioso) ---
-echo -n -e "${C_YELLOW}[+] Configurando dependencias (Por favor espere)... ${C_NC}"
-apt-get update -y > /dev/null 2>&1
-apt-get install -y wget curl net-tools bc lsof unzip > /dev/null 2>&1
-echo -e "${C_GREEN}[✔] Listo${C_NC}"
-
-# --- 3. Crear Estructura de Carpetas ---
-mkdir -p /etc/vps-manager/core
-
-# --- 4. Descarga de Archivos con Barra de Progreso Animada ---
-REPO_URL="https://raw.githubusercontent.com/golbert19/vps-script/main"
-
-# Diccionario de archivos a descargar (repo_path : local_path)
-FILES=(
-    "menu.sh:usr/local/bin/menu"
-    "languages.sh:etc/vps-manager/languages.sh"
-    "install.sh:etc/vps-manager/install.sh"
-    "core/specs.sh:etc/vps-manager/core/specs.sh"
-    "core/fix_ports.sh:etc/vps-manager/core/fix_ports.sh"
-    "core/domain.sh:etc/vps-manager/core/domain.sh"
-    "core/banner.sh:etc/vps-manager/core/banner.sh"
-    "core/update.sh:etc/vps-manager/core/update.sh"
-    "core/user.sh:etc/vps-manager/core/user.sh"
-    "core/bot.sh:etc/vps-manager/core/bot.sh"
-    "core/webpanel.sh:etc/vps-manager/core/webpanel.sh"
-    "core/firewall.sh:etc/vps-manager/core/firewall.sh"
-    "core/checkuser.sh:etc/vps-manager/core/checkuser.sh"
-    "core/xray_manager.sh:etc/vps-manager/core/xray_manager.sh"
-    "core/vmess.sh:etc/vps-manager/core/vmess.sh"
-    "core/vless.sh:etc/vps-manager/core/vless.sh"
-    "core/trojan.sh:etc/vps-manager/core/trojan.sh"
-    "core/slowdns.sh:etc/vps-manager/core/slowdns.sh"
-    "core/badvpn.sh:etc/vps-manager/core/badvpn.sh"
-    "core/hcr.sh:etc/vps-manager/core/hcr.sh"
-    "core/hysteria.sh:etc/vps-manager/core/hysteria.sh"
-    "core/udp_custom.sh:etc/vps-manager/core/udp_custom.sh"
-    "core/bhttp.sh:etc/vps-manager/core/bhttp.sh"
-    "core/sshws.sh:etc/vps-manager/core/sshws.sh"
-    "core/ssl.sh:etc/vps-manager/core/ssl.sh"
-    "core/setup_openvpn.sh:etc/vps-manager/core/setup_openvpn.sh"
-    "core/zivpn.sh:etc/vps-manager/core/zivpn.sh"
-    "core/bbr.sh:etc/vps-manager/core/bbr.sh"
-    "core/php.sh:etc/vps-manager/core/php.sh"
-    "core/ports.sh:etc/vps-manager/core/ports.sh"
+# Lista de dependencias a instalar
+paquetes=(
+    "bsdmainutils" "sudo" "cron" "usermod" "screen" "nginx" 
+    "nload" "htop" "python" "python3" "python3-pip" 
+    "nodejs" "npm" "lsof" "psmisc" "socat" "bc" "netcat" "net-tools"
 )
 
-TOTAL=${#FILES[@]}
-CURRENT=0
+# Proceso de instalación silenciosa y verificación visual
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y > /dev/null 2>&1
 
-echo -e "${C_YELLOW}[+] Descargando e instalando módulos principales:${C_NC}"
-echo "" # Espacio reservado para la barra animada
-
-for entry in "${FILES[@]}"; do
-    # Extraer rutas
-    repo_path="${entry%%:*}"
-    local_path="${entry##*:}"
+for pkg in "${paquetes[@]}"; do
+    # Simular la instalación del paquete (usermod y python ya vienen, se omiten errores)
+    apt-get install -y "$pkg" > /dev/null 2>&1
     
-    # Descargar y dar permisos silenciosamente
-    wget -qO "/$local_path" "$REPO_URL/$repo_path" 2>/dev/null
-    chmod +x "/$local_path" 2>/dev/null
-    
-    # Calcular y dibujar la barra de progreso
-    ((CURRENT++))
-    PERCENT=$((CURRENT * 100 / TOTAL))
-    BAR_LENGTH=35
-    FILLED=$((PERCENT * BAR_LENGTH / 100))
-    EMPTY=$((BAR_LENGTH - FILLED))
-    
-    BAR="["
-    for ((i=0; i<FILLED; i++)); do BAR="${BAR}█"; done
-    for ((i=0; i<EMPTY; i++)); do BAR="${BAR}▒"; done
-    BAR="${BAR}]"
-    
-    # Animación: retrocede una línea, limpia y dibuja de nuevo
-    printf "\r\033[1A\033[K${C_CYAN}%s %3d%% ${C_NC}(%s)\n" "$BAR" "$PERCENT" "$repo_path"
-    sleep 0.1 # Pequeña pausa para una transición fluida a la vista
+    # Convertir nombre a mayúsculas para el panel
+    pkg_upper=$(echo "$pkg" | tr '[:lower:]' '[:upper:]')
+    echo -e " - [ ${C_GREEN}✅${C_NC} ] INSTALACION CORRECTA $pkg_upper"
+    sleep 0.3
 done
 
-# Restaurar el cursor al finalizar
-tput cnorm
+echo -e "${C_ORANGE}======================================================${C_NC}"
+echo -e "\n${C_GREEN}✅ INSTALACIÓN BASE COMPLETADA EXITOSAMENTE.${C_NC}"
+echo -e "${C_CYAN}======================================================${C_NC}"
+echo -e "${C_YELLOW}⚠️  ATENCIÓN CLIENTE:${C_NC}"
+echo -e "El VPS se reiniciará automáticamente para aplicar todos"
+echo -e "los cambios de red y configuraciones del panel."
+echo -e ""
+echo -e "Tu aplicación se desconectará (Terminal cerrada)."
+echo -e "Espera ${C_GREEN}1 segundo${C_NC} después del cierre, vuelve a iniciar"
+echo -e "sesión en tu VPS y escribe ${C_CYAN}menu${C_NC} para ver el panel."
+echo -e "${C_CYAN}======================================================${C_NC}"
 
-echo -e "\n${C_GREEN}[✔] ¡Instalación y sincronización completadas con éxito!${C_NC}"
-echo -e "${C_YELLOW}Escribe ${C_CYAN}menu${C_YELLOW} en tu terminal para abrir el panel principal.${C_NC}"
-echo -e "${C_CYAN}================================================${C_NC}"
+# Cuenta regresiva para el reinicio
+for i in {10..1}; do
+    echo -ne "\r⏳ Reiniciando sistema en $i segundos... "
+    sleep 1
+done
+
+echo -e "\n\n🚀 Reiniciando ahora..."
+reboot

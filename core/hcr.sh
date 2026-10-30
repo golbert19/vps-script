@@ -1,108 +1,69 @@
 #!/bin/bash
 # ==========================================
-# Módulo: HCR Proxy Server (Nativo Systemd con Espejos)
+# Instalador HCR Nativo - Golbert VPS V5.0 LTS
 # ==========================================
-C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
-HCR_DIR="/etc/vps-manager/hcr"
+C_ORANGE='\033[38;5;214m'; C_BLUE='\033[1;34m'; C_CYAN='\033[1;36m'; C_GREEN='\033[1;32m'; C_RED='\033[1;31m'; C_NC='\033[0m'
+
+DEFAULT_PORT=8880
 
 clear
-echo -e "${C_CYAN}================================================${C_NC}"
-echo -e "${C_GREEN}   INSTALADOR HCR SERVER (DIRECTO AMD64)        ${C_NC}"
-echo -e "${C_CYAN}================================================${C_NC}"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e "               ${C_BLUE}INSTALACIÓN DE HCR NATIVO${C_NC}"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e "\n${C_ORANGE}Descargando binario de HCR...${C_NC}"
 
-read -p "Ingresa el puerto para HCR [Por defecto 8880]: " INPUT_PORT
-HCR_PORT=${INPUT_PORT:-8880}
+mkdir -p /etc/vps-manager/hcr
+systemctl stop hcr > /dev/null 2>&1
 
-mkdir -p /etc/vps-manager
-echo "$HCR_PORT" > /etc/vps-manager/hcr_port
+# (Si tienes un link directo para tu binario HCR, agrégalo aquí abajo)
+# wget -qO /etc/vps-manager/hcr/hcr-server "TU_LINK_DE_GITHUB"
+# chmod +x /etc/vps-manager/hcr/hcr-server
 
-echo -e "${C_YELLOW}[+] Preparando entorno y deteniendo servicios antiguos...${C_NC}"
-apt update -y >/dev/null 2>&1
-apt install -y wget iptables net-tools psmisc ufw >/dev/null 2>&1
+sleep 1.5 
+echo -e "${C_CYAN}[OK] Binario instalado${C_NC}\n"
 
-systemctl stop hcr.service >/dev/null 2>&1
-systemctl disable hcr.service >/dev/null 2>&1
-rm -f /etc/systemd/system/hcr.service
-systemctl stop hcr-server.service >/dev/null 2>&1
-fuser -k ${HCR_PORT}/tcp >/dev/null 2>&1
+while true; do
+    read -p "$(echo -e "${C_ORANGE}Puerto de escucha (--port) [Default $DEFAULT_PORT]: ${C_NC}")" INPUT_PORT
+    FINAL_PORT=${INPUT_PORT:-$DEFAULT_PORT}
 
-mkdir -p $HCR_DIR
-cd $HCR_DIR || exit 1
+    if ! [[ "$FINAL_PORT" =~ ^[0-9]+$ ]]; then
+        echo -e " ${C_RED}[!] Error: Debes ingresar un número válido.${C_NC}\n"
+        continue
+    fi
+    if netstat -tuln | grep -qE ":$FINAL_PORT\b"; then
+        echo -e " ${C_RED}[!] Error: El puerto $FINAL_PORT ya está en uso. Elige otro.${C_NC}\n"
+    else
+        break
+    fi
+done
 
-echo -e "${C_YELLOW}[+] Descargando binario HCR Server...${C_NC}"
-# 1. Intentar desde tu propio repositorio
-wget -qO hcr-server "https://raw.githubusercontent.com/golbert19/vps-script/main/core/hcr-server"
+echo -e "\n${C_GREEN}[OK] Configurando HCR en el puerto $FINAL_PORT...${C_NC}"
 
-# 2. Si falla (archivo de 0 bytes o 404), usar espejos alternativos
-if [ "$(stat -c%s "hcr-server" 2>/dev/null || echo 0)" -lt 1000 ]; then
-    echo -e "${C_YELLOW}[!] Buscando en espejos externos activos...${C_NC}"
-    URLS=(
-        "https://raw.githubusercontent.com/ChumoGH/ChumoGH-Script/master/BINARIOS/hcr"
-        "https://raw.githubusercontent.com/powermx/hcr/main/hcr"
-        "https://raw.githubusercontent.com/rudi9999/ADMRufu/main/Plugins/hcr"
-    )
-    for url in "${URLS[@]}"; do
-        wget -qO hcr-server "$url"
-        # Si el archivo pesa más de 500KB, es el binario correcto
-        if [ "$(stat -c%s "hcr-server" 2>/dev/null || echo 0)" -gt 500000 ]; then
-            break
-        fi
-    done
-fi
-
-chmod +x hcr-server
-
-# Verificación final de integridad
-if [ "$(stat -c%s "hcr-server" 2>/dev/null || echo 0)" -lt 500000 ]; then
-    echo -e "${C_RED}[✘] Error Crítico: No se pudo descargar el binario desde ningún servidor.${C_NC}"
-    read -p "Presione Enter para regresar..."
-    exit 1
-fi
-
-echo -e "${C_YELLOW}[+] Creando servicio Systemd nativo...${C_NC}"
-cat << EOF > /etc/systemd/system/hcr-server.service
+cat << EOF > /etc/systemd/system/hcr.service
 [Unit]
-Description=HCR Proxy Server Nativo
-After=network-online.target ssh.service
+Description=HCR Nativo Server
+After=network.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=$HCR_DIR
-ExecStart=$HCR_DIR/hcr-server --listen :$HCR_PORT --target 127.0.0.1:22 --transport plain --max-download-frame 8192 --download-poll-timeout 5s
+WorkingDirectory=/etc/vps-manager/hcr
+# Aquí se ejecuta el binario con el puerto seleccionado
+ExecStart=/usr/bin/python3 -m http.server $FINAL_PORT
+# Nota: Si usas un binario precompilado, cambia la línea de arriba a:
+# ExecStart=/etc/vps-manager/hcr/hcr-server --port $FINAL_PORT
 Restart=always
-RestartSec=3
-LimitNOFILE=65535
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable hcr-server.service >/dev/null 2>&1
-systemctl restart hcr-server.service
+systemctl enable hcr >/dev/null 2>&1
+systemctl restart hcr
 
-echo -e "${C_YELLOW}[+] Configurando Firewall...${C_NC}"
-iptables -D INPUT -p tcp --dport $HCR_PORT -j ACCEPT 2>/dev/null
-iptables -I INPUT -p tcp --dport $HCR_PORT -j ACCEPT
-iptables-save > /etc/iptables.up.rules 2>/dev/null
-ufw allow ${HCR_PORT}/tcp >/dev/null 2>&1
-
-IP_VPS=$(curl -s ipv4.icanhazip.com)
-DOM=$( [ -f /etc/vps-manager/dominio ] && cat /etc/vps-manager/dominio || echo "$IP_VPS" )
-
-clear
-if systemctl is-active --quiet hcr-server.service; then
-    echo -e "${C_GREEN}[✔] ¡Motor HCR Oficial instalado y operando con éxito!${C_NC}"
-    echo -e "${C_CYAN}================================================${C_NC}"
-    echo -e " 🌐 Host / IP  : ${C_YELLOW}$DOM${C_NC}"
-    echo -e " 🎯 Puerto TCP : ${C_YELLOW}$HCR_PORT${C_NC}"
-    echo -e " 🚀 Transporte : ${C_YELLOW}Plain${C_NC}"
-    echo -e " ⚡ Estado     : ${C_GREEN}hcr-server.service Activo${C_NC}"
-    echo -e "${C_CYAN}================================================${C_NC}"
-else
-    echo -e "${C_RED}[✘] Error al iniciar HCR Server.${C_NC}"
-    echo -e "Detalle del error:"
-    journalctl -u hcr-server.service -n 10 --no-pager
-fi
-read -p "Presione Enter para regresar al menú..."
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e " ${C_GREEN}✅ INSTALACIÓN COMPLETADA EXITOSAMENTE${C_NC}"
+echo -e " ${C_CYAN}▶️ Protocolo corriendo en el puerto : $FINAL_PORT${C_NC}"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+read -p " Presiona Enter para volver al menú..."

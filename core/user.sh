@@ -1,11 +1,11 @@
 #!/bin/bash
 # ==========================================
-# SSH Management - Golbert VPS V5.0 LTS
+# SSH Management (Completo + Banners Nativos)
 # ==========================================
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 
-# Crear carpeta para almacenar límites si no existe
 mkdir -p /etc/vps-manager/limits
+mkdir -p /etc/vps-manager/banners
 
 while true; do
     clear
@@ -28,24 +28,29 @@ while true; do
         1)
             echo -e "\n${C_YELLOW}[ Creación de Usuario ]${C_NC}"
             read -p " Nombre de usuario: " user
-            if id "$user" &>/dev/null; then
-                echo -e "${C_RED}El usuario '$user' ya existe.${C_NC}"
-                sleep 2; continue
-            fi
+            if id "$user" &>/dev/null; then echo -e "${C_RED}El usuario '$user' ya existe.${C_NC}"; sleep 2; continue; fi
             read -p " Contraseña: " pass
             read -p " Días de duración: " dias
             read -p " Límite de conexiones: " limite
             
-            # Crear cuenta sin acceso shell para mayor seguridad
             useradd -M -s /bin/false "$user"
             echo "$user:$pass" | chpasswd
             
-            # Aplicar expiración en el sistema
             exp_date=$(date -d "+$dias days" +"%Y-%m-%d")
             chage -E "$exp_date" "$user"
             echo "$limite" > "/etc/vps-manager/limits/$user"
             
-            echo -e "\n${C_GREEN}✅ Usuario creado con éxito:${C_NC}"
+            # Generar banner único e inyectar regla en SSH
+            cat << EOF > "/etc/vps-manager/banners/$user.txt"
+<br><b><font color='#00FF00'>👤 Usuario : $user</font></b><br>
+<b><font color='#FFFF00'>⏳ Expira  : $exp_date</font></b><br>
+<b><font color='#00FFFF'>⚙️ Límite  : $limite</font></b><br>
+<b><font color='#FFFFFF'>🛡️ Golbert VPS Premium</font></b><br><br>
+EOF
+            echo -e "\nMatch User $user\nBanner /etc/vps-manager/banners/$user.txt" >> /etc/ssh/sshd_config
+            systemctl restart ssh
+            
+            echo -e "\n${C_GREEN}✅ Usuario creado con éxito y banner inyectado:${C_NC}"
             echo -e " 👤 Usuario: $user\n 🔑 Pass: $pass\n ⏳ Vence: $exp_date\n ⚙️ Límite: $limite"
             read -p "Presiona Enter para continuar..."
             ;;
@@ -54,6 +59,11 @@ while true; do
             if id "$user" &>/dev/null; then
                 userdel --force "$user"
                 rm -f "/etc/vps-manager/limits/$user"
+                rm -f "/etc/vps-manager/banners/$user.txt"
+                # Limpiar regla de sshd_config
+                sed -i "/Match User $user/d" /etc/ssh/sshd_config
+                sed -i "/Banner \/etc\/vps-manager\/banners\/$user.txt/d" /etc/ssh/sshd_config
+                systemctl restart ssh
                 echo -e "${C_GREEN}✅ Usuario '$user' eliminado completamente.${C_NC}"
             else
                 echo -e "${C_RED}Usuario no encontrado.${C_NC}"
@@ -66,6 +76,10 @@ while true; do
                 read -p " Días a sumar desde hoy: " dias
                 new_date=$(date -d "+$dias days" +"%Y-%m-%d")
                 chage -E "$new_date" "$user"
+                # Actualizar días en el archivo de banner personal
+                if [ -f "/etc/vps-manager/banners/$user.txt" ]; then
+                    sed -i "s/⏳ Expira.*/⏳ Expira  : $new_date<\/font><\/b><br>/g" "/etc/vps-manager/banners/$user.txt"
+                fi
                 echo -e "${C_GREEN}✅ Usuario '$user' renovado hasta: $new_date.${C_NC}"
             else
                 echo -e "${C_RED}Usuario no encontrado.${C_NC}"
@@ -88,6 +102,10 @@ while true; do
             if id "$user" &>/dev/null; then
                 read -p " Nuevo límite de conexiones: " limite
                 echo "$limite" > "/etc/vps-manager/limits/$user"
+                # Actualizar límite en el archivo de banner personal
+                if [ -f "/etc/vps-manager/banners/$user.txt" ]; then
+                    sed -i "s/⚙️ Límite.*/⚙️ Límite  : $limite<\/font><\/b><br>/g" "/etc/vps-manager/banners/$user.txt"
+                fi
                 echo -e "${C_GREEN}✅ Límite actualizado a $limite conexiones.${C_NC}"
             else
                 echo -e "${C_RED}Usuario no encontrado.${C_NC}"

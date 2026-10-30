@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Instalador Principal - UI Premium
+# Instalador Principal - UI Premium + AutoStart
 # ==========================================
 C_RED='\033[1;31m'
 C_GREEN='\033[1;32m'
@@ -59,19 +59,20 @@ paquetes=(
     "nodejs" "npm" "lsof" "psmisc" "socat" "bc" "netcat" "net-tools"
 )
 
-# Proceso de instalación silenciosa y verificación visual
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y > /dev/null 2>&1
 
 for pkg in "${paquetes[@]}"; do
-    # Simular la instalación del paquete (usermod y python ya vienen, se omiten errores)
     apt-get install -y "$pkg" > /dev/null 2>&1
-    
-    # Convertir nombre a mayúsculas para el panel
     pkg_upper=$(echo "$pkg" | tr '[:lower:]' '[:upper:]')
     echo -e " - [ ${C_GREEN}✅${C_NC} ] INSTALACION CORRECTA $pkg_upper"
     sleep 0.3
 done
+
+# Configurar autoinicio del menú al iniciar sesión SSH
+if ! grep -q "menu" /root/.bashrc; then
+    echo -e "\nclear\nmenu" >> /root/.bashrc
+fi
 
 echo -e "${C_ORANGE}======================================================${C_NC}"
 echo -e "\n${C_GREEN}✅ INSTALACIÓN BASE COMPLETADA EXITOSAMENTE.${C_NC}"
@@ -81,8 +82,8 @@ echo -e "El VPS se reiniciará automáticamente para aplicar todos"
 echo -e "los cambios de red y configuraciones del panel."
 echo -e ""
 echo -e "Tu aplicación se desconectará (Terminal cerrada)."
-echo -e "Espera ${C_GREEN}1 segundo${C_NC} después del cierre, vuelve a iniciar"
-echo -e "sesión en tu VPS y escribe ${C_CYAN}menu${C_NC} para ver el panel."
+echo -e "Espera ${C_GREEN}10 segundos${C_NC}, vuelve a iniciar sesión en tu VPS"
+echo -e "y ${C_CYAN}el panel principal se abrirá de forma automática${C_NC}."
 echo -e "${C_CYAN}======================================================${C_NC}"
 
 # Cuenta regresiva para el reinicio

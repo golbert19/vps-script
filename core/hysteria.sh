@@ -1,105 +1,117 @@
 #!/bin/bash
 # ==========================================
-# Módulo: Instalador Hysteria V1 (Puertos Personalizables)
+# Instalador Hysteria / Hysteria 2 UDP - Golbert VPS
 # ==========================================
-C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
-HYS_DIR="/etc/vps-manager/hysteria"
+C_ORANGE='\033[38;5;214m'; C_BLUE='\033[1;34m'; C_CYAN='\033[1;36m'; C_GREEN='\033[1;32m'; C_RED='\033[1;31m'; C_NC='\033[0m'
+
+# Valores por defecto basados en tu estructura
+DEFAULT_PORT=36712
+DEFAULT_RANGE="10000:65000"
+DEFAULT_OBFS="GolbertVps"
+[ -f /etc/vps-manager/domain.txt ] && DEFAULT_DOMAIN=$(cat /etc/vps-manager/domain.txt) || DEFAULT_DOMAIN="colo.golbertvps.online"
 
 clear
-echo -e "${C_CYAN}================================================${C_NC}"
-echo -e "${C_GREEN}  INSTALADOR HYSTERIA V1 (ANTI-CONFLICTOS UDP)  ${C_NC}"
-echo -e "${C_CYAN}================================================${C_NC}"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e "           ${C_BLUE}INSTALACIÓN DE HYSTERIA 2 (UDP)${C_NC}"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e "\n${C_ORANGE}Descargando binario oficial y dependencias...${C_NC}"
 
-echo -e "${C_YELLOW}1. CREDENCIALES (Deben coincidir con tu App)${C_NC}"
-read -p "Ingresa Autenticación Global [Ej: medi:medi]: " HYS_AUTH
-HYS_AUTH=${HYS_AUTH:-medi:medi}
+mkdir -p /etc/vps-manager/hysteria
+systemctl stop hysteria > /dev/null 2>&1
 
-read -p "Ingresa Ofuscación Global [Ej: qwertyuiop]: " HYS_OBFS
-HYS_OBFS=${HYS_OBFS:-qwertyuiop}
+# Instalación de iptables-persistent para guardar el rango de puertos
+export DEBIAN_FRONTEND=noninteractive
+apt-get install iptables iptables-persistent -y > /dev/null 2>&1
 
-echo -e "\n${C_YELLOW}2. CONFIGURACIÓN DE PUERTOS UDP${C_NC}"
-echo -e "Puertos OCUPADOS actualmente: 53, 5300, 25000, 6000-19999 (Zivpn)"
-read -p "Puerto Base para Hysteria [Por defecto: 3667]: " BASE_PORT
-BASE_PORT=${BASE_PORT:-3667}
+# Descarga del binario de Hysteria 2
+wget -qO /usr/local/bin/hysteria https://github.com/apernet/hysteria/releases/latest/download/hysteria-linux-amd64
+chmod +x /usr/local/bin/hysteria
 
-read -p "Rango de Port Hopping [Por defecto: 30000:40000]: " HOP_RANGE
-HOP_RANGE=${HOP_RANGE:-30000:40000}
+sleep 1.5 
+echo -e "${C_CYAN}[OK] Binario instalado${C_NC}\n"
 
-mkdir -p $HYS_DIR
-cd $HYS_DIR || exit 1
-systemctl stop hysteria.service >/dev/null 2>&1
+# ---------------------------------------------------------
+# RECOPILACIÓN DE DATOS INTERACTIVA
+# ---------------------------------------------------------
+read -p "$(echo -e "${C_ORANGE}Dominio/SNI [Default $DEFAULT_DOMAIN]: ${C_NC}")" INPUT_DOMAIN
+FINAL_DOMAIN=${INPUT_DOMAIN:-$DEFAULT_DOMAIN}
 
-echo -e "${C_YELLOW}[+] Descargando núcleo Hysteria V1 (v1.3.5)...${C_NC}"
-wget -qO hysteria "https://github.com/apernet/hysteria/releases/download/app%2Fv1.3.5/hysteria-linux-amd64"
-chmod +x hysteria
+while true; do
+    read -p "$(echo -e "${C_ORANGE}Puerto de escucha principal [Default $DEFAULT_PORT]: ${C_NC}")" INPUT_PORT
+    FINAL_PORT=${INPUT_PORT:-$DEFAULT_PORT}
+    if ! [[ "$FINAL_PORT" =~ ^[0-9]+$ ]]; then echo -e " ${C_RED}[!] Número inválido.${C_NC}"; continue; fi
+    if netstat -tuln | grep -qE ":$FINAL_PORT\b"; then echo -e " ${C_RED}[!] Puerto en uso.${C_NC}"; else break; fi
+done
 
-echo -e "${C_YELLOW}[+] Generando certificados SSL locales...${C_NC}"
-openssl req -x509 -nodes -newkey rsa:2048 -keyout server.key -out server.crt -days 3650 -subj "/CN=bing.com" >/dev/null 2>&1
+read -p "$(echo -e "${C_ORANGE}Rango de Puertos (Port Hopping) [Default $DEFAULT_RANGE]: ${C_NC}")" INPUT_RANGE
+FINAL_RANGE=${INPUT_RANGE:-$DEFAULT_RANGE}
 
-echo -e "${C_YELLOW}[+] Creando config.json avanzado para V1...${C_NC}"
-cat << EOF > config.json
-{
-  "listen": ":$BASE_PORT",
-  "cert": "$HYS_DIR/server.crt",
-  "key": "$HYS_DIR/server.key",
-  "obfs": "$HYS_OBFS",
-  "auth_str": "$HYS_AUTH",
-  "alpn": "h3",
-  "up_mbps": 1000,
-  "down_mbps": 1000,
-  "disable_mtu_discovery": false
-}
+read -p "$(echo -e "${C_ORANGE}Contraseña OBFS [Default $DEFAULT_OBFS]: ${C_NC}")" INPUT_OBFS
+FINAL_OBFS=${INPUT_OBFS:-$DEFAULT_OBFS}
+
+echo -e "\n${C_GREEN}[OK] Generando Certificados y Configurando...${C_NC}"
+
+# 1. Generar Certificado Self-Signed para el Dominio
+openssl req -x509 -nodes -newkey rsa:2048 -keyout /etc/vps-manager/hysteria/server.key -out /etc/vps-manager/hysteria/server.crt -days 3650 -subj "/CN=$FINAL_DOMAIN" > /dev/null 2>&1
+
+# 2. Crear archivo config.yaml de Hysteria 2
+cat << EOF > /etc/vps-manager/hysteria/config.yaml
+listen: :$FINAL_PORT
+
+tls:
+  cert: /etc/vps-manager/hysteria/server.crt
+  key: /etc/vps-manager/hysteria/server.key
+
+auth:
+  type: password
+  password: $FINAL_OBFS
+
+obfs:
+  type: salamander
+  password: $FINAL_OBFS
 EOF
 
-echo -e "${C_YELLOW}[+] Abriendo puertos en Firewall Local (UFW/IPTables)...${C_NC}"
-iptables -I INPUT -p udp --dport $BASE_PORT -j ACCEPT 2>/dev/null
-iptables -I INPUT -p udp --dport $HOP_RANGE -j ACCEPT 2>/dev/null
-ufw allow $BASE_PORT/udp >/dev/null 2>&1
-ufw allow $HOP_RANGE/udp >/dev/null 2>&1
+# 3. Aplicar reglas de Iptables para el Port Hopping (Rango de Puertos)
+# Limpiamos reglas anteriores de Hysteria si existen
+iptables -t nat -D PREROUTING -p udp --dport $FINAL_RANGE -j REDIRECT --to-ports $FINAL_PORT 2>/dev/null
+# Agregamos la nueva regla
+iptables -t nat -A PREROUTING -p udp --dport $FINAL_RANGE -j REDIRECT --to-ports $FINAL_PORT
+netfilter-persistent save > /dev/null 2>&1
 
-echo -e "${C_YELLOW}[+] Aplicando IPTables Port Hopping ($HOP_RANGE -> $BASE_PORT)...${C_NC}"
-# Limpiar reglas previas de Hysteria
-iptables -t nat -S PREROUTING | grep "REDIRECT" | grep "$BASE_PORT" | sed 's/-A /-D /g' | while read rule; do iptables -t nat $rule; done
-# Aplicar nueva regla
-iptables -t nat -A PREROUTING -p udp --dport $HOP_RANGE -j REDIRECT --to-ports $BASE_PORT
-iptables-save > /etc/iptables.up.rules 2>/dev/null
-netfilter-persistent save >/dev/null 2>&1
-
-echo -e "${C_YELLOW}[+] Creando servicio Systemd...${C_NC}"
+# 4. Crear Servicio Systemd
 cat << EOF > /etc/systemd/system/hysteria.service
 [Unit]
-Description=Hysteria V1 Server
+Description=Hysteria 2 VPN Server
 After=network.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=$HYS_DIR
-ExecStart=$HYS_DIR/hysteria -c $HYS_DIR/config.json server
+WorkingDirectory=/etc/vps-manager/hysteria
+ExecStart=/usr/local/bin/hysteria server -c /etc/vps-manager/hysteria/config.yaml
 Restart=always
 RestartSec=3
-LimitNOFILE=65535
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable hysteria.service >/dev/null 2>&1
-systemctl restart hysteria.service
+systemctl enable hysteria >/dev/null 2>&1
+systemctl restart hysteria
+
+# Obtener IP Pública para el resumen
+IP_ADDR=$(curl -sS ifconfig.me 2>/dev/null)
 
 clear
-if systemctl is-active --quiet hysteria.service; then
-    echo -e "${C_GREEN}[✔] Hysteria V1 instalado correctamente sin conflictos.${C_NC}"
-    echo -e " 🚀 Protocolo   : ${C_YELLOW}UDP${C_NC}"
-    echo -e " 🎯 Puerto Base : ${C_YELLOW}$BASE_PORT${C_NC}"
-    echo -e " 🎯 Port Hopping: ${C_YELLOW}$HOP_RANGE${C_NC}"
-    echo -e " 🔑 Auth Pass   : ${C_YELLOW}$HYS_AUTH${C_NC}"
-    echo -e " 🛡️ Obfs Pass   : ${C_YELLOW}$HYS_OBFS${C_NC}"
-    echo -e "${C_RED}⚠️ MUY IMPORTANTE: Si usas AWS, Oracle, Azure o Google Cloud, debes ir al${C_NC}"
-    echo -e "${C_RED}panel web de tu proveedor y abrir los puertos UDP $HOP_RANGE en su Firewall.${C_NC}"
-else
-    echo -e "${C_RED}[✘] Error al iniciar Hysteria V1.${C_NC}"
-    echo -e "Usa 'journalctl -u hysteria -e' para ver el log de errores."
-fi
-read -p "Presione Enter para regresar..."
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e " ${C_GREEN}✅ INSTALACIÓN DE HYSTERIA COMPLETADA${C_NC}"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e " ${C_CYAN}IP             :${C_NC} $IP_ADDR"
+echo -e " ${C_CYAN}DOMINIO/SNI    :${C_NC} $FINAL_DOMAIN"
+echo -e " ${C_CYAN}OBFS (Pass)    :${C_NC} $FINAL_OBFS"
+echo -e " ${C_CYAN}PUERTO MAIN    :${C_NC} $FINAL_PORT"
+echo -e " ${C_CYAN}RANGO PUERTOS  :${C_NC} $FINAL_RANGE"
+echo -e " ${C_CYAN}ALPN           :${C_NC} h3"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+read -p " Presiona Enter para volver al menú..."

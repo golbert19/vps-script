@@ -1,11 +1,12 @@
 #!/bin/bash
 # ==========================================
-# Panel Principal - Golbert VPS V5.0 LTS (Optimizado UI)
+# Panel Principal - Golbert VPS V5.0 LTS (Optimizado UI + Auto-Update)
 # ==========================================
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
+BG_RED='\033[41;1;37m'
 
 # Cargar traducciones
 [ -f /etc/vps-manager/languages.sh ] && source /etc/vps-manager/languages.sh || {
@@ -19,6 +20,21 @@ C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;
         t_mgmt="[ GESTIÓN DE CUENTAS ]"; t_tools="[ HERRAMIENTAS Y SISTEMA ]"; t_select="Selecciona una opción: "
     fi
 }
+
+# ---------------------------------------------------------
+# SISTEMA DE VERSIONES AUTOMÁTICAS
+# ---------------------------------------------------------
+LOCAL_VERSION="1.1"
+[ -f /etc/vps-manager/version ] && LOCAL_VERSION=$(cat /etc/vps-manager/version) || echo "$LOCAL_VERSION" > /etc/vps-manager/version
+
+# Consulta a GitHub (Máximo 2 segundos para no demorar la carga del menú)
+REMOTE_VERSION=$(curl -sS --max-time 2 https://raw.githubusercontent.com/golbert19/vps-script/main/version 2>/dev/null)
+
+UPDATE_AVAILABLE=0
+if [ -n "$REMOTE_VERSION" ] && [ "$REMOTE_VERSION" != "$LOCAL_VERSION" ]; then
+    UPDATE_AVAILABLE=1
+fi
+# ---------------------------------------------------------
 
 draw_bar() {
     local percent=$1
@@ -50,15 +66,9 @@ while true; do
     cpu_usage_int=${cpu_usage_raw%.*}
     cpu_bar=$(draw_bar $cpu_usage_int)
 
-    # ---------------------------------------------------------
-    # CORRECCIÓN: CONTADOR EXACTO DE USUARIOS REALES EN LÍNEA
-    # ---------------------------------------------------------
     total_users=$(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | wc -l)
     online_users=$(ps -ef | grep -E 'sshd|dropbear' | grep -v root | grep -v grep | wc -l)
 
-    # ---------------------------------------------------------
-    # DETECCIÓN LÓGICA DE PROCESOS EN TIEMPO REAL
-    # ---------------------------------------------------------
     [ "$(systemctl is-active ssh)" = "active" ] && s_ssh="${C_GREEN}ON${C_NC}" || s_ssh="${C_RED}OFF${C_NC}"
     [ "$(systemctl is-active nginx)" = "active" ] && s_nginx="${C_GREEN}ON${C_NC}" || s_nginx="${C_RED}OFF${C_NC}"
     [ "$(systemctl is-active xray)" = "active" ] && s_xray="${C_GREEN}ON${C_NC}" || s_xray="${C_RED}OFF${C_NC}"
@@ -79,7 +89,14 @@ while true; do
     echo -e "${C_CYAN}================================================${C_NC}"
     echo -e " 🌟 ${C_YELLOW}GOLBERT VPS PREMIUM - V5.0 LTS PANEL${C_NC} 🌟"
     echo -e "${C_CYAN}================================================${C_NC}"
-    echo -e " ${C_GREEN}Key: Verified [ Golbert VPS ] (v1.1)${C_NC}"
+    
+    # Notificación visual dinámica de la versión
+    if [ "$UPDATE_AVAILABLE" -eq 1 ]; then
+        echo -e " ${C_GREEN}Key: Verified [ Golbert VPS ] (v${LOCAL_VERSION})${C_NC} | ${BG_RED} ¡NUEVA v${REMOTE_VERSION} DISPONIBLE! ${C_NC}"
+    else
+        echo -e " ${C_GREEN}Key: Verified [ Golbert VPS ] (v${LOCAL_VERSION})${C_NC}"
+    fi
+    
     echo -e "${C_CYAN}================================================${C_NC}"
     echo -e " 💻 OS       : $os_name"
     echo -e " ⚙️ Kernel   : $kernel_ver"
@@ -92,6 +109,12 @@ while true; do
     echo -e " SSH : $s_ssh     NGINX : $s_nginx     XRAY : $s_xray"
     echo -e " STUNNEL : $s_stunnel SSH-WS : $s_ws    HCR : $s_hcr"
     echo -e "${C_CYAN}================================================${C_NC}"
+    
+    if [ "$UPDATE_AVAILABLE" -eq 1 ]; then
+        echo -e " ${C_YELLOW}>> Presiona 99 para Actualizar el Panel a la versión $REMOTE_VERSION <<${C_NC}"
+        echo -e "${C_CYAN}================================================${C_NC}"
+    fi
+
     echo -e ""
     echo -e "${C_YELLOW}$t_mgmt${C_NC}"
     echo -e " ${C_CYAN}1.${C_NC} 👤 SSH Management (Users, Limit, HWID)"
@@ -135,7 +158,7 @@ while true; do
                 echo -e " 8. 🔥 Hysteria / Hysteria 2 UDP"
                 echo -e " 9. 🎯 UDP Custom Port 2000"
                 echo -e " 10. 🌐 BHTTP Proxy Port 8180"
-                echo -e " 11. 🌐 SSH WebSocket Python Port 8080"
+                echo -e " 11. 🌐 SSH WebSocket Python Port 80 y 443"
                 echo -e " 12. 🔒 SSL/TLS Stunnel Proxy Port 444"
                 echo -e " 13. 🛡️ OpenVPN Server Setup Port 1194"
                 echo -e " 14. 🌐 ZivPN UDP Manager Port 25000"
@@ -225,6 +248,14 @@ while true; do
                     0) break ;; *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
                 esac
             done
+            ;;
+        99)
+            if [ "$UPDATE_AVAILABLE" -eq 1 ]; then
+                bash /etc/vps-manager/core/update.sh
+                exit 0
+            else
+                echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1
+            fi
             ;;
         88) read -p "¿Desinstalar script? (s/n): " des; [ "$des" = "s" ] && exit 0 ;;
         0) clear ; exit 0 ;;

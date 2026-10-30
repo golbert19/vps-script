@@ -1,36 +1,23 @@
 #!/bin/bash
 # ==========================================
-# Instalador SSH WebSocket (Dual Logic) - Golbert VPS
+# AutoConfig: SSL + ( Payload / Directo )
 # ==========================================
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
+C_ORANGE='\033[38;5;214m' # Naranja similar a la imagen
 
-clear
-echo -e "${C_CYAN}================================================${C_NC}"
-echo -e " 🌐 ${C_YELLOW}INSTALADOR SSH WEBSOCKET PYTHON (DUAL)${C_NC}"
-echo -e "${C_CYAN}================================================${C_NC}"
-
-DEFAULT_PORT=8080
-
-# 1. VERIFICACIÓN Y ASIGNACIÓN DE PUERTO
-while true; do
-    read -p " Ingresa el puerto a instalar (Por defecto: $DEFAULT_PORT): " CUSTOM_PORT
-    CUSTOM_PORT=${CUSTOM_PORT:-$DEFAULT_PORT}
-
-    if netstat -tuln | grep -qE ":$CUSTOM_PORT\b"; then
-        echo -e " ${C_RED}⚠️ Error: El puerto $CUSTOM_PORT ya está siendo usado por otro servicio.${C_NC}"
-    else
-        echo -e " ${C_GREEN}✅ Puerto $CUSTOM_PORT disponible.${C_NC}"
-        PORT=$CUSTOM_PORT
-        break
-    fi
-done
-
-echo -e "\n ${C_YELLOW}⚙️ Instalando y configurando proxy en el puerto $PORT...${C_NC}"
-
-mkdir -p /etc/vps-manager/proxy
-
-# 2. CREACIÓN DEL CÓDIGO PYTHON (Exactamente el mismo que ya funciona)
-cat << EOF > /etc/vps-manager/proxy/proxy.py
+activar_autoconfig() {
+    clear
+    echo -e "${C_YELLOW}Verificando puertos 80 y 443...${C_NC}"
+    
+    # Liberar puertos si están ocupados por servicios viejos
+    systemctl stop ws-python stunnel4 apache2 nginx > /dev/null 2>&1
+    fuser -k 80/tcp > /dev/null 2>&1
+    fuser -k 443/tcp > /dev/null 2>&1
+    
+    echo -e "${C_GREEN}Generando Proxy Python Dual en puerto 80...${C_NC}"
+    mkdir -p /etc/vps-manager/proxy
+    
+    cat << 'EOF' > /etc/vps-manager/proxy/proxy.py
 import socket
 import threading
 import subprocess
@@ -52,7 +39,6 @@ def handle_client(client_socket):
         if not raw_request:
             client_socket.close()
             return
-
         request_text = raw_request.decode('utf-8', errors='ignore')
         request_lower = request_text.lower()
 
@@ -107,11 +93,8 @@ def handle_client(client_socket):
 def main():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    # Aquí se inyecta el puerto elegido dinámicamente
-    server.bind(('0.0.0.0', ${PORT}))
+    server.bind(('0.0.0.0', 80))
     server.listen(500) 
-    print(f"Proxy Dual iniciado en puerto {${PORT}}...")
-    
     while True:
         try:
             client, addr = server.accept()
@@ -125,10 +108,9 @@ if __name__ == '__main__':
     main()
 EOF
 
-# 3. CREACIÓN DEL SERVICIO SYSTEMD
-cat << EOF > /etc/systemd/system/ws-python.service
+    cat << 'EOF' > /etc/systemd/system/ws-python.service
 [Unit]
-Description=SSH WebSocket Python Proxy (Dual Logic)
+Description=Python Proxy Dual
 After=network.target
 
 [Service]
@@ -142,12 +124,70 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
-# 4. APLICAR CAMBIOS Y ARRANCAR
-systemctl daemon-reload
-systemctl enable ws-python >/dev/null 2>&1
-systemctl restart ws-python
+    echo -e "${C_GREEN}Configurando Certificado y Stunnel4 en puerto 443...${C_NC}"
+    apt-get install stunnel4 -y > /dev/null 2>&1
+    openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 -subj "/C=PE/ST=Lima/L=Lima/O=GolbertVPS/CN=golbertvps.net.pe" -keyout /etc/stunnel/stunnel.pem -out /etc/stunnel/stunnel.pem > /dev/null 2>&1
+    
+    cat << 'EOF' > /etc/stunnel/stunnel.conf
+cert = /etc/stunnel/stunnel.pem
+client = no
+socket = a:SO_REUSEADDR=1
+socket = l:TCP_NODELAY=1
+socket = r:TCP_NODELAY=1
 
-echo -e "\n ${C_GREEN}✅ Instalación completada con éxito.${C_NC}"
-echo -e " ${C_CYAN}▶️ El Proxy Dual ahora está escuchando en el puerto: $PORT${C_NC}"
-echo -e "${C_CYAN}================================================${C_NC}"
-read -p "Presiona Enter para continuar..."
+[stunnel]
+accept = 443
+connect = 127.0.0.1:80
+EOF
+
+    sed -i 's/ENABLED=0/ENABLED=1/g' /etc/default/stunnel4
+
+    systemctl daemon-reload
+    systemctl enable ws-python stunnel4 >/dev/null 2>&1
+    systemctl restart ws-python stunnel4
+
+    echo -e "\n${C_GREEN}✅ AUTOCONFIGURACIÓN COMPLETADA.${C_NC}"
+    echo -e " ${C_CYAN}▶️ Puerto SSL     : 443${C_NC}"
+    echo -e " ${C_CYAN}▶️ Puerto Payload : 80${C_NC}"
+    sleep 3
+}
+
+desactivar_autoconfig() {
+    clear
+    echo -e "${C_RED}Desactivando servicios SSL y Proxy...${C_NC}"
+    systemctl stop ws-python stunnel4 > /dev/null 2>&1
+    systemctl disable ws-python stunnel4 > /dev/null 2>&1
+    echo -e "${C_GREEN}✅ Servicios desactivados correctamente.${C_NC}"
+    sleep 2
+}
+
+while true; do
+    clear
+    # Verificación de estado para el menú
+    if netstat -tuln | grep -qE ":443\b" && netstat -tuln | grep -qE ":80\b"; then
+        estado_servicio="${C_GREEN}ACTIVO${C_NC}"
+    else
+        estado_servicio="${C_RED}INACTIVO${C_NC}"
+    fi
+
+    echo -e "${C_ORANGE}======================================================${C_NC}"
+    echo -e "    ${C_CYAN}SSL + ( Payload / Directo )  |  $estado_servicio${C_NC}"
+    echo -e "${C_ORANGE}======================================================${C_NC}"
+    echo -e "      ${C_CYAN}SCRIPT REESTRUCTURA y AUTOCONFIGURACION${C_NC}"
+    echo -e "${C_ORANGE}======================================================${C_NC}"
+    echo -e "       ${C_NC}Requiere tener el puerto libre 443 y el 80${C_NC}"
+    echo -e "${C_ORANGE}======================================================${C_NC}"
+    echo -e ""
+    echo -e " ${C_YELLOW}[1]${C_NC} ${C_NC}Activar AUTOCONFIG (Python + SSL)${C_NC}"
+    echo -e " ${C_YELLOW}[2]${C_NC} ${C_NC}Desactivar (Payload+SSL)   |  ${C_YELLOW}[0]${C_NC} ${C_RED}Regresar${C_NC}"
+    echo -e ""
+    echo -e "${C_ORANGE}======================================================${C_NC}"
+    read -p " Seleccione una opción [0-2]: " op_ssl
+
+    case $op_ssl in
+        1) activar_autoconfig ;;
+        2) desactivar_autoconfig ;;
+        0) break ;;
+        *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
+    esac
+done

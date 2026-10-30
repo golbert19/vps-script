@@ -1,43 +1,84 @@
 #!/bin/bash
 # ==========================================
-# Módulo: SSH WebSocket + SSL (Instalar / Desinstalar)
-# Golbert VPS V5.0 LTS
+# Instalador SSH WebSocket (Dual Logic) - Golbert VPS
 # ==========================================
+C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 
 clear
-echo -e "\033[1;36m================================================\033[0m"
-echo -e " \033[1;33mSSH WEBSOCKET & SSL MANAGER\033[0m"
-echo -e "\033[1;36m================================================\033[0m"
-echo -e " 1. 📥 Instalar / Actualizar WebSocket + SSL"
-echo -e " 2. ❌ Desinstalar WebSocket + SSL (Liberar puertos)"
-echo -e " 0. 🚪 Volver"
-echo -e "\033[1;36m================================================\033[0m"
-read -p " Selecciona una opción: " opt
+echo -e "${C_CYAN}================================================${C_NC}"
+echo -e " 🌐 ${C_YELLOW}INSTALADOR SSH WEBSOCKET PYTHON (DUAL)${C_NC}"
+echo -e "${C_CYAN}================================================${C_NC}"
 
-case $opt in
-    1)
-        echo -e "\n\033[1;33m[+] Instalando Python y Stunnel4...\033[0m"
-        apt update -y && apt install -y python3 stunnel4 >/dev/null 2>&1
+DEFAULT_PORT=8080
 
-        mkdir -p /etc/vps-manager/core /root/core
+# 1. VERIFICACIÓN Y ASIGNACIÓN DE PUERTO
+while true; do
+    read -p " Ingresa el puerto a instalar (Por defecto: $DEFAULT_PORT): " CUSTOM_PORT
+    CUSTOM_PORT=${CUSTOM_PORT:-$DEFAULT_PORT}
 
-        # 1. Crear el Proxy Python Optimizado (Escucha en puerto 80)
-        cat << 'EOF' > /etc/vps-manager/core/proxy.py
+    if netstat -tuln | grep -qE ":$CUSTOM_PORT\b"; then
+        echo -e " ${C_RED}⚠️ Error: El puerto $CUSTOM_PORT ya está siendo usado por otro servicio.${C_NC}"
+    else
+        echo -e " ${C_GREEN}✅ Puerto $CUSTOM_PORT disponible.${C_NC}"
+        PORT=$CUSTOM_PORT
+        break
+    fi
+done
+
+echo -e "\n ${C_YELLOW}⚙️ Instalando y configurando proxy en el puerto $PORT...${C_NC}"
+
+mkdir -p /etc/vps-manager/proxy
+
+# 2. CREACIÓN DEL CÓDIGO PYTHON (Exactamente el mismo que ya funciona)
+cat << EOF > /etc/vps-manager/proxy/proxy.py
 import socket
 import threading
+import subprocess
+
+def get_user_expiration(username):
+    try:
+        chage_out = subprocess.check_output(f"chage -l {username}", shell=True, stderr=subprocess.STDOUT).decode('utf-8')
+        for line in chage_out.split('\n'):
+            if "Account expires" in line or "La cuenta caduca" in line:
+                date_str = line.split(':')[1].strip()
+                return date_str if date_str != "never" else "Ilimitado"
+        return "Desconocido"
+    except:
+        return "No encontrado"
 
 def handle_client(client_socket):
     try:
-        request = client_socket.recv(2048)
-        if not request:
+        raw_request = client_socket.recv(4096)
+        if not raw_request:
             client_socket.close()
             return
 
-        response = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"
-        client_socket.sendall(response.encode('utf-8'))
+        request_text = raw_request.decode('utf-8', errors='ignore')
+        request_lower = request_text.lower()
+
+        ssh_user = None
+        for line in request_text.split('\r\n'):
+            if line.lower().startswith('x-user:') or line.lower().startswith('ssh-user:'):
+                ssh_user = line.split(':')[1].strip()
+                break
 
         ssh_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         ssh_socket.connect(('127.0.0.1', 22))
+
+        if "upgrade: websocket" in request_lower:
+            response = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"
+            if ssh_user:
+                exp_date = get_user_expiration(ssh_user)
+                banner_html = (
+                    f"<br><b><font color='#00FF00'>👤 Usuario : {ssh_user}</font></b><br>"
+                    f"<b><font color='#FFFF00'>⏳ Expira  : {exp_date}</font></b><br>"
+                    f"<b><font color='#00FFFF'>🛡️ Golbert VPS Premium</font></b><br><br>"
+                )
+                response += banner_html
+        else:
+            response = "HTTP/2.0 1299\r\nHost: survey.tigo.com\nContent-Length: 55555555\n\r\n"
+
+        client_socket.sendall(response.encode('utf-8'))
 
         def transfer(src, dst):
             try:
@@ -66,8 +107,11 @@ def handle_client(client_socket):
 def main():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind(('0.0.0.0', 80))
-    server.listen(500)
+    # Aquí se inyecta el puerto elegido dinámicamente
+    server.bind(('0.0.0.0', ${PORT}))
+    server.listen(500) 
+    print(f"Proxy Dual iniciado en puerto {${PORT}}...")
+    
     while True:
         try:
             client, addr = server.accept()
@@ -81,83 +125,29 @@ if __name__ == '__main__':
     main()
 EOF
 
-        # Copiar para compatibilidad de rutas
-        cp -f /etc/vps-manager/core/proxy.py /root/core/proxy.py
-        chmod +x /etc/vps-manager/core/proxy.py /root/core/proxy.py
-
-        # 2. Certificado SSL para Stunnel4
-        if [ ! -f /etc/stunnel/stunnel.pem ]; then
-            openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 \
-                -subj "/C=PE/ST=Lima/L=Lima/O=Golbert/CN=golbertvps.online" \
-                -keyout /etc/stunnel/stunnel.pem -out /etc/stunnel/stunnel.pem >/dev/null 2>&1
-        fi
-        chmod 600 /etc/stunnel/stunnel.pem
-
-        # 3. Configurar Stunnel4 (Toma el puerto 443 si está libre, o usa 444 si Xray lo ocupa)
-        PORT_SSL=443
-        if systemctl is-active --quiet xray; then
-            PORT_SSL=444
-            echo -e "\033[1;33m[!] Xray detectado activo. Stunnel configurado en puerto seguro 443 (vía 444).\033[0m"
-        fi
-
-        cat << EOF > /etc/stunnel/stunnel.conf
-pid = /var/run/stunnel4/stunnel.pid
-cert = /etc/stunnel/stunnel.pem
-client = no
-socket = a:SO_REUSEADDR=1
-socket = l:TCP_NODELAY=1
-socket = r:TCP_NODELAY=1
-
-[ws-ssl]
-accept = $PORT_SSL
-connect = 127.0.0.1:80
-EOF
-
-        sed -i 's/ENABLED=0/ENABLED=1/g' /etc/default/stunnel4 2>/dev/null
-
-        # 4. Servicio Systemd
-        cat << 'EOF' > /etc/systemd/system/ws-python.service
+# 3. CREACIÓN DEL SERVICIO SYSTEMD
+cat << EOF > /etc/systemd/system/ws-python.service
 [Unit]
-Description=Proxy Python WebSocket (Golbert VPS)
+Description=SSH WebSocket Python Proxy (Dual Logic)
 After=network.target
 
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/bin/python3 /etc/vps-manager/core/proxy.py
+WorkingDirectory=/etc/vps-manager/proxy
+ExecStart=/usr/bin/python3 /etc/vps-manager/proxy/proxy.py
 Restart=always
-RestartSec=3
-LimitNOFILE=65535
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-        # Liberar puertos y encender servicios
-        fuser -k 80/tcp 2>/dev/null
-        systemctl daemon-reload
-        systemctl enable ws-python stunnel4
-        systemctl restart ws-python stunnel4
+# 4. APLICAR CAMBIOS Y ARRANCAR
+systemctl daemon-reload
+systemctl enable ws-python >/dev/null 2>&1
+systemctl restart ws-python
 
-        echo -e "\n\033[1;32m[✔] SSH WebSocket (Puerto 80) y SSL (Puerto $PORT_SSL) instalados correctamente.\033[0m"
-        sleep 2
-        ;;
-    2)
-        echo -e "\n\033[1;31m[-] Desinstalando SSH WebSocket y Stunnel4...\033[0m"
-        systemctl stop ws-python stunnel4 2>/dev/null
-        systemctl disable ws-python stunnel4 2>/dev/null
-        rm -f /etc/systemd/system/ws-python.service
-        rm -f /etc/vps-manager/core/proxy.py /root/core/proxy.py
-        systemctl daemon-reload
-        fuser -k 80/tcp 2>/dev/null
-        echo -e "\n\033[1;32m[✔] WebSocket y SSL desinstalados. Puertos liberados con éxito.\033[0m"
-        sleep 2
-        ;;
-    0)
-        exit 0
-        ;;
-    *)
-        echo -e "\n\033[1;31mOpción inválida.\033[0m"
-        sleep 1
-        ;;
-esac
+echo -e "\n ${C_GREEN}✅ Instalación completada con éxito.${C_NC}"
+echo -e " ${C_CYAN}▶️ El Proxy Dual ahora está escuchando en el puerto: $PORT${C_NC}"
+echo -e "${C_CYAN}================================================${C_NC}"
+read -p "Presiona Enter para continuar..."

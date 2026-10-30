@@ -50,34 +50,26 @@ while true; do
     cpu_usage_int=${cpu_usage_raw%.*}
     cpu_bar=$(draw_bar $cpu_usage_int)
 
+    # ---------------------------------------------------------
+    # CORRECCIÓN: CONTADOR EXACTO DE USUARIOS REALES EN LÍNEA
+    # ---------------------------------------------------------
     total_users=$(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | wc -l)
-    online_users=$(ps -u root | grep sshd | wc -l)
+    online_users=$(ps -ef | grep -E 'sshd|dropbear' | grep -v root | grep -v grep | wc -l)
 
-    # =========================================================
+    # ---------------------------------------------------------
     # DETECCIÓN LÓGICA DE PROCESOS EN TIEMPO REAL
-    # Evalúa si el servicio está activo en systemd o corriendo en RAM
-    # =========================================================
-    
-    # 1. SSH
+    # ---------------------------------------------------------
     [ "$(systemctl is-active ssh)" = "active" ] && s_ssh="${C_GREEN}ON${C_NC}" || s_ssh="${C_RED}OFF${C_NC}"
-    
-    # 2. NGINX
     [ "$(systemctl is-active nginx)" = "active" ] && s_nginx="${C_GREEN}ON${C_NC}" || s_nginx="${C_RED}OFF${C_NC}"
-    
-    # 3. XRAY
     [ "$(systemctl is-active xray)" = "active" ] && s_xray="${C_GREEN}ON${C_NC}" || s_xray="${C_RED}OFF${C_NC}"
-    
-    # 4. STUNNEL
     [ "$(systemctl is-active stunnel4)" = "active" ] && s_stunnel="${C_GREEN}ON${C_NC}" || s_stunnel="${C_RED}OFF${C_NC}"
     
-    # 5. SSH-WS (Python) - Busca lógicamente el proceso "proxy.py" en la memoria
     if [ "$(systemctl is-active ws-python)" = "active" ] || pgrep -f "proxy.py" > /dev/null || pgrep -f "ws.py" > /dev/null; then 
         s_ws="${C_GREEN}ON${C_NC}"
     else 
         s_ws="${C_RED}OFF${C_NC}"
     fi
     
-    # 6. HCR Server - Busca el binario "hcr-server" ejecutándose en vivo en el sistema
     if pgrep -x "hcr-server" > /dev/null || [ "$(systemctl is-active hcr)" = "active" ]; then 
         s_hcr="${C_GREEN}ON${C_NC}"
     else 
@@ -122,7 +114,7 @@ while true; do
     
     case $opcion in
         # ================= GESTIÓN DE CUENTAS =================
-        1) [ -f /etc/vps-manager/core/user.sh ] && bash /etc/vps-manager/core/user.sh || echo "Módulo no encontrado" ; sleep 2 ;;
+        1) [ -f /etc/vps-manager/core/user.sh ] && bash /etc/vps-manager/core/user.sh || echo -e "\n${C_RED}Módulo no encontrado. Forzando descarga...${C_NC}" ; sleep 2 ;;
         2) [ -f /etc/vps-manager/core/xray_manager.sh ] && bash /etc/vps-manager/core/xray_manager.sh || echo "Módulo V2Ray/Xray no encontrado" ; sleep 2 ;;
         3) [ -f /etc/vps-manager/core/bot.sh ] && bash /etc/vps-manager/core/bot.sh || echo "Módulo no encontrado" ; sleep 2 ;;
         

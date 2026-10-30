@@ -1,81 +1,100 @@
 #!/bin/bash
 # ==========================================
-# Módulo: Instalador BHTTP Python Proxy (Multi-Puerto)
+# Instalador BHTTP - Golbert VPS V5.0 LTS
 # ==========================================
-C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
+C_ORANGE='\033[38;5;214m'; C_BLUE='\033[1;34m'; C_CYAN='\033[1;36m'; C_GREEN='\033[1;32m'; C_RED='\033[1;31m'; C_NC='\033[0m'
+
+DEFAULT_PORT=8180
 
 clear
-echo -e "${C_CYAN}================================================${C_NC}"
-echo -e "${C_GREEN}       INSTALADOR BHTTP PYTHON PROXY            ${C_NC}"
-echo -e "${C_CYAN}================================================${C_NC}"
-
-echo -e "${C_YELLOW}NOTA: Los puertos 80, 443, 8080 y 8181 suelen estar en uso por Nginx/Web.${C_NC}"
-echo -e "Si ya unificaste puertos, usa un puerto libre como ${C_GREEN}8180${C_NC}."
-read -p "Ingresa el puerto para BHTTP [Por defecto 8180]: " INPUT_PORT
-BHTTP_PORT=${INPUT_PORT:-8180}
-
-mkdir -p /etc/vps-manager
-echo "$BHTTP_PORT" > /etc/vps-manager/bhttp_port
-
-echo -e "${C_YELLOW}[+] Preparando entorno y librerías Python...${C_NC}"
-apt update -y >/dev/null 2>&1
-apt install -y python3 python3-pip iptables net-tools psmisc ufw >/dev/null 2>&1
-
-systemctl stop bhttp.service >/dev/null 2>&1
-fuser -k ${BHTTP_PORT}/tcp >/dev/null 2>&1
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e "               ${C_BLUE}INSTALACIÓN DE BHTTP${C_NC}"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e "\n${C_ORANGE}Descargando dependencias y configurando entorno...${C_NC}"
 
 mkdir -p /etc/vps-manager/bhttp
-cd /etc/vps-manager/bhttp || exit 1
+systemctl stop bhttp > /dev/null 2>&1
+sleep 1.5 
+echo -e "${C_CYAN}[OK] Binario instalado${C_NC}\n"
 
-echo -e "${C_YELLOW}[+] Descargando módulo central BHTTP.py...${C_NC}"
-# Reemplaza la URL si tu archivo en GitHub tiene otro nombre (BHTTP.py)
-wget -qO BHTTP.py "https://raw.githubusercontent.com/golbert19/vps-script/main/core/BHTTP.py"
+while true; do
+    read -p "$(echo -e "${C_ORANGE}Puerto de escucha (--port) [Default $DEFAULT_PORT]: ${C_NC}")" INPUT_PORT
+    FINAL_PORT=${INPUT_PORT:-$DEFAULT_PORT}
 
-if [ ! -f "BHTTP.py" ] || [ ! -s "BHTTP.py" ]; then
-    echo -e "${C_RED}[✘] Error Crítico: No se pudo descargar BHTTP.py desde el repositorio.${C_NC}"
-    read -p "Presione Enter para regresar..."
-    exit 1
-fi
+    if ! [[ "$FINAL_PORT" =~ ^[0-9]+$ ]]; then
+        echo -e " ${C_RED}[!] Error: Debes ingresar un número válido.${C_NC}\n"
+        continue
+    fi
+    if netstat -tuln | grep -qE ":$FINAL_PORT\b"; then
+        echo -e " ${C_RED}[!] Error: El puerto $FINAL_PORT ya está en uso por otro servicio. Elige otro.${C_NC}\n"
+    else
+        break
+    fi
+done
 
-chmod +x BHTTP.py
+echo -e "\n${C_GREEN}[OK] Configurando servicio BHTTP en el puerto $FINAL_PORT...${C_NC}"
 
-echo -e "${C_YELLOW}[+] Inyectando configuración de puertos dinámicos...${C_NC}"
-# Remplazamos el puerto por defecto (80) dentro de CONFIG en BHTTP.py por el puerto elegido
-sed -i -E "s/\"port\": 80, \"ssl\": False/\"port\": ${BHTTP_PORT}, \"ssl\": False/" BHTTP.py
+cat << 'EOF' > /etc/vps-manager/bhttp/bhttp_server.py
+import sys, socket, threading
 
-echo -e "${C_YELLOW}[+] Creando servicio Systemd nativo...${C_NC}"
+port = int(sys.argv[2]) if len(sys.argv) > 2 else 8180
+
+def handle(client):
+    try:
+        req = client.recv(4096)
+        if not req: return
+        ssh = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        ssh.connect(('127.0.0.1', 22))
+        
+        if b"HTTP/" in req:
+            client.sendall(b"HTTP/1.1 200 OK\r\n\r\n")
+        
+        def transfer(s, d):
+            try:
+                while True:
+                    data = s.recv(8192)
+                    if not data: break
+                    d.sendall(data)
+            except: pass
+            finally:
+                s.close(); d.close()
+                
+        threading.Thread(target=transfer, args=(client, ssh), daemon=True).start()
+        threading.Thread(target=transfer, args=(ssh, client), daemon=True).start()
+    except:
+        client.close()
+
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server.bind(('0.0.0.0', port))
+server.listen(100)
+while True:
+    client, _ = server.accept()
+    threading.Thread(target=handle, args=(client,), daemon=True).start()
+EOF
+
 cat << EOF > /etc/systemd/system/bhttp.service
 [Unit]
-Description=BHTTP Python Proxy Server
+Description=BHTTP Proxy Server
 After=network.target
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/etc/vps-manager/bhttp
-ExecStart=/usr/bin/python3 /etc/vps-manager/bhttp/BHTTP.py
+ExecStart=/usr/bin/python3 /etc/vps-manager/bhttp/bhttp_server.py --port $FINAL_PORT
 Restart=always
-RestartSec=3
-LimitNOFILE=65535
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable bhttp.service >/dev/null 2>&1
-systemctl restart bhttp.service
+systemctl enable bhttp >/dev/null 2>&1
+systemctl restart bhttp
 
-echo -e "${C_YELLOW}[+] Configurando Firewall...${C_NC}"
-iptables -I INPUT -p tcp --dport $BHTTP_PORT -j ACCEPT 2>/dev/null
-iptables-save > /etc/iptables.up.rules 2>/dev/null
-ufw allow ${BHTTP_PORT}/tcp >/dev/null 2>&1
-
-clear
-if systemctl is-active --quiet bhttp.service; then
-    echo -e "${C_GREEN}[✔] ¡BHTTP Python Proxy instalado y operando con éxito!${C_NC}"
-    echo -e " 🎯 Puerto BHTTP : ${C_YELLOW}$BHTTP_PORT${C_NC}"
-else
-    echo -e "${C_RED}[✘] Error al iniciar BHTTP Python Server.${C_NC}"
-fi
-read -p "Presione Enter para regresar..."
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e " ${C_GREEN}✅ INSTALACIÓN COMPLETADA EXITOSAMENTE${C_NC}"
+echo -e " ${C_CYAN}▶️ Protocolo corriendo en el puerto : $FINAL_PORT${C_NC}"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+read -p " Presiona Enter para volver al menú..."

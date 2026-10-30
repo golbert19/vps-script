@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# SSH Management (Completo + Banners Nativos)
+# SSH Management (Banners Nativos + Monitor en Línea)
 # ==========================================
 C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
 
@@ -20,6 +20,7 @@ while true; do
     echo -e " ${C_CYAN}6.${C_NC} 📋 Detalles de un usuario"
     echo -e " ${C_CYAN}7.${C_NC} 🔒 Bloquear / Desbloquear cuenta"
     echo -e " ${C_CYAN}8.${C_NC} 👥 Lista de usuarios y vencimientos"
+    echo -e " ${C_CYAN}9.${C_NC} 📡 Ver usuarios conectados en línea"
     echo -e " ${C_CYAN}0.${C_NC} 🚪 Volver al Menú Principal"
     echo -e "${C_CYAN}================================================${C_NC}"
     read -p " Selecciona una opción: " op_user
@@ -147,6 +148,36 @@ EOF
                 exp=$(chage -l "$usr" | grep -i "account expires" | awk -F': ' '{print $2}')
                 echo -e " 👤 $usr -> ⏳ $exp"
             done
+            read -p "Presiona Enter para continuar..."
+            ;;
+        9)
+            echo -e "\n${C_YELLOW}[ 📡 MONITOREO DE USUARIOS EN LÍNEA ]${C_NC}"
+            echo -e "${C_CYAN}-------------------------------------------------------------------------${C_NC}"
+            printf " %-15s | %-10s | %-12s | %-15s\n" "USUARIO" "CONEXIONES" "TIEMPO" "VENCE"
+            echo -e "${C_CYAN}-------------------------------------------------------------------------${C_NC}"
+            
+            # Obtener lista de usuarios creados
+            users_list=$(awk -F':' '$3>=1000 && $1!="nobody" {print $1}' /etc/passwd)
+            active_found=0
+            
+            for u in $users_list; do
+                # Contar procesos SSH o Dropbear del usuario
+                conn=$(ps -u "$u" 2>/dev/null | grep -E 'sshd|dropbear' | wc -l)
+                if [ "$conn" -gt 0 ]; then
+                    active_found=1
+                    # Obtener el tiempo del proceso más antiguo (cuánto tiempo lleva conectado)
+                    uptime=$(ps -u "$u" -o etime,comm 2>/dev/null | grep -E 'sshd|dropbear' | awk '{print $1}' | head -n1)
+                    # Obtener fecha de vencimiento real en Linux
+                    exp=$(chage -l "$u" | grep -i "account expires" | awk -F': ' '{print $2}')
+                    
+                    printf " %-15s | %-10s | %-12s | %-15s\n" "$u" "$conn" "$uptime" "$exp"
+                fi
+            done
+            
+            if [ "$active_found" -eq 0 ]; then
+                echo -e " ${C_RED}No hay usuarios conectados en este momento.${C_NC}"
+            fi
+            echo -e "${C_CYAN}-------------------------------------------------------------------------${C_NC}"
             read -p "Presiona Enter para continuar..."
             ;;
         0) break ;;

@@ -31,9 +31,7 @@ LOCAL_VERSION="1.1"
 REMOTE_VERSION=$(curl -sS --max-time 2 https://raw.githubusercontent.com/golbert19/vps-script/main/version 2>/dev/null)
 
 UPDATE_AVAILABLE=0
-# Validar que la respuesta de GitHub no esté vacía y no sea un error 404
 if [[ -n "$REMOTE_VERSION" ]] && [[ ! "$REMOTE_VERSION" =~ "404" ]] && [[ ! "$REMOTE_VERSION" =~ "Not Found" ]]; then
-    # Limpiar espacios o saltos de línea invisibles para comparar correctamente
     REMOTE_VERSION=$(echo "$REMOTE_VERSION" | tr -d '\n' | tr -d '\r' | tr -d ' ')
     LOCAL_VERSION=$(echo "$LOCAL_VERSION" | tr -d '\n' | tr -d '\r' | tr -d ' ')
     
@@ -97,7 +95,6 @@ while true; do
     echo -e " 🌟 ${C_YELLOW}GOLBERT VPS PREMIUM - V5.0 LTS PANEL${C_NC} 🌟"
     echo -e "${C_CYAN}================================================${C_NC}"
     
-    # Notificación visual dinámica de la versión
     if [ "$UPDATE_AVAILABLE" -eq 1 ]; then
         echo -e " ${C_GREEN}Key: Verified [ Golbert VPS ] (v${LOCAL_VERSION})${C_NC} | ${BG_RED} ¡NUEVA v${REMOTE_VERSION} DISPONIBLE! ${C_NC}"
     else
@@ -144,7 +141,10 @@ while true; do
     
     case $opcion in
         # ================= GESTIÓN DE CUENTAS =================
+        # Opción 1 RESTAURADA exactamente a su original
         1) [ -f /etc/vps-manager/core/user.sh ] && bash /etc/vps-manager/core/user.sh || echo -e "\n${C_RED}Módulo no encontrado. Forzando descarga...${C_NC}" ; sleep 2 ;;
+        
+        # Opción 2 con el nuevo submenú de Xray
         2)
             while true; do
                 clear
@@ -158,14 +158,16 @@ while true; do
                 echo -e "${C_CYAN}================================================${C_NC}"
                 read -p "Selecciona una opción: " xray_op
                 case $xray_op in
-                    1) [ -f /etc/vps-manager/core/vmess.sh ] && bash /etc/vps-manager/core/vmess.sh || echo -e "${C_RED}Módulo VMess no encontrado${C_NC}" ; sleep 2 ;;
-                    2) [ -f /etc/vps-manager/core/vless.sh ] && bash /etc/vps-manager/core/vless.sh || echo -e "${C_RED}Módulo VLESS no encontrado${C_NC}" ; sleep 2 ;;
-                    3) [ -f /etc/vps-manager/core/trojan.sh ] && bash /etc/vps-manager/core/trojan.sh || echo -e "${C_RED}Módulo Trojan no encontrado${C_NC}" ; sleep 2 ;;
+                    1) [ -f /etc/vps-manager/core/vmess.sh ] && bash /etc/vps-manager/core/vmess.sh || { echo -e "${C_RED}Módulo VMess no encontrado${C_NC}"; sleep 2; } ;;
+                    2) [ -f /etc/vps-manager/core/vless.sh ] && bash /etc/vps-manager/core/vless.sh || { echo -e "${C_RED}Módulo VLESS no encontrado${C_NC}"; sleep 2; } ;;
+                    3) [ -f /etc/vps-manager/core/trojan.sh ] && bash /etc/vps-manager/core/trojan.sh || { echo -e "${C_RED}Módulo Trojan no encontrado${C_NC}"; sleep 2; } ;;
                     0) break ;;
                     *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
                 esac
             done
             ;;
+            
+        # Opción 3 RESTAURADA exactamente a su original
         3) [ -f /etc/vps-manager/core/bot.sh ] && bash /etc/vps-manager/core/bot.sh || echo "Módulo no encontrado" ; sleep 2 ;;
         
         # ================= HERRAMIENTAS Y SISTEMA =================

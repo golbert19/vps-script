@@ -24,9 +24,10 @@ DOMAIN = config.get("DOMAIN", "")
 
 AUTH_FILE = "/root/master_bot/auth_users.txt"
 CREDITS_FILE = "/root/master_bot/credits.txt"
+KEYS_FILE = "/root/master_bot/keys_db.txt"
 bot = telebot.TeleBot(TOKEN)
 
-# COORDENADAS UNICODE (Se reemplazó Key Revendedor por Mensaje)
+# COORDENADAS UNICODE
 BTN_KEY_D = "\U0001F511 Key Due\u00f1o"
 BTN_BROADCAST = "\U0001F4E2 Mensaje"
 BTN_KEY_CLIENT = "\U0001F511 Generar Key"
@@ -75,6 +76,45 @@ def save_credits(creds):
     with open(CREDITS_FILE, "w") as f:
         for u, c in creds.items():
             f.write(f"{u}:{c}\n")
+
+def save_key_owner(key, owner_id):
+    with open(KEYS_FILE, "a") as f:
+        f.write(f"{key}:{owner_id}\n")
+
+def check_and_burn_key(key):
+    if not os.path.exists(KEYS_FILE):
+        return None
+    lines = []
+    owner_id = None
+    with open(KEYS_FILE, "r") as f:
+        for line in f:
+            parts = line.strip().split(":")
+            if len(parts) == 2:
+                k, o = parts
+                if k == key:
+                    owner_id = o
+                else:
+                    lines.append(line)
+    if owner_id:
+        with open(KEYS_FILE, "w") as f:
+            f.writelines(lines)
+    return owner_id
+
+def notify_key_usage(key_used, vps_ip="Desconocida"):
+    owner_id = check_and_burn_key(key_used)
+    if owner_id:
+        try:
+            bot.send_message(
+                owner_id,
+                "\U0001F514 <b>\u00a1AVISO DE KEY USADA!</b>\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                f"\U0001F511 La Key: <code>{key_used}</code>\n"
+                f"\U0001F310 Ha sido utilizada e instalada en la IP: <code>{vps_ip}</code>\n"
+                "━━━━━━━━━━━━━━━━━━━━",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            pass
 
 def is_auth(uid):
     if uid == ADMIN_ID: return True
@@ -162,7 +202,7 @@ def handle_message(message):
         else:
             exp_date = load_auth().get(uid, "Desconocido")
             creds = load_credits().get(uid, 0)
-            bot.reply_to(message, f"\U0001F194 <b>Tu ID:</b> <code>{uid}</code>\n\u23F3 <b>Vence:</b> {exp_date}\n💰 <b>Créditos:</b> {creds}", parse_mode="HTML")
+            bot.reply_to(message, f"\U0001F194 <b>Tu ID:</b> <code>{uid}</code>\n\u23F3 <b>Vence:</b> {exp_date}\n\U0001F4B0 <b>Créditos:</b> {creds}", parse_mode="HTML")
         return
 
     elif text == BTN_ADD_USR:
@@ -198,18 +238,19 @@ def handle_message(message):
         if text == BTN_KEY_CLIENT:
             new_key = "VPS-" + str(uuid.uuid4()).upper().replace("-", "")[:12]
             new_key = f"{new_key[:4]}-{new_key[4:8]}-{new_key[8:12]}"
+            save_key_owner(new_key, uid)
             exp_date = load_auth().get(uid, "Desconocido")
             msg = (
-                "✅ <b>KEY GENERADA</b>\n"
+                "\u2705 <b>KEY GENERADA</b>\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
-                f"👤 <b>Vendedor:</b> @{username} (ID: <code>{uid}</code>)\n"
-                f"🔑 <b>Key:</b> <code>{new_key}</code>\n"
-                f"⏳ <b>Vence:</b> {exp_date}\n"
+                f"\U0001F464 <b>Vendedor:</b> @{username} (ID: <code>{uid}</code>)\n"
+                f"\U0001F511 <b>Key:</b> <code>{new_key}</code>\n"
+                f"\u23F3 <b>Vence:</b> {exp_date}\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
-                "⚠️ Compatible con Ubuntu (22.04, 24.04, 26.04) y las últimas versiones de Debian (11 y 12).\n"
-                "👨‍💻 <b>Dueño:</b> @golbertperuvps\n"
+                "\u26A0\uFE0F Compatible con Ubuntu (22.04, 24.04, 26.04) y las últimas versiones de Debian (11 y 12).\n"
+                "\U0001F468\u200D\U0001F4BB <b>Dueño:</b> @golbertperuvps\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
-                "💻 <b>Instalación:</b>\n"
+                "\U0001F4BB <b>Instalación:</b>\n"
                 "<code>apt update -y && apt install -y wget && wget -O install.sh https://script.golbertvps.org.pe && chmod +x install.sh && ./install.sh</code>"
             )
             bot.reply_to(message, msg, parse_mode="HTML")
@@ -221,17 +262,18 @@ def handle_message(message):
     if text == BTN_KEY_D:
         new_key = "VPS-" + str(uuid.uuid4()).upper().replace("-", "")[:12]
         new_key = f"{new_key[:4]}-{new_key[4:8]}-{new_key[8:12]}"
+        save_key_owner(new_key, uid)
         msg = (
-            "✅ <b>KEY GENERADA (DUEÑO)</b>\n"
+            "\u2705 <b>KEY GENERADA (DUEÑO)</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            f"👤 <b>Cliente:</b> @{username} (ID: <code>{uid}</code>)\n"
-            f"🔑 <b>Key:</b> <code>{new_key}</code>\n"
-            "⏳ <b>Vence:</b> Permanente\n"
+            f"\U0001F464 <b>Cliente:</b> @{username} (ID: <code>{uid}</code>)\n"
+            f"\U0001F511 <b>Key:</b> <code>{new_key}</code>\n"
+            "\u23F3 <b>Vence:</b> Permanente\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "⚠️ Compatible con Ubuntu (22.04, 24.04, 26.04) y las últimas versiones de Debian (11 y 12).\n"
-            "👨‍💻 <b>Dueño:</b> @golbertperuvps\n"
+            "\u26A0\uFE0F Compatible con Ubuntu (22.04, 24.04, 26.04) y las últimas versiones de Debian (11 y 12).\n"
+            "\U0001F468\u200D\U0001F4BB <b>Dueño:</b> @golbertperuvps\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "💻 <b>Instalación:</b>\n"
+            "\U0001F4BB <b>Instalación:</b>\n"
             "<code>apt update -y && apt install -y wget && wget -O install.sh https://script.golbertvps.org.pe && chmod +x install.sh && ./install.sh</code>"
         )
         bot.reply_to(message, msg, parse_mode="HTML")
@@ -299,7 +341,7 @@ def process_add_revendedor(message):
         save_auth(users)
         save_credits(creds)
         
-        bot.reply_to(message, f"\u2705 <b>REVENDEDOR AÑADIDO</b>\n\U0001F194 <b>ID:</b> <code>{target_id}</code>\n💰 <b>Créditos:</b> {creditos}\n\nEl revendedor ya puede autorizar clientes.", parse_mode="HTML")
+        bot.reply_to(message, f"\u2705 <b>REVENDEDOR AÑADIDO</b>\n\U0001F194 <b>ID:</b> <code>{target_id}</code>\n\U0001F4B0 <b>Créditos:</b> {creditos}\n\nEl revendedor ya puede autorizar clientes.", parse_mode="HTML")
     except: 
         bot.reply_to(message, "\u274C Formato incorrecto. Usa: ID CRÉDITOS", parse_mode="HTML")
 
@@ -323,7 +365,7 @@ def process_add_cliente(message):
         users[target_id] = exp_date
         save_auth(users)
         
-        bot.reply_to(message, f"\u2705 <b>CLIENTE AUTORIZADO</b>\n\U0001F194 <b>ID:</b> <code>{target_id}</code>\n\u23F3 <b>Vence:</b> {exp_date} ({days} d\u00edas)\n💰 <b>Tus créditos:</b> {creds[uid]}", parse_mode="HTML")
+        bot.reply_to(message, f"\u2705 <b>CLIENTE AUTORIZADO</b>\n\U0001F194 <b>ID:</b> <code>{target_id}</code>\n\u23F3 <b>Vence:</b> {exp_date} ({days} d\u00edas)\n\U0001F4B0 <b>Tus créditos:</b> {creds[uid]}", parse_mode="HTML")
     except: 
         bot.reply_to(message, "\u274C Formato incorrecto. Usa: ID DIAS", parse_mode="HTML")
 
@@ -342,7 +384,7 @@ def process_renew_revendedor(message):
         creds[target_id] = creds.get(target_id, 0) + creditos
         save_credits(creds)
         
-        bot.reply_to(message, f"\U0001F504 <b>RENOVACIÓN EXITOSA</b>\n\U0001F194 <b>ID:</b> <code>{target_id}</code>\n💰 <b>Nuevos Créditos Totales:</b> {creds[target_id]}", parse_mode="HTML")
+        bot.reply_to(message, f"\U0001F504 <b>RENOVACIÓN EXITOSA</b>\n\U0001F194 <b>ID:</b> <code>{target_id}</code>\n\U0001F4B0 <b>Nuevos Créditos Totales:</b> {creds[target_id]}", parse_mode="HTML")
     except: 
         bot.reply_to(message, "\u274C Formato incorrecto. Usa: ID CRÉDITOS", parse_mode="HTML")
 
@@ -366,6 +408,7 @@ def process_renew_cliente(message):
         creds[uid] -= 1
         save_credits(creds)
         
+        # Calcular nueva fecha de vencimiento sumando a la actual o desde hoy si ya caducó
         current_exp = datetime.datetime.strptime(users[target_id], "%Y-%m-%d")
         if current_exp < datetime.datetime.now():
             current_exp = datetime.datetime.now()
@@ -374,7 +417,7 @@ def process_renew_cliente(message):
         users[target_id] = new_exp_date
         save_auth(users)
         
-        bot.reply_to(message, f"\U0001F504 <b>CLIENTE RENOVADO</b>\n\U0001F194 <b>ID:</b> <code>{target_id}</code>\n\u23F3 <b>Nuevo Vencimiento:</b> {new_exp_date}\n💰 <b>Tus créditos:</b> {creds[uid]}", parse_mode="HTML")
+        bot.reply_to(message, f"\U0001F504 <b>CLIENTE RENOVADO</b>\n\U0001F194 <b>ID:</b> <code>{target_id}</code>\n\u23F3 <b>Nuevo Vencimiento:</b> {new_exp_date}\n\U0001F4B0 <b>Tus créditos:</b> {creds[uid]}", parse_mode="HTML")
     except: 
         bot.reply_to(message, "\u274C Formato incorrecto. Usa: ID DIAS", parse_mode="HTML")
 
@@ -402,7 +445,7 @@ def process_find_user(message):
     users = load_auth()
     creds = load_credits()
     if target_id in users:
-        bot.reply_to(message, f"\U0001F50D <b>Usuario Encontrado</b>\n\U0001F194 ID: <code>{target_id}</code>\n\u23F3 Vence: <b>{users[target_id]}</b>\n💰 Créditos: <b>{creds.get(target_id, 0)}</b>", parse_mode="HTML")
+        bot.reply_to(message, f"\U0001F50D <b>Usuario Encontrado</b>\n\U0001F194 ID: <code>{target_id}</code>\n\u23F3 Vence: <b>{users[target_id]}</b>\n\U0001F4B0 Créditos: <b>{creds.get(target_id, 0)}</b>", parse_mode="HTML")
     else:
         bot.reply_to(message, f"\u274C El ID <code>{target_id}</code> no está registrado.", parse_mode="HTML")
 
@@ -419,11 +462,7 @@ def process_broadcast(message):
         except:
             pass
             
-    bot.reply_to(message, f"✅ Mensaje enviado exitosamente a <b>{count}</b> usuarios.", parse_mode="HTML")
-
-# ==========================================
-# RUTINAS CLOUDFLARE
-# ==========================================
+    bot.reply_to(message, f"\u2705 Mensaje enviado exitosamente a <b>{count}</b> usuarios.", parse_mode="HTML")
 
 def process_domain_a(message):
     if is_menu_button(message.text): return handle_message(message)
@@ -434,11 +473,11 @@ def process_domain_a(message):
         
         resp = cf_api_call("POST", "dns_records", data=data)
         if resp and resp.status_code == 200:
-            bot.reply_to(message, f"✅ <b>Dominio A Creado Exitosamente:</b>\n<code>{full_domain}</code> ➔ <code>{ip}</code>", parse_mode="HTML")
+            bot.reply_to(message, f"\u2705 <b>Dominio A Creado Exitosamente:</b>\n<code>{full_domain}</code> ➔ <code>{ip}</code>", parse_mode="HTML")
         else:
-            bot.reply_to(message, "❌ <b>Error al crear el registro A en Cloudflare.</b>", parse_mode="HTML")
+            bot.reply_to(message, "\u274C <b>Error al crear el registro A en Cloudflare.</b>", parse_mode="HTML")
     except ValueError:
-        bot.reply_to(message, "❌ Formato incorrecto. Debes usar: subdominio IP", parse_mode="HTML")
+        bot.reply_to(message, "\u274C Formato incorrecto. Debes usar: subdominio IP", parse_mode="HTML")
 
 def process_domain_ns(message):
     if is_menu_button(message.text): return handle_message(message)
@@ -449,13 +488,12 @@ def process_domain_ns(message):
         
         resp = cf_api_call("POST", "dns_records", data=data)
         if resp and resp.status_code == 200:
-            bot.reply_to(message, f"✅ <b>Dominio NS Creado Exitosamente:</b>\n<code>{full_domain}</code> ➔ <code>{target}</code>", parse_mode="HTML")
+            bot.reply_to(message, f"\u2705 <b>Dominio NS Creado Exitosamente:</b>\n<code>{full_domain}</code> ➔ <code>{target}</code>", parse_mode="HTML")
         else:
-            bot.reply_to(message, "❌ <b>Error al crear el registro NS en Cloudflare.</b>", parse_mode="HTML")
+            bot.reply_to(message, "\u274C <b>Error al crear el registro NS en Cloudflare.</b>", parse_mode="HTML")
     except ValueError:
-        bot.reply_to(message, "❌ Formato incorrecto. Debes usar: subdominio destino", parse_mode="HTML")
+        bot.reply_to(message, "\u274C Formato incorrecto. Debes usar: subdominio destino", parse_mode="HTML")
 
-# Bucle principal del bot
 while True:
     try:
         bot.polling(none_stop=True)

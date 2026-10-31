@@ -12,7 +12,7 @@ echo -e "${C_ORANGE}------------------------------------------------------${C_NC
 mkdir -p /etc/vps-manager/hcr
 systemctl stop hcr > /dev/null 2>&1
 
-# Descargar binario original (Verifica que la URL sea EXACTAMENTE donde subiste el hcr-binary)
+# Descargar binario (Asegúrate de que hcr-binary esté en tu GitHub)
 wget -qO /etc/vps-manager/hcr/hcr-binary "https://raw.githubusercontent.com/golbert19/vps-script/main/hcr-binary"
 chmod +x /etc/vps-manager/hcr/hcr-binary
 
@@ -40,7 +40,10 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/etc/vps-manager/hcr
-ExecStart=/etc/vps-manager/hcr/hcr-binary --port $FINAL_PORT
+# Ejecutamos el binario enviando solo el número de puerto 
+ExecStart=/etc/vps-manager/hcr/hcr-binary $FINAL_PORT
+# NOTA: Si tu binario requiere el flag "-p", cambia la línea de arriba por: 
+# ExecStart=/etc/vps-manager/hcr/hcr-binary -p $FINAL_PORT
 Restart=always
 
 [Install]
@@ -54,10 +57,9 @@ sleep 1
 
 if systemctl is-active --quiet hcr; then
     echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
-    echo -e " ${C_GREEN}✅ HCR instalado y operando en el puerto $FINAL_PORT${C_NC}"
+    echo -e " ${C_GREEN}✅ HCR operando en el puerto $FINAL_PORT con éxito${C_NC}"
     echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
 else
-    echo -e "\n${C_RED}[!] Error crítico: El servicio HCR colapsó al iniciar.${C_NC}"
-    journalctl -u hcr -n 5 --no-pager
+    echo -e "\n${C_RED}[!] Error: El servicio HCR colapsó.${C_NC}"
 fi
 read -p " Presiona Enter para volver..."

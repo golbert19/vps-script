@@ -8,16 +8,18 @@ echo -e "${C_CYAN}================================================${C_NC}"
 echo -e " 🔄 INICIANDO ACTUALIZACIÓN DEL PANEL..."
 echo -e "${C_CYAN}================================================${C_NC}"
 
+# INSTALAR DEPENDENCIAS DE LIMPIEZA PRIMERO
+apt-get update -y > /dev/null 2>&1
+apt-get install -y dos2unix > /dev/null 2>&1
+
 REPO_URL="https://raw.githubusercontent.com/golbert19/vps-script/main"
 mkdir -p /etc/vps-manager/core
 
-# Actualizar Raíz
 echo "Descargando Menú y dependencias base..."
 wget -qO /usr/local/bin/menu "$REPO_URL/menu.sh"
 wget -qO /etc/vps-manager/languages.sh "$REPO_URL/languages.sh"
 wget -qO /etc/vps-manager/version "$REPO_URL/version"
 
-# Actualizar Lista Completa de Módulos Core (38 Archivos)
 echo "Sincronizando carpeta Core..."
 CORE_FILES=(
     "BHTTP.py" "bbr.sh" "slowdns.sh" "edit_ovpn_user.sh" "badvpn.sh" 
@@ -34,7 +36,7 @@ for file in "${CORE_FILES[@]}"; do
     wget -qO /etc/vps-manager/core/$file "$REPO_URL/core/$file"
 done
 
-# Permisos y limpieza de código CRLF
+# Permisos y limpieza obligatoria
 chmod +x /usr/local/bin/menu
 chmod +x /etc/vps-manager/core/*.sh
 dos2unix /usr/local/bin/menu > /dev/null 2>&1

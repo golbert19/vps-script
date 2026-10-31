@@ -1,6 +1,7 @@
 #!/bin/bash
 C_GREEN='\033[1;32m'
 C_CYAN='\033[1;36m'
+C_YELLOW='\033[1;33m'
 C_NC='\033[0m'
 
 clear
@@ -41,6 +42,12 @@ chmod +x /usr/local/bin/menu
 chmod +x /etc/vps-manager/core/*.sh
 dos2unix /usr/local/bin/menu > /dev/null 2>&1
 dos2unix /etc/vps-manager/core/*.sh > /dev/null 2>&1
+
+# --- PARCHE PARA LIBERAR NGINX EN MÁQUINAS ACTUALES ---
+echo -e "${C_YELLOW}Verificando conflictos de puertos (Nginx)...${C_NC}"
+rm -f /etc/nginx/sites-enabled/default
+rm -f /etc/nginx/sites-available/default
+systemctl restart nginx > /dev/null 2>&1
 
 echo -e "\n${C_GREEN}✅ ACTUALIZACIÓN COMPLETADA CON ÉXITO.${C_NC}"
 sleep 2

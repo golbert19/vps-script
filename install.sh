@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Instalador Principal - UI Premium + AutoStart Fix
+# Instalador Principal - UI Premium + AutoStart + Core Fix
 # ==========================================
 C_RED='\033[1;31m'
 C_GREEN='\033[1;32m'
@@ -69,13 +69,32 @@ for pkg in "${paquetes[@]}"; do
     sleep 0.3
 done
 
-# --- SOLUCIÓN: Descargar el menú al sistema antes de reiniciar ---
+# --- SOLUCIÓN: Descargar el menú y todos los módulos base ---
 echo -e "\n${C_ORANGE}======================================================${C_NC}"
-echo -e "${C_GREEN}Descargando e instalando el panel principal...${C_NC}"
+echo -e "${C_GREEN}Descargando el panel principal y módulos internos...${C_NC}"
 mkdir -p /etc/vps-manager/core
+
+# 1. Descargar Menú Principal
 wget -qO /usr/local/bin/menu https://raw.githubusercontent.com/golbert19/vps-script/main/menu.sh
 chmod +x /usr/local/bin/menu
-echo -e " - [ ${C_GREEN}✅${C_NC} ] INSTALACION CORRECTA MENU"
+echo -e " - [ ${C_GREEN}✅${C_NC} ] PANEL PRINCIPAL INSTALADO"
+
+# 2. Descargar todos los submódulos de la carpeta core
+REPO_URL="https://raw.githubusercontent.com/golbert19/vps-script/main"
+CORE_FILES=(
+    "specs.sh" "fix_ports.sh" "domain.sh" "banner.sh" "update.sh" 
+    "user.sh" "bot.sh" "webpanel.sh" "firewall.sh" "checkuser.sh"
+    "xray_manager.sh" "vmess.sh" "vless.sh" "trojan.sh" "slowdns.sh"
+    "badvpn.sh" "hcr.sh" "hysteria.sh" "udp_custom.sh" "bhttp.sh"
+    "sshws.sh" "ssl.sh" "setup_openvpn.sh" "zivpn.sh" "bbr.sh"
+    "php.sh" "ports.sh"
+)
+
+for file in "${CORE_FILES[@]}"; do
+    wget -qO /etc/vps-manager/core/$file "$REPO_URL/core/$file" 2>/dev/null
+    chmod +x /etc/vps-manager/core/$file 2>/dev/null
+done
+echo -e " - [ ${C_GREEN}✅${C_NC} ] MÓDULOS DE FUNCIONES INSTALADOS"
 
 # Configurar autoinicio del menú al iniciar sesión SSH
 if ! grep -q "menu" /root/.bashrc; then

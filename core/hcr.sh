@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Instalador HCR Plain - Corrección de Escucha (Listen)
+# Instalador HCR Plain - URL Corregida
 # ==========================================
 C_ORANGE='\033[38;5;214m'; C_BLUE='\033[1;34m'; C_CYAN='\033[1;36m'; C_GREEN='\033[1;32m'; C_RED='\033[1;31m'; C_NC='\033[0m'
 DEFAULT_PORT=8880
@@ -12,12 +12,14 @@ echo -e "${C_ORANGE}------------------------------------------------------${C_NC
 mkdir -p /etc/vps-manager/hcr
 systemctl stop hcr > /dev/null 2>&1
 
-# Descargar el binario
 wget -qO /etc/vps-manager/hcr/hcr-server "https://raw.githubusercontent.com/golbert19/vps-script/main/core/hcr-server"
 chmod +x /etc/vps-manager/hcr/hcr-server
 
-# Generar certificados para evitar que el binario colapse por falta de SSL
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/vps-manager/hcr/server.key -out /etc/vps-manager/hcr/server.crt -subj "/CN=hcr-server" > /dev/null 2>&1
+if grep -q "404: Not Found" /etc/vps-manager/hcr/hcr-server || [ ! -s /etc/vps-manager/hcr/hcr-server ]; then
+    echo -e "\n${C_RED}[!] ERROR CRÍTICO: El archivo 'hcr-server' no fue encontrado en GitHub.${C_NC}"
+    read -p " Presiona Enter para cancelar la instalación..."
+    exit 1
+fi
 
 while true; do
     read -p "$(echo -e "${C_ORANGE}Puerto de escucha [Default $DEFAULT_PORT]: ${C_NC}")" INPUT_PORT
@@ -35,16 +37,9 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/etc/vps-manager/hcr
-# Opción 1 (Más probable): Escuchar en todas las interfaces (0.0.0.0) en el puerto definido
-ExecStart=/etc/vps-manager/hcr/hcr-server --listen 0.0.0.0:$FINAL_PORT --tls-cert /etc/vps-manager/hcr/server.crt --tls-key /etc/vps-manager/hcr/server.key
-
-# Si la Opción 1 falla, comenta la línea de arriba y descomenta una de las siguientes:
-# Opción 2: Usar bandera -p
-# ExecStart=/etc/vps-manager/hcr/hcr-server -p $FINAL_PORT --tls-cert /etc/vps-manager/hcr/server.crt --tls-key /etc/vps-manager/hcr/server.key
-# Opción 3: Puerto directo
-# ExecStart=/etc/vps-manager/hcr/hcr-server $FINAL_PORT --tls-cert /etc/vps-manager/hcr/server.crt --tls-key /etc/vps-manager/hcr/server.key
-
+ExecStart=/etc/vps-manager/hcr/hcr-server -port $FINAL_PORT
 Restart=always
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target

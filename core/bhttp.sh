@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Instalador BHTTP Proxy - Seguro y Funcional
+# Instalador BHTTP Proxy - URL y SSL Corregidos
 # ==========================================
 C_ORANGE='\033[38;5;214m'; C_BLUE='\033[1;34m'; C_CYAN='\033[1;36m'; C_GREEN='\033[1;32m'; C_RED='\033[1;31m'; C_NC='\033[0m'
 DEFAULT_PORT=8180
@@ -14,8 +14,8 @@ systemctl stop bhttp > /dev/null 2>&1
 
 apt-get install -y python3-pam > /dev/null 2>&1
 
-# Descargar desde la ruta correcta (asumiendo que BHTTP.py está en la raíz, si está en core/ cambia la URL)
-wget -qO /etc/vps-manager/bhttp/BHTTP.py "https://raw.githubusercontent.com/golbert19/vps-script/main/BHTTP.py"
+# URL corregida apuntando a la carpeta core/
+wget -qO /etc/vps-manager/bhttp/BHTTP.py "https://raw.githubusercontent.com/golbert19/vps-script/main/core/BHTTP.py"
 
 while true; do
     read -p "$(echo -e "${C_ORANGE}Puerto de escucha [Default $DEFAULT_PORT]: ${C_NC}")" INPUT_PORT
@@ -26,9 +26,8 @@ done
 
 echo -e "\n${C_GREEN}[OK] Configurando puerto $FINAL_PORT...${C_NC}"
 
-# 1. Cambiamos el puerto
+# Inyección de puerto y apagado de SSL interno para evitar crash
 sed -i "s/\"port\": 80/\"port\": $FINAL_PORT/g" /etc/vps-manager/bhttp/BHTTP.py
-# 2. Desactivamos SSL (que causa el crash porque los certificados no existen)
 sed -i 's/"ssl": True/"ssl": False/g' /etc/vps-manager/bhttp/BHTTP.py
 
 cat << EOF > /etc/systemd/system/bhttp.service

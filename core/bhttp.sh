@@ -1,20 +1,49 @@
 #!/bin/bash
 # ==========================================
-# Instalador BHTTP Proxy - URL y SSL Corregidos
+# Gestor BHTTP Proxy - Instalación y Desinstalación
 # ==========================================
 C_ORANGE='\033[38;5;214m'; C_BLUE='\033[1;34m'; C_CYAN='\033[1;36m'; C_GREEN='\033[1;32m'; C_RED='\033[1;31m'; C_NC='\033[0m'
 DEFAULT_PORT=8180
 
 clear
 echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
-echo -e "               ${C_BLUE}INSTALACIÓN DE BHTTP${C_NC}"
+echo -e "               ${C_BLUE}GESTOR DE BHTTP PROXY${C_NC}"
 echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e " ${C_CYAN}1.${C_NC} Instalar / Cambiar Puerto BHTTP"
+echo -e " ${C_RED}2.${C_NC} Desinstalar y Liberar Puerto"
+echo -e " ${C_CYAN}0.${C_NC} Volver al Menú Principal"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+read -p " Selecciona una opción: " opcion
+
+case $opcion in
+    2)
+        echo -e "\n${C_ORANGE}Desinstalando BHTTP y liberando puerto...${C_NC}"
+        systemctl stop bhttp > /dev/null 2>&1
+        systemctl disable bhttp > /dev/null 2>&1
+        rm -f /etc/systemd/system/bhttp.service
+        rm -rf /etc/vps-manager/bhttp
+        systemctl daemon-reload
+        echo -e " ${C_GREEN}✅ BHTTP desinstalado correctamente.${C_NC}"
+        read -p " Presiona Enter para volver..."
+        exit 0
+        ;;
+    0)
+        exit 0
+        ;;
+    1)
+        echo -e "\n${C_CYAN}Iniciando instalación...${C_NC}"
+        ;;
+    *)
+        echo -e " ${C_RED}[!] Opción inválida.${C_NC}"
+        sleep 2
+        exit 1
+        ;;
+esac
+
 mkdir -p /etc/vps-manager/bhttp
 systemctl stop bhttp > /dev/null 2>&1
 
 apt-get install -y python3-pam > /dev/null 2>&1
-
-# URL corregida apuntando a la carpeta core/
 wget -qO /etc/vps-manager/bhttp/BHTTP.py "https://raw.githubusercontent.com/golbert19/vps-script/main/core/BHTTP.py"
 
 while true; do
@@ -26,7 +55,6 @@ done
 
 echo -e "\n${C_GREEN}[OK] Configurando puerto $FINAL_PORT...${C_NC}"
 
-# Inyección de puerto y apagado de SSL interno para evitar crash
 sed -i "s/\"port\": 80/\"port\": $FINAL_PORT/g" /etc/vps-manager/bhttp/BHTTP.py
 sed -i 's/"ssl": True/"ssl": False/g' /etc/vps-manager/bhttp/BHTTP.py
 

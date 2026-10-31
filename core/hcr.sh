@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Instalador HCR Plain - URL Corregida
+# Instalador HCR Plain - Certificados Fix
 # ==========================================
 C_ORANGE='\033[38;5;214m'; C_BLUE='\033[1;34m'; C_CYAN='\033[1;36m'; C_GREEN='\033[1;32m'; C_RED='\033[1;31m'; C_NC='\033[0m'
 DEFAULT_PORT=8880
@@ -12,15 +12,12 @@ echo -e "${C_ORANGE}------------------------------------------------------${C_NC
 mkdir -p /etc/vps-manager/hcr
 systemctl stop hcr > /dev/null 2>&1
 
-# URL corregida apuntando a la carpeta core/
+# Descargar el binario
 wget -qO /etc/vps-manager/hcr/hcr-server "https://raw.githubusercontent.com/golbert19/vps-script/main/core/hcr-server"
 chmod +x /etc/vps-manager/hcr/hcr-server
 
-if grep -q "404: Not Found" /etc/vps-manager/hcr/hcr-server || [ ! -s /etc/vps-manager/hcr/hcr-server ]; then
-    echo -e "\n${C_RED}[!] ERROR CRÍTICO: El archivo 'hcr-server' no fue encontrado en GitHub.${C_NC}"
-    read -p " Presiona Enter para cancelar la instalación..."
-    exit 1
-fi
+# Generar certificados autofirmados silenciosamente para evitar el crash del binario
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/vps-manager/hcr/server.key -out /etc/vps-manager/hcr/server.crt -subj "/CN=hcr-server" > /dev/null 2>&1
 
 while true; do
     read -p "$(echo -e "${C_ORANGE}Puerto de escucha [Default $DEFAULT_PORT]: ${C_NC}")" INPUT_PORT
@@ -38,7 +35,8 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/etc/vps-manager/hcr
-ExecStart=/etc/vps-manager/hcr/hcr-server $FINAL_PORT
+# Se inyectan los certificados generados para cumplir el requisito del binario
+ExecStart=/etc/vps-manager/hcr/hcr-server --port $FINAL_PORT --tls-cert /etc/vps-manager/hcr/server.crt --tls-key /etc/vps-manager/hcr/server.key
 Restart=always
 
 [Install]

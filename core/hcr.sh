@@ -12,11 +12,10 @@ echo -e "${C_ORANGE}------------------------------------------------------${C_NC
 mkdir -p /etc/vps-manager/hcr
 systemctl stop hcr > /dev/null 2>&1
 
-# URL corregida: apunta a la carpeta /core/ donde tienes alojado el archivo hcr-server
+# URL corregida apuntando a la carpeta core/
 wget -qO /etc/vps-manager/hcr/hcr-server "https://raw.githubusercontent.com/golbert19/vps-script/main/core/hcr-server"
 chmod +x /etc/vps-manager/hcr/hcr-server
 
-# Bloqueo anti-404
 if grep -q "404: Not Found" /etc/vps-manager/hcr/hcr-server || [ ! -s /etc/vps-manager/hcr/hcr-server ]; then
     echo -e "\n${C_RED}[!] ERROR CRÍTICO: El archivo 'hcr-server' no fue encontrado en GitHub.${C_NC}"
     read -p " Presiona Enter para cancelar la instalación..."

@@ -5,27 +5,48 @@
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 
-C_RED='\033[1;31m'; C_GREEN='\033[1;32m'; C_YELLOW='\033[1;33m'; C_CYAN='\033[1;36m'; C_NC='\033[0m'
+C_RED='\033[1;31m'
+C_GREEN='\033[1;32m'
+C_YELLOW='\033[1;33m'
+C_CYAN='\033[1;36m'
+C_NC='\033[0m'
 BG_RED='\033[41;1;37m'
 
 # Cargar traducciones
-[ -f /etc/vps-manager/languages.sh ] && source /etc/vps-manager/languages.sh || {
+if [ -f /etc/vps-manager/languages.sh ]; then
+    source /etc/vps-manager/languages.sh
+else
     LANG_FILE="/etc/vps-manager/lang.txt"
-    [ -f "$LANG_FILE" ] && current_lang=$(cat "$LANG_FILE") || current_lang="es"
-    if [ "$current_lang" = "en" ]; then
-        t_mgmt="[ ACCOUNT MANAGEMENT ]"; t_tools="[ TOOLS & SYSTEM ]"; t_select="Select an option: "
-    elif [ "$current_lang" = "pt" ]; then
-        t_mgmt="[ GERENCIAMENTO DE CONTAS ]"; t_tools="[ FERRAMENTAS & SISTEMA ]"; t_select="Selecione uma opção: "
+    if [ -f "$LANG_FILE" ]; then
+        current_lang=$(cat "$LANG_FILE")
     else
-        t_mgmt="[ GESTIÓN DE CUENTAS ]"; t_tools="[ HERRAMIENTAS Y SISTEMA ]"; t_select="Selecciona una opción: "
+        current_lang="es"
     fi
-}
+    
+    if [ "$current_lang" = "en" ]; then
+        t_mgmt="[ ACCOUNT MANAGEMENT ]"
+        t_tools="[ TOOLS & SYSTEM ]"
+        t_select="Select an option: "
+    elif [ "$current_lang" = "pt" ]; then
+        t_mgmt="[ GERENCIAMENTO DE CONTAS ]"
+        t_tools="[ FERRAMENTAS & SISTEMA ]"
+        t_select="Selecione uma opção: "
+    else
+        t_mgmt="[ GESTIÓN DE CUENTAS ]"
+        t_tools="[ HERRAMIENTAS Y SISTEMA ]"
+        t_select="Selecciona una opción: "
+    fi
+fi
 
 # ---------------------------------------------------------
 # SISTEMA DE VERSIONES AUTOMÁTICAS (CORREGIDO)
 # ---------------------------------------------------------
 LOCAL_VERSION="1.1"
-[ -f /etc/vps-manager/version ] && LOCAL_VERSION=$(cat /etc/vps-manager/version) || echo "$LOCAL_VERSION" > /etc/vps-manager/version
+if [ -f /etc/vps-manager/version ]; then
+    LOCAL_VERSION=$(cat /etc/vps-manager/version)
+else
+    echo "$LOCAL_VERSION" > /etc/vps-manager/version
+fi
 
 # Consulta a GitHub (Máximo 2 segundos para no demorar la carga del menú)
 REMOTE_VERSION=$(curl -sS --max-time 2 https://raw.githubusercontent.com/golbert19/vps-script/main/version 2>/dev/null)
@@ -57,9 +78,15 @@ draw_bar() {
 
 os_name=$(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)
 kernel_ver=$(uname -r)
-IP=$(curl -sS ifconfig.me 2>/dev/null || wget -qO- ipv4.icanhazip.com)
+IP=$(curl -sS ifconfig.me 2>/dev/null)
+if [ -z "$IP" ]; then
+    IP=$(wget -qO- ipv4.icanhazip.com)
+fi
+
 domain_name="No configurado"
-[ -f /etc/vps-manager/domain.txt ] && domain_name=$(cat /etc/vps-manager/domain.txt)
+if [ -f /etc/vps-manager/domain.txt ]; then
+    domain_name=$(cat /etc/vps-manager/domain.txt)
+fi
 
 while true; do
     clear
@@ -76,10 +103,10 @@ while true; do
     total_users=$(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | wc -l)
     online_users=$(ps -ef | grep -E 'sshd|dropbear' | grep -v root | grep -v grep | wc -l)
 
-    [ "$(systemctl is-active ssh)" = "active" ] && s_ssh="${C_GREEN}ON${C_NC}" || s_ssh="${C_RED}OFF${C_NC}"
-    [ "$(systemctl is-active nginx)" = "active" ] && s_nginx="${C_GREEN}ON${C_NC}" || s_nginx="${C_RED}OFF${C_NC}"
-    [ "$(systemctl is-active xray)" = "active" ] && s_xray="${C_GREEN}ON${C_NC}" || s_xray="${C_RED}OFF${C_NC}"
-    [ "$(systemctl is-active stunnel4)" = "active" ] && s_stunnel="${C_GREEN}ON${C_NC}" || s_stunnel="${C_RED}OFF${C_NC}"
+    if [ "$(systemctl is-active ssh)" = "active" ]; then s_ssh="${C_GREEN}ON${C_NC}"; else s_ssh="${C_RED}OFF${C_NC}"; fi
+    if [ "$(systemctl is-active nginx)" = "active" ]; then s_nginx="${C_GREEN}ON${C_NC}"; else s_nginx="${C_RED}OFF${C_NC}"; fi
+    if [ "$(systemctl is-active xray)" = "active" ]; then s_xray="${C_GREEN}ON${C_NC}"; else s_xray="${C_RED}OFF${C_NC}"; fi
+    if [ "$(systemctl is-active stunnel4)" = "active" ]; then s_stunnel="${C_GREEN}ON${C_NC}"; else s_stunnel="${C_RED}OFF${C_NC}"; fi
     
     if [ "$(systemctl is-active ws-python)" = "active" ] || pgrep -f "proxy.py" > /dev/null || pgrep -f "ws.py" > /dev/null; then 
         s_ws="${C_GREEN}ON${C_NC}"
@@ -97,7 +124,6 @@ while true; do
     echo -e " 🌟 ${C_YELLOW}GOLBERT VPS PREMIUM - V5.0 LTS PANEL${C_NC} 🌟"
     echo -e "${C_CYAN}================================================${C_NC}"
     
-    # Notificación visual dinámica de la versión
     if [ "$UPDATE_AVAILABLE" -eq 1 ]; then
         echo -e " ${C_GREEN}Key: Verified [ Golbert VPS ] (v${LOCAL_VERSION})${C_NC} | ${BG_RED} ¡NUEVA v${REMOTE_VERSION} DISPONIBLE! ${C_NC}"
     else
@@ -144,7 +170,14 @@ while true; do
     
     case $opcion in
         # ================= GESTIÓN DE CUENTAS =================
-        1) [ -f /etc/vps-manager/core/user.sh ] && bash /etc/vps-manager/core/user.sh || echo -e "\n${C_RED}Módulo no encontrado. Forzando descarga...${C_NC}" ; sleep 2 ;;
+        1) 
+            if [ -f /etc/vps-manager/core/user.sh ]; then
+                bash /etc/vps-manager/core/user.sh
+            else
+                echo -e "\n${C_RED}Módulo no encontrado. Forzando descarga...${C_NC}"
+                sleep 2
+            fi
+            ;;
         2)
             while true; do
                 clear
@@ -166,7 +199,14 @@ while true; do
                 esac
             done
             ;;
-        3) [ -f /etc/vps-manager/core/bot.sh ] && bash /etc/vps-manager/core/bot.sh || echo "Módulo no encontrado" ; sleep 2 ;;
+        3) 
+            if [ -f /etc/vps-manager/core/bot.sh ]; then
+                bash /etc/vps-manager/core/bot.sh
+            else
+                echo "Módulo no encontrado"
+                sleep 2
+            fi
+            ;;
         
         # ================= HERRAMIENTAS Y SISTEMA =================
         4)
@@ -194,14 +234,23 @@ while true; do
                 echo -e "${C_CYAN}================================================${C_NC}"
                 read -p "Selecciona el protocolo: " sub_op
                 case $sub_op in
-                    1) bash /etc/vps-manager/core/xray_manager.sh ;; 2) bash /etc/vps-manager/core/vmess.sh ;;
-                    3) bash /etc/vps-manager/core/vless.sh ;; 4) bash /etc/vps-manager/core/trojan.sh ;;
-                    5) bash /etc/vps-manager/core/slowdns.sh ;; 6) bash /etc/vps-manager/core/badvpn.sh ;;
-                    7) bash /etc/vps-manager/core/hcr.sh ;; 8) bash /etc/vps-manager/core/hysteria.sh ;;
-                    9) bash /etc/vps-manager/core/udp_custom.sh ;; 10) bash /etc/vps-manager/core/bhttp.sh ;;
-                    11) bash /etc/vps-manager/core/sshws.sh ;; 12) bash /etc/vps-manager/core/ssl.sh ;;
-                    13) bash /etc/vps-manager/core/setup_openvpn.sh ;; 14) bash /etc/vps-manager/core/zivpn.sh ;;
-                    15) bash /etc/vps-manager/core/bbr.sh ;; 0) break ;; *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
+                    1) bash /etc/vps-manager/core/xray_manager.sh ;; 
+                    2) bash /etc/vps-manager/core/vmess.sh ;;
+                    3) bash /etc/vps-manager/core/vless.sh ;; 
+                    4) bash /etc/vps-manager/core/trojan.sh ;;
+                    5) bash /etc/vps-manager/core/slowdns.sh ;; 
+                    6) bash /etc/vps-manager/core/badvpn.sh ;;
+                    7) bash /etc/vps-manager/core/hcr.sh ;; 
+                    8) bash /etc/vps-manager/core/hysteria.sh ;;
+                    9) bash /etc/vps-manager/core/udp_custom.sh ;; 
+                    10) bash /etc/vps-manager/core/bhttp.sh ;;
+                    11) bash /etc/vps-manager/core/sshws.sh ;; 
+                    12) bash /etc/vps-manager/core/ssl.sh ;;
+                    13) bash /etc/vps-manager/core/setup_openvpn.sh ;; 
+                    14) bash /etc/vps-manager/core/zivpn.sh ;;
+                    15) bash /etc/vps-manager/core/bbr.sh ;; 
+                    0) break ;; 
+                    *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
                 esac
             done
             ;;
@@ -221,11 +270,21 @@ while true; do
                 echo -e "${C_CYAN}================================================${C_NC}"
                 read -p "Selecciona una opción: " sys_op
                 case $sys_op in
-                    1) [ -f /etc/vps-manager/core/ports.sh ] && bash /etc/vps-manager/core/ports.sh || { netstat -tulnp | grep LISTEN; read -p "Presiona Enter para continuar..."; } ;;
-                    2) bash /etc/vps-manager/core/specs.sh ;; 3) bash /etc/vps-manager/core/firewall.sh ;;
-                    4) bash /etc/vps-manager/core/fix_ports.sh ;; 5) bash /etc/vps-manager/core/checkuser.sh ;;
+                    1) 
+                        if [ -f /etc/vps-manager/core/ports.sh ]; then
+                            bash /etc/vps-manager/core/ports.sh
+                        else
+                            netstat -tulnp | grep LISTEN
+                            read -p "Presiona Enter para continuar..."
+                        fi
+                        ;;
+                    2) bash /etc/vps-manager/core/specs.sh ;; 
+                    3) bash /etc/vps-manager/core/firewall.sh ;;
+                    4) bash /etc/vps-manager/core/fix_ports.sh ;; 
+                    5) bash /etc/vps-manager/core/checkuser.sh ;;
                     6) echo "Auto-Start configurado." ; sleep 2 ;;
-                    0) break ;; *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
+                    0) break ;; 
+                    *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
                 esac
             done
             ;;
@@ -243,9 +302,12 @@ while true; do
                 echo -e "${C_CYAN}================================================${C_NC}"
                 read -p "Selecciona una opción: " web_op
                 case $web_op in
-                    1) bash /etc/vps-manager/core/domain.sh ;; 2) bash /etc/vps-manager/core/webpanel.sh ;;
-                    3) bash /etc/vps-manager/core/bot.sh ;; 4) bash /etc/vps-manager/core/banner.sh ;;
-                    0) break ;; *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
+                    1) bash /etc/vps-manager/core/domain.sh ;; 
+                    2) bash /etc/vps-manager/core/webpanel.sh ;;
+                    3) bash /etc/vps-manager/core/bot.sh ;; 
+                    4) bash /etc/vps-manager/core/banner.sh ;;
+                    0) break ;; 
+                    *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
                 esac
             done
             ;;
@@ -266,13 +328,16 @@ while true; do
                     2)
                         echo -e "\n1. 🇪🇸 Español | 2. 🇺🇸 English | 3. 🇧🇷 Português"
                         read -p "Opción: " lang_op
-                        [ "$lang_op" = "1" ] && echo "es" > /etc/vps-manager/lang.txt
-                        [ "$lang_op" = "2" ] && echo "en" > /etc/vps-manager/lang.txt
-                        [ "$lang_op" = "3" ] && echo "pt" > /etc/vps-manager/lang.txt
-                        echo -e "${C_GREEN}[✔] Idioma actualizado.${C_NC}"; sleep 1; break
+                        if [ "$lang_op" = "1" ]; then echo "es" > /etc/vps-manager/lang.txt; fi
+                        if [ "$lang_op" = "2" ]; then echo "en" > /etc/vps-manager/lang.txt; fi
+                        if [ "$lang_op" = "3" ]; then echo "pt" > /etc/vps-manager/lang.txt; fi
+                        echo -e "${C_GREEN}[✔] Idioma actualizado.${C_NC}"
+                        sleep 1
+                        break
                         ;;
                     3) bash /etc/vps-manager/core/php.sh ;;
-                    0) break ;; *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
+                    0) break ;; 
+                    *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
                 esac
             done
             ;;
@@ -281,10 +346,14 @@ while true; do
                 bash /etc/vps-manager/core/update.sh
                 exit 0
             else
-                echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1
+                echo -e "${C_RED}Opción inválida.${C_NC}"
+                sleep 1
             fi
             ;;
-        88) read -p "¿Desinstalar script? (s/n): " des; [ "$des" = "s" ] && exit 0 ;;
+        88) 
+            read -p "¿Desinstalar script? (s/n): " des
+            if [ "$des" = "s" ]; then exit 0; fi
+            ;;
         0) clear ; exit 0 ;;
         *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
     esac

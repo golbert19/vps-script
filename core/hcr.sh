@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Instalador HCR Plain - Seguro (Nombre Corregido)
+# Instalador HCR Plain - URL Corregida
 # ==========================================
 C_ORANGE='\033[38;5;214m'; C_BLUE='\033[1;34m'; C_CYAN='\033[1;36m'; C_GREEN='\033[1;32m'; C_RED='\033[1;31m'; C_NC='\033[0m'
 DEFAULT_PORT=8880
@@ -12,14 +12,13 @@ echo -e "${C_ORANGE}------------------------------------------------------${C_NC
 mkdir -p /etc/vps-manager/hcr
 systemctl stop hcr > /dev/null 2>&1
 
-# Descargar el binario con el nombre EXACTO que tienes en tu GitHub
-wget -qO /etc/vps-manager/hcr/hcr-server "https://raw.githubusercontent.com/golbert19/vps-script/main/hcr-server"
+# URL corregida: apunta a la carpeta /core/ donde tienes alojado el archivo hcr-server
+wget -qO /etc/vps-manager/hcr/hcr-server "https://raw.githubusercontent.com/golbert19/vps-script/main/core/hcr-server"
 chmod +x /etc/vps-manager/hcr/hcr-server
 
-# -- Bloqueo de Seguridad Anti-404 --
+# Bloqueo anti-404
 if grep -q "404: Not Found" /etc/vps-manager/hcr/hcr-server || [ ! -s /etc/vps-manager/hcr/hcr-server ]; then
     echo -e "\n${C_RED}[!] ERROR CRÍTICO: El archivo 'hcr-server' no fue encontrado en GitHub.${C_NC}"
-    echo -e "Asegúrate de haber subido el archivo extraído como 'hcr-server' y no el .tar.gz."
     read -p " Presiona Enter para cancelar la instalación..."
     exit 1
 fi
@@ -40,7 +39,6 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/etc/vps-manager/hcr
-# Ejecutamos TU binario hcr-server enviando el puerto 
 ExecStart=/etc/vps-manager/hcr/hcr-server $FINAL_PORT
 Restart=always
 
@@ -51,7 +49,7 @@ EOF
 systemctl daemon-reload
 systemctl enable hcr >/dev/null 2>&1
 systemctl restart hcr
-sleep 1
+sleep 2
 
 if systemctl is-active --quiet hcr; then
     echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
@@ -59,6 +57,6 @@ if systemctl is-active --quiet hcr; then
     echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
 else
     echo -e "\n${C_RED}[!] Error: El servicio HCR colapsó.${C_NC}"
-    journalctl -u hcr -n 5 --no-pager
+    journalctl -u hcr -n 10 --no-pager
 fi
 read -p " Presiona Enter para volver..."

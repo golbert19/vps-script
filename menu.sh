@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Panel Principal - Golbert VPS V5.0 LTS (Anti-Errors UI)
+# Panel Principal - Golbert VPS V5.0 LTS (Anti-Bounce UI)
 # ==========================================
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
@@ -129,10 +129,9 @@ while true; do
     read -p " $t_select" opcion
     
     case $opcion in
-        # === RUTINAS SEGURAS SIN SÍMBOLOS QUE ROMPAN EL TELÉFONO ===
         1) 
             if [ -f /etc/vps-manager/core/user.sh ]; then
-                bash /etc/vps-manager/core/user.sh
+                bash /etc/vps-manager/core/user.sh || { echo -e "\n${C_RED}Script falló o tiene formato corrupto.${C_NC}"; read -p "Presiona Enter..."; }
             else
                 echo -e "\n${C_RED}Módulo SSH no encontrado. Actualiza el panel.${C_NC}"; sleep 2
             fi
@@ -150,15 +149,9 @@ while true; do
                 echo -e "${C_CYAN}================================================${C_NC}"
                 read -p "Selecciona una opción: " xray_op
                 case $xray_op in
-                    1) 
-                        if [ -f /etc/vps-manager/core/vmess.sh ]; then bash /etc/vps-manager/core/vmess.sh; else echo -e "${C_RED}Módulo VMess no encontrado${C_NC}"; sleep 1; fi 
-                        ;;
-                    2) 
-                        if [ -f /etc/vps-manager/core/vless.sh ]; then bash /etc/vps-manager/core/vless.sh; else echo -e "${C_RED}Módulo VLESS no encontrado${C_NC}"; sleep 1; fi 
-                        ;;
-                    3) 
-                        if [ -f /etc/vps-manager/core/trojan.sh ]; then bash /etc/vps-manager/core/trojan.sh; else echo -e "${C_RED}Módulo Trojan no encontrado${C_NC}"; sleep 1; fi 
-                        ;;
+                    1) if [ -f /etc/vps-manager/core/vmess.sh ]; then bash /etc/vps-manager/core/vmess.sh || read -p "Error. Presiona Enter..."; else echo -e "${C_RED}Módulo no encontrado${C_NC}"; sleep 1; fi ;;
+                    2) if [ -f /etc/vps-manager/core/vless.sh ]; then bash /etc/vps-manager/core/vless.sh || read -p "Error. Presiona Enter..."; else echo -e "${C_RED}Módulo no encontrado${C_NC}"; sleep 1; fi ;;
+                    3) if [ -f /etc/vps-manager/core/trojan.sh ]; then bash /etc/vps-manager/core/trojan.sh || read -p "Error. Presiona Enter..."; else echo -e "${C_RED}Módulo no encontrado${C_NC}"; sleep 1; fi ;;
                     0) break ;;
                     *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
                 esac
@@ -166,7 +159,7 @@ while true; do
             ;;
         3) 
             if [ -f /etc/vps-manager/core/bot.sh ]; then
-                bash /etc/vps-manager/core/bot.sh
+                bash /etc/vps-manager/core/bot.sh || read -p "Error interno en bot.sh. Presiona Enter..."
             else
                 echo -e "\n${C_RED}Módulo Bot no encontrado.${C_NC}"; sleep 2
             fi

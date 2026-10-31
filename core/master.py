@@ -24,11 +24,12 @@ DOMAIN = config.get("DOMAIN", "")
 
 AUTH_FILE = "/root/master_bot/auth_users.txt"
 CREDITS_FILE = "/root/master_bot/credits.txt"
+KEYS_FILE = "/root/master_bot/keys_db.txt"
 bot = telebot.TeleBot(TOKEN)
 
 # COORDENADAS UNICODE
 BTN_KEY_D = "\U0001F511 Key Due\u00f1o"
-BTN_KEY_R = "\U0001F91D Key Revendedor"
+BTN_BROADCAST = "\U0001F4E2 Mensaje"
 BTN_KEY_CLIENT = "\U0001F511 Generar Key"
 BTN_ESTADO = "\U0001F4CA Estado"
 BTN_DOM_MIS = "\U0001F4C1 Mis Dominios"
@@ -76,6 +77,45 @@ def save_credits(creds):
         for u, c in creds.items():
             f.write(f"{u}:{c}\n")
 
+def save_key_owner(key, owner_id):
+    with open(KEYS_FILE, "a") as f:
+        f.write(f"{key}:{owner_id}\n")
+
+def check_and_burn_key(key):
+    if not os.path.exists(KEYS_FILE):
+        return None
+    lines = []
+    owner_id = None
+    with open(KEYS_FILE, "r") as f:
+        for line in f:
+            parts = line.strip().split(":")
+            if len(parts) == 2:
+                k, o = parts
+                if k == key:
+                    owner_id = o
+                else:
+                    lines.append(line)
+    if owner_id:
+        with open(KEYS_FILE, "w") as f:
+            f.writelines(lines)
+    return owner_id
+
+def notify_key_usage(key_used, vps_ip="Desconocida"):
+    owner_id = check_and_burn_key(key_used)
+    if owner_id:
+        try:
+            bot.send_message(
+                owner_id,
+                "🔔 <b>¡AVISO DE KEY USADA!</b>\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                f"🔑 La Key: <code>{key_used}</code>\n"
+                f"🌐 Ha sido utilizada e instalada en la IP: <code>{vps_ip}</code>\n"
+                "━━━━━━━━━━━━━━━━━━━━",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            print(f"Error enviando notificación al usuario {owner_id}: {e}")
+
 def is_auth(uid):
     if uid == ADMIN_ID: return True
     users = load_auth()
@@ -86,7 +126,7 @@ def is_auth(uid):
 
 def get_keyboard():
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    markup.add(BTN_KEY_D, BTN_KEY_R)
+    markup.add(BTN_KEY_D, BTN_BROADCAST)
     markup.add(BTN_ADD_USR, BTN_RENEW, BTN_DEL)
     markup.add(BTN_FIND, BTN_CLIENTS)
     markup.add(BTN_ESTADO, BTN_IPS)
@@ -104,7 +144,7 @@ def get_client_keyboard():
     return markup
 
 def is_menu_button(text):
-    return text in [BTN_KEY_D, BTN_KEY_R, BTN_KEY_CLIENT, BTN_ESTADO, BTN_DOM_MIS, BTN_DOM_A, BTN_DOM_NS, BTN_HIST, BTN_USO, BTN_ID, BTN_ADD_USR, BTN_RENEW, BTN_DEL, BTN_FIND, BTN_LOGS, BTN_RANK, BTN_CLIENTS, BTN_IPS]
+    return text in [BTN_KEY_D, BTN_BROADCAST, BTN_KEY_CLIENT, BTN_ESTADO, BTN_DOM_MIS, BTN_DOM_A, BTN_DOM_NS, BTN_HIST, BTN_USO, BTN_ID, BTN_ADD_USR, BTN_RENEW, BTN_DEL, BTN_FIND, BTN_LOGS, BTN_RANK, BTN_CLIENTS, BTN_IPS]
 
 def cf_api_call(method, endpoint, data=None):
     url = f"https://api.cloudflare.com/client/v4/zones/{CF_ZONE}/{endpoint}"
@@ -198,6 +238,7 @@ def handle_message(message):
         if text == BTN_KEY_CLIENT:
             new_key = "VPS-" + str(uuid.uuid4()).upper().replace("-", "")[:12]
             new_key = f"{new_key[:4]}-{new_key[4:8]}-{new_key[8:12]}"
+            save_key_owner(new_key, uid)
             exp_date = load_auth().get(uid, "Desconocido")
             msg = (
                 "✅ <b>KEY GENERADA</b>\n"
@@ -221,6 +262,7 @@ def handle_message(message):
     if text == BTN_KEY_D:
         new_key = "VPS-" + str(uuid.uuid4()).upper().replace("-", "")[:12]
         new_key = f"{new_key[:4]}-{new_key[4:8]}-{new_key[8:12]}"
+        save_key_owner(new_key, uid)
         msg = (
             "✅ <b>KEY GENERADA (DUEÑO)</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
@@ -236,9 +278,10 @@ def handle_message(message):
         )
         bot.reply_to(message, msg, parse_mode="HTML")
 
-    elif text == BTN_KEY_R:
-        msg = bot.reply_to(message, "\U0001F91D <b>Key de Instalación por Días</b>\nIngresa los <b>DÍAS</b> de validez para esta instalación.\nEjemplo: <code>30</code>", parse_mode="HTML")
-        bot.register_next_step_handler(msg, process_key_revendedor)
+    elif text == BTN_BROADCAST:
+        msg = bot.reply_to(message, "📢 <b>Enviar Anuncio / Mensaje Masivo</b>\nEnvía el texto que deseas que llegue a todos los usuarios y revendedores registrados:", parse_mode="HTML")
+        bot.register_next_step_handler(msg, process_broadcast)
+        return
 
     elif text == BTN_DOM_MIS:
         resp = cf_api_call("GET", "dns_records")
@@ -365,7 +408,6 @@ def process_renew_cliente(message):
         creds[uid] -= 1
         save_credits(creds)
         
-        # Calcular nueva fecha de vencimiento sumando a la actual o desde hoy si ya caducó
         current_exp = datetime.datetime.strptime(users[target_id], "%Y-%m-%d")
         if current_exp < datetime.datetime.now():
             current_exp = datetime.datetime.now()
@@ -406,30 +448,20 @@ def process_find_user(message):
     else:
         bot.reply_to(message, f"\u274C El ID <code>{target_id}</code> no está registrado.", parse_mode="HTML")
 
-def process_key_revendedor(message):
+def process_broadcast(message):
     if is_menu_button(message.text): return handle_message(message)
-    try:
-        days = int(message.text.strip())
-        new_key = "VPS-" + str(uuid.uuid4()).upper().replace("-", "")[:12]
-        new_key = f"{new_key[:4]}-{new_key[4:8]}-{new_key[8:12]}"
-        exp_date = (datetime.datetime.now() + datetime.timedelta(days=days)).strftime("%Y-%m-%d")
-        username = message.from_user.username or "Usuario"
-        msg = (
-            "✅ <b>KEY GENERADA (REVENDEDOR)</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            f"👤 <b>Vendedor:</b> @{username} (ID: <code>{message.from_user.id}</code>)\n"
-            f"🔑 <b>Key:</b> <code>{new_key}</code>\n"
-            f"⏳ <b>Vence:</b> {exp_date} ({days} Días)\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "⚠️ Compatible con Ubuntu (22.04, 24.04, 26.04) y las últimas versiones de Debian (11 y 12).\n"
-            "👨‍💻 <b>Dueño:</b> @golbertperuvps\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "💻 <b>Instalación:</b>\n"
-            "<code>apt update -y && apt install -y wget && wget -O install.sh https://script.golbertvps.org.pe && chmod +x install.sh && ./install.sh</code>"
-        )
-        bot.reply_to(message, msg, parse_mode="HTML")
-    except ValueError:
-        bot.reply_to(message, "❌ Error. Ingresa solo un número (Ej: 30).", parse_mode="HTML")
+    announcement = message.text
+    users = load_auth()
+    count = 0
+    
+    for target_id in users.keys():
+        try:
+            bot.send_message(target_id, f"📢 <b>AVISO IMPORTANTE</b>\n━━━━━━━━━━━━━━━━━━━━\n{announcement}", parse_mode="HTML")
+            count += 1
+        except:
+            pass
+            
+    bot.reply_to(message, f"✅ Mensaje enviado exitosamente a <b>{count}</b> usuarios.", parse_mode="HTML")
 
 # ==========================================
 # RUTINAS CLOUDFLARE

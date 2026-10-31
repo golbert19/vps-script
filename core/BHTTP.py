@@ -24,6 +24,7 @@ import select
 import os
 import ssl
 import traceback
+import sys
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Tuple
 
@@ -166,15 +167,9 @@ class Session:
     banner_delivered: bool = False
     download_buffer: bytearray = field(default_factory=bytearray)
     upload_pending: Dict[int, bytes] = field(default_factory=dict)
-    # The empty registration request and the first SSH data chunk both use
-    # sequence zero.  Registration is out-of-band and must not advance this.
     upload_next_seq: int = 0
     first_upload_logged: bool = False
     lock: threading.RLock = field(default_factory=threading.RLock)
-    # Download requests race across several TCP connections.  Lite reassembles
-    # their slots by numeric sequence, so records must be assigned in numeric
-    # order rather than handler-arrival order. Retain every non-empty assigned
-    # slot until MODE_ACK so a retried HTTP request receives identical bytes.
     download_next_seq: int = 0
     download_acked_seq: int = -1
     download_closed: bool = False
@@ -189,7 +184,6 @@ class Session:
         self.download_order = threading.Condition(self.download_order_lock)
 
     def acknowledge_download(self, seq: int):
-        """Release replay data only after Lite confirms consuming those slots."""
         with self.download_order:
             if seq <= self.download_acked_seq:
                 return
@@ -199,7 +193,6 @@ class Session:
                 self.download_frames.pop(number, None)
 
     def open_target(self, host: str, port: int) -> bool:
-        """Open SSH as soon as the empty upload seq=0 registers the session."""
         with self.lock:
             if self.target is not None:
                 return True
@@ -254,7 +247,6 @@ class Session:
             )
 
     def write_upload(self, seq: int, payload: bytes):
-        """Reorder upload chunks without reinterpreting the byte stream."""
         with self.lock:
             tag = self.sid.hex()[:8]
             log.debug(
@@ -281,8 +273,6 @@ class Session:
                             line,
                         )
                     else:
-                        # This is restricted to the very first pre-authentication
-                        # chunk.  Never log later encrypted SSH traffic/credentials.
                         log.warning(
                             "[%s] First SSH upload is not an identification "
                             "line (seq=%d, len=%d, prefix=%s)",
@@ -303,15 +293,12 @@ class Session:
                 self.last_seen = time.time()
 
     def take_download(self, seq: int, size: int, banner_timeout: float = 5.0) -> bytes:
-        """Map requested slots onto the SSH byte FIFO, not onto SSH chunk indexes."""
         size = min(max(size, 1), 524284)
         deadline = time.monotonic() + banner_timeout
         with self.ready:
-            # Prefetch windows must never steal the SSH identification banner.
             if not self.banner_delivered and seq != 0:
                 return b""
 
-            # Only slot zero may wait, and only for the initial SSH banner.
             while not self.download_buffer and not self.target_eof:
                 if self.banner_delivered:
                     return b""
@@ -354,7 +341,6 @@ class Session:
 # ─── Authentication ───────────────────────────────────────────────────────────
 
 def auth_system(username: str, password: str) -> bool:
-    """Authenticate via PAM (Linux system accounts)."""
     try:
         import pam
         p = pam.pam()
@@ -364,7 +350,6 @@ def auth_system(username: str, password: str) -> bool:
         return auth_dict(username, password)
 
 def auth_dict(username: str, password: str) -> bool:
-    """Authenticate against static user dictionary."""
     users = CONFIG.get("users", {})
     return users.get(username) == password
 
@@ -376,10 +361,6 @@ def authenticate(username: str, password: str) -> bool:
 # ─── BHTTP Frame I/O ──────────────────────────────────────────────────────────
 
 def read_bhttp_frame_buf(sock: socket.socket, buf: bytes) -> Tuple[int, bytes, int, bytes, bytes]:
-    """
-    Read one BHTTP frame, using a pushback buffer.
-    Returns: (mode, sid, seq, payload, remaining_buf)
-    """
     while len(buf) < HEADER_SIZE:
         chunk = sock.recv(4096)
         if not chunk:
@@ -391,8 +372,6 @@ def read_bhttp_frame_buf(sock: socket.socket, buf: bytes) -> Tuple[int, bytes, i
     sid = header[1:17]
     seq = struct.unpack(">Q", header[17:25])[0]
     length = struct.unpack(">I", header[25:29])[0]
-    # Download and ACK overload this field as a size hint / acknowledged
-    # sequence and do not carry a request body.
     if mode in (MODE_DOWNLOAD, MODE_ACK):
         return mode, sid, seq, b"", buf
     while len(buf) < length:
@@ -405,7 +384,6 @@ def read_bhttp_frame_buf(sock: socket.socket, buf: bytes) -> Tuple[int, bytes, i
     return mode, sid, seq, payload, buf
 
 def send_bhttp_status(sock: socket.socket, status: int, data: bytes = b""):
-    """Send a BHTTP status response (5-byte header + optional body)."""
     sock.sendall(struct.pack(">BI", status, len(data)) + data)
 
 def send_bhttp_download(
@@ -415,17 +393,12 @@ def send_bhttp_download(
     mode: int = MODE_DOWNLOAD,
     seq: int = 0,
 ):
-    """
-    Send a BHTTP download frame (MODE_DOWNLOAD=2 status packet).
-    Format: [1B status=2][4B total_len] [4B plaintext_len][encrypted_data]
-    """
     enc = bhttp_crypt(data, sid, mode, seq, True)
     payload = struct.pack(">I", len(data)) + enc
     sock.sendall(struct.pack(">BI", STATUS_DATA, len(payload)) + payload)
 
 
 def handle_bhttp_probe(conn: socket.socket):
-    """Handle the encrypted BHP1 path-capability probe used by bhttp clients."""
     mode, sid, seq, encrypted, _ = read_bhttp_frame_buf(conn, b"")
     if mode != MODE_PROBE:
         raise ValueError(f"Expected BHTTP probe mode, got {mode}")
@@ -470,8 +443,6 @@ def handle_bhttp_probe(conn: socket.socket):
 # ─── Legacy Handler ─────────────────────────────────────────────────────────
 
 class SessionHandler:
-    """Handles a single BHTTP connection (upload + download multiplexed)."""
-
     def __init__(self, conn: socket.socket, addr, sessions: dict, ip_pool: IPPool, extra_bytes: bytes = b""):
         self.conn = conn
         self.addr = addr
@@ -482,10 +453,6 @@ class SessionHandler:
 
     def get_session(self, sid: bytes) -> Session:
         sid_hex = sid.hex()
-        # Registration and the four initial download windows arrive on
-        # different TCP connections.  Their first requests can race, so session
-        # creation must be atomic or one connection may replace the SSH-backed
-        # Session created by another.
         with SESSIONS_LOCK:
             session = self.sessions.get(sid_hex)
             if session is None:
@@ -501,7 +468,6 @@ class SessionHandler:
                 session = self.get_session(sid)
                 session.last_seen = time.time()
 
-                # Decrypt upload payload (client sends with isr=False)
                 payload = b""
                 if enc_payload and mode == MODE_UPLOAD:
                     payload = bhttp_crypt(enc_payload, sid, mode, seq, False)
@@ -521,18 +487,10 @@ class SessionHandler:
                             chunk = session.take_download(seq, 65536)
                             if chunk:
                                 session.download_frames[seq] = chunk
-                            # Commit the slot before writing the TCP response.
-                            # If send() fails, a retry must replay this exact
-                            # assignment rather than consume fresh SSH bytes.
                             session.download_next_seq += 1
                             session.download_order.notify_all()
                         else:
-                            # Missing cached data in an already committed slot
-                            # means that slot was empty (or already ACKed).
                             chunk = session.download_frames.get(seq, b"")
-                        # An unavailable slot is an empty DATA frame. STATUS_OK
-                        # is only the control response for upload/ACK; using it
-                        # here makes Lite lose the slot position in its window.
                         send_bhttp_download(
                             self.conn, session.sid, chunk, mode, seq
                         )
@@ -553,9 +511,6 @@ class SessionHandler:
                         chunk_size,
                     )
                     nonempty = []
-                    # Requests arrive out of order on concurrent TCP handlers,
-                    # but Lite consumes slots numerically.  Do not assign any
-                    # SSH bytes until this is the next numeric window.
                     with session.download_order:
                         while (
                             seq > session.download_next_seq
@@ -573,8 +528,6 @@ class SessionHandler:
                                 if chunk:
                                     session.download_frames[current_seq] = chunk
                             else:
-                                # An old missing entry was committed empty (or
-                                # its data was released by a client ACK).
                                 chunk = session.download_frames.get(
                                     current_seq, b""
                                 )
@@ -582,15 +535,10 @@ class SessionHandler:
                             if chunk:
                                 nonempty.append((current_seq, len(chunk)))
                         if is_new:
-                            # Commit the complete numeric window before any TCP
-                            # writes. A partially delivered response can then be
-                            # retried without remapping the SSH byte stream.
                             session.download_next_seq += count
                             session.download_order.notify_all()
                         for offset, chunk in enumerate(chunks):
                             current_seq = seq + offset
-                            # Always return exactly `count` DATA responses,
-                            # including a four-byte zero length for empty slots.
                             send_bhttp_download(
                                 self.conn, session.sid, chunk, mode, current_seq
                             )
@@ -618,17 +566,10 @@ class SessionHandler:
         finally:
             self.conn.close()
 
-
-    # ── Upload (client → server) ──────────────────────────────────────────────
-
     def _handle_upload(self, session: Session, seq: int, payload: bytes):
         sid = session.sid
         tag = sid.hex()[:8]
 
-        # Only an *empty* seq=0 is the session registration.  Lite later sends
-        # the client SSH identification as a data-bearing seq=0.  Treating all
-        # seq=0 requests as registration drops that identification and lets the
-        # queued seq=1 KEXINIT reach sshd first.
         if seq == 0 and not payload:
             target = CONFIG["proxy"]["target"]
             if session.open_target(target["host"], target["port"]):
@@ -663,7 +604,6 @@ class SessionHandler:
             )
             return
 
-        # Parse credentials
         try:
             body = payload[len(b"BHTTP/1.1 CLIENT_HELLO"):].lstrip(b"\n\r ")
             creds = json.loads(body)
@@ -673,16 +613,13 @@ class SessionHandler:
             log.warning(f"[{tag}] Malformed handshake JSON: {e}")
             return
 
-        # Authenticate
         if not authenticate(username, password):
             log.warning(f"[{tag}] Authentication failed for user '{username}'")
-            # Queue AUTH_FAILED server hello
             err_resp = json.dumps({"status": False, "message": "authentication failed"}).encode()
             resp = b"BHTTP/1.1 SERVER_HELLO\n" + struct.pack(">I", len(err_resp)) + err_resp
             session.download_queue += resp
             return
 
-        # Assign virtual IP
         assigned_ip = self.ip_pool.assign(session.sid.hex())
         session.authenticated = True
         session.username = username
@@ -690,7 +627,6 @@ class SessionHandler:
 
         log.info(f"[{tag}] Authentication succeeded for '{username}', IP={assigned_ip}")
 
-        # Queue SERVER_HELLO
         hello_data = json.dumps({
             "status": True,
             "message": "authentication succeeded",
@@ -699,7 +635,6 @@ class SessionHandler:
             "gateway": self.ip_pool.gateway,
         }).encode()
         resp = b"BHTTP/1.1 SERVER_HELLO\n" + struct.pack(">I", len(hello_data)) + hello_data
-        # SERVER_HELLO is consumed by the client's download pollers.
         session.download_queue += resp
 
     def _handle_legacy_packet(self, session: Session, payload: bytes):
@@ -726,13 +661,7 @@ class SessionHandler:
         else:
             log.debug(f"[{tag}] Unknown packet type {pkt_type}")
 
-    # ── Legacy Packet Handlers ────────────────────────────────────────────────
-
     def _on_pkt_auth(self, session: Session, stream_id: int, payload: bytes):
-        """
-        AUTH packet: client requests a new TCP proxy stream.
-        Payload format: [null-terminated host]\0[2B port_be]
-        """
         tag = session.sid.hex()[:8]
         try:
             null_idx = payload.index(b"\x00")
@@ -750,7 +679,6 @@ class SessionHandler:
         ).start()
 
     def _on_pkt_data(self, session: Session, stream_id: int, payload: bytes):
-        """DATA packet: forward payload to existing proxied TCP stream."""
         tag = session.sid.hex()[:8]
         sock = session.streams.get(stream_id)
         if sock is None:
@@ -762,14 +690,12 @@ class SessionHandler:
             session.streams.pop(stream_id, None)
 
     def _on_pkt_keepalive(self, session: Session, stream_id: int):
-        """KEEPALIVE: respond in-band with KEEPALIVE."""
         tag = session.sid.hex()[:8]
         log.debug(f"[{tag}] KeepAlive (stream={stream_id})")
         resp_pkt = encode_packet(PKT_KEEPALIVE, stream_id, b"")
         session.download_queue += resp_pkt
 
     def _on_pkt_disconnect(self, session: Session, stream_id: int):
-        """DISCONNECT: close the proxied TCP stream."""
         tag = session.sid.hex()[:8]
         log.info(f"[{tag}] Disconnect stream {stream_id}")
         sock = session.streams.pop(stream_id, None)
@@ -780,27 +706,19 @@ class SessionHandler:
                 pass
 
     def _on_pkt_ip(self, session: Session, stream_id: int, payload: bytes):
-        """IP packet: write raw IP to TUN interface (VPN mode)."""
         tag = session.sid.hex()[:8]
         if CONFIG["server"]["tun"].get("enabled"):
             self._write_tun(payload)
         else:
             log.debug(f"[{tag}] IP packet received (TUN disabled), {len(payload)}B")
 
-    # ── Proxy Stream ──────────────────────────────────────────────────────────
-
     def _proxy_stream(self, session: Session, stream_id: int, host: str, port: int):
-        """
-        Open a TCP connection to host:port and relay data bidirectionally
-        through legacy DATA packets in the session download queue.
-        """
         tag = session.sid.hex()[:8]
         try:
             remote = socket.create_connection((host, port), timeout=10)
             remote.setblocking(False)
         except OSError as e:
             log.warning(f"[{tag}] Stream {stream_id}: connect {host}:{port} failed: {e}")
-            # Send DISCONNECT back to client
             disc = encode_packet(PKT_DISCONNECT, stream_id, b"")
             with session.lock:
                 session.download_queue += disc
@@ -815,7 +733,6 @@ class SessionHandler:
             while True:
                 rlist, _, _ = select.select([remote], [], [], 30)
                 if not rlist:
-                    # Timeout: send keepalive
                     ka = encode_packet(PKT_KEEPALIVE, stream_id, b"")
                     with session.lock:
                         session.download_queue += ka
@@ -842,10 +759,7 @@ class SessionHandler:
                 session.download_queue += disc
             log.info(f"[{tag}] Stream {stream_id}: closed")
 
-    # ── Download (server → client) ────────────────────────────────────────────
-
     def _handle_download(self, session: Session, seq: int, _enc_payload: bytes):
-        """Client polling for buffered download data."""
         if session.download_queue:
             chunk = session.download_queue[:65536]
             session.download_queue = session.download_queue[len(chunk):]
@@ -854,7 +768,6 @@ class SessionHandler:
             send_bhttp_status(self.conn, STATUS_OK)
 
     def _handle_batch(self, session: Session, seq: int):
-        """Batch download request - return queued data or empty."""
         if session.download_queue:
             chunk = session.download_queue[:65536]
             session.download_queue = session.download_queue[len(chunk):]
@@ -863,13 +776,10 @@ class SessionHandler:
             send_bhttp_status(self.conn, STATUS_OK)
 
     def _handle_ack(self, session: Session):
-        """Session teardown."""
         tag = session.sid.hex()[:8]
         log.info(f"[{tag}] Session ACK/destroy for user '{session.username}'")
         self.ip_pool.release(session.sid.hex())
         send_bhttp_status(self.conn, STATUS_OK)
-
-    # ── TUN interface ─────────────────────────────────────────────────────────
 
     def _write_tun(self, data: bytes):
         tun_name = CONFIG["server"]["tun"]["name"]
@@ -880,13 +790,9 @@ class SessionHandler:
         except OSError as e:
             log.debug(f"TUN write error: {e}")
 
-
 # ─── HTTP/WebSocket Upgrade Proxy ────────────────────────────────────────────
 
 def handle_http_upgrade(conn: socket.socket) -> Tuple[bool, bytes]:
-    """
-    Reads HTTP request up to \r\n\r\n. Returns (success, extra_bytes).
-    """
     try:
         buf = b""
         while b"\r\n\r\n" not in buf:
@@ -910,7 +816,6 @@ def handle_http_upgrade(conn: socket.socket) -> Tuple[bool, bytes]:
     )
     return True, extra
 
-
 # ─── Client Thread ────────────────────────────────────────────────────────────
 
 def handle_client(conn: socket.socket, addr, sessions: dict, ip_pool: IPPool):
@@ -920,7 +825,6 @@ def handle_client(conn: socket.socket, addr, sessions: dict, ip_pool: IPPool):
             conn.close()
             return
 
-        # Handle BHTTP v1 probe (mode=0)
         if first[0] == 0:
             handle_bhttp_probe(conn)
             conn.close()
@@ -938,7 +842,6 @@ def handle_client(conn: socket.socket, addr, sessions: dict, ip_pool: IPPool):
     except Exception as e:
         log.debug(f"Client error ({addr}): {e}")
         conn.close()
-
 
 # ─── Listener ─────────────────────────────────────────────────────────────────
 
@@ -981,11 +884,9 @@ def start_listener(host: str, port: int, use_ssl: bool, sessions: dict, ip_pool:
         except Exception as e:
             log.error(f"Accept error: {e}")
 
-
 # ─── Session Cleanup ─────────────────────────────────────────────────────────
 
 def cleanup_sessions(sessions: dict, ip_pool: IPPool, timeout: int = 120):
-    """Periodically remove stale sessions."""
     while True:
         time.sleep(30)
         now = time.time()
@@ -999,23 +900,25 @@ def cleanup_sessions(sessions: dict, ip_pool: IPPool, timeout: int = 120):
                 ip_pool.release(k)
                 log.info(f"[Cleanup] Removed stale SSH session {k[:8]}")
 
-
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
+    # --- MODIFICACIÓN DE PUERTO DINÁMICO ---
+    if len(sys.argv) > 1 and sys.argv[1].isdigit():
+        CONFIG["proxy"]["listen"][0]["port"] = int(sys.argv[1])
+    # ---------------------------------------
+
     log.info("BHTTP starting...")
 
     ip_pool = IPPool(CONFIG["server"]["virtual_subnet_cidr"])
     sessions: Dict[str, Session] = {}
 
-    # Start session cleaner
     threading.Thread(
         target=cleanup_sessions,
         args=(sessions, ip_pool),
         daemon=True,
     ).start()
 
-    # Start listeners
     listeners = CONFIG["proxy"]["listen"]
     threads = []
     for lst in listeners:
@@ -1039,4 +942,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

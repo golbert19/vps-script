@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Instalador Principal - UI Premium + AutoStart
+# Instalador Principal - UI Premium + AutoStart Fix
 # ==========================================
 C_RED='\033[1;31m'
 C_GREEN='\033[1;32m'
@@ -68,6 +68,14 @@ for pkg in "${paquetes[@]}"; do
     echo -e " - [ ${C_GREEN}✅${C_NC} ] INSTALACION CORRECTA $pkg_upper"
     sleep 0.3
 done
+
+# --- SOLUCIÓN: Descargar el menú al sistema antes de reiniciar ---
+echo -e "\n${C_ORANGE}======================================================${C_NC}"
+echo -e "${C_GREEN}Descargando e instalando el panel principal...${C_NC}"
+mkdir -p /etc/vps-manager/core
+wget -qO /usr/local/bin/menu https://raw.githubusercontent.com/golbert19/vps-script/main/menu.sh
+chmod +x /usr/local/bin/menu
+echo -e " - [ ${C_GREEN}✅${C_NC} ] INSTALACION CORRECTA MENU"
 
 # Configurar autoinicio del menú al iniciar sesión SSH
 if ! grep -q "menu" /root/.bashrc; then

@@ -69,6 +69,14 @@ for pkg in "${paquetes[@]}"; do
     sleep 0.3
 done
 
+# --- NUEVO: Activar Nginx por defecto ---
+systemctl unmask nginx > /dev/null 2>&1
+systemctl enable nginx > /dev/null 2>&1
+systemctl start nginx > /dev/null 2>&1
+systemctl restart nginx > /dev/null 2>&1
+echo -e " - [ ${C_GREEN}✅${C_NC} ] SERVICIO NGINX ACTIVADO (ON)"
+# ----------------------------------------
+
 # --- SOLUCIÓN: Descargar el menú y todos los módulos base ---
 echo -e "\n${C_ORANGE}======================================================${C_NC}"
 echo -e "${C_GREEN}Descargando el panel principal y módulos internos...${C_NC}"

@@ -40,11 +40,14 @@ for pkg in "${paquetes[@]}"; do
     echo -e " - [ ${C_GREEN}✅${C_NC} ] INSTALACIÓN CORRECTA ${pkg}"
 done
 
-# --- ACTIVACIÓN DE NGINX POR DEFECTO ---
+# --- ACTIVACIÓN Y LIMPIEZA DE NGINX POR DEFECTO ---
 systemctl unmask nginx > /dev/null 2>&1
+# Eliminamos configuración de fábrica que ocupa puertos 80 y 8080
+rm -f /etc/nginx/sites-enabled/default
+rm -f /etc/nginx/sites-available/default
 systemctl enable nginx > /dev/null 2>&1
-systemctl start nginx > /dev/null 2>&1
-echo -e " - [ ${C_GREEN}✅${C_NC} ] SERVICIO NGINX ACTIVADO (ON)"
+systemctl restart nginx > /dev/null 2>&1
+echo -e " - [ ${C_GREEN}✅${C_NC} ] SERVICIO NGINX ACTIVADO Y LIMPIO (ON)"
 
 # --- DESCARGA DE ARCHIVOS SINCRONIZADA ---
 echo -e "\n${C_ORANGE}======================================================${C_NC}"

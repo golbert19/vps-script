@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# Instalador HCR Plain - URL Corregida
+# Instalador HCR Plain - Argumentos Nativos
 # ==========================================
 C_ORANGE='\033[38;5;214m'; C_BLUE='\033[1;34m'; C_CYAN='\033[1;36m'; C_GREEN='\033[1;32m'; C_RED='\033[1;31m'; C_NC='\033[0m'
 DEFAULT_PORT=8880
@@ -12,6 +12,7 @@ echo -e "${C_ORANGE}------------------------------------------------------${C_NC
 mkdir -p /etc/vps-manager/hcr
 systemctl stop hcr > /dev/null 2>&1
 
+# Descargar desde la carpeta core/
 wget -qO /etc/vps-manager/hcr/hcr-server "https://raw.githubusercontent.com/golbert19/vps-script/main/core/hcr-server"
 chmod +x /etc/vps-manager/hcr/hcr-server
 
@@ -37,9 +38,9 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/etc/vps-manager/hcr
-ExecStart=/etc/vps-manager/hcr/hcr-server -port $FINAL_PORT
+# Ejecución exacta que pide el binario: Puerto directo y modo plain
+ExecStart=/etc/vps-manager/hcr/hcr-server $FINAL_PORT -transport plain
 Restart=always
-RestartSec=3
 
 [Install]
 WantedBy=multi-user.target

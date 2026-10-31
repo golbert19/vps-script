@@ -26,25 +26,25 @@ systemctl daemon-reload
 
 echo -e "\n${C_YELLOW}[2/6] Instalando dependencias de compilación universales...${C_NC}"
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -y
-apt-get install -y build-essential cmake make gcc g++ git wget pkg-config
+apt-get update -y >/dev/null 2>&1
+apt-get install -y build-essential cmake make gcc g++ git wget pkg-config >/dev/null 2>&1
 
 echo -e "\n${C_YELLOW}[3/6] Descargando código fuente oficial de BadVPN...${C_NC}"
 cd /tmp
 git clone https://github.com/ambrop72/badvpn.git
 cd badvpn
 
-echo -e "\n${C_YELLOW}[4/6] Aplicando parche de compatibilidad para CMake moderno...${C_NC}"
-# Este es el parche vital para que Ubuntu 24/26 y Debian 12 no bloqueen la instalación
-sed -i 's/cmake_minimum_required(VERSION 2.6)/cmake_minimum_required(VERSION 3.5)/g' CMakeLists.txt
+echo -e "\n${C_YELLOW}[4/6] Aplicando parche de compatibilidad extremo para CMake moderno...${C_NC}"
+# Reemplazo forzoso para evitar el error de versión mínima rechazada
+sed -i 's/cmake_minimum_required.*/cmake_minimum_required(VERSION 3.5)/g' CMakeLists.txt
 
 echo -e "\n${C_YELLOW}[5/6] Compilando el código fuente (Construyendo binario)...${C_NC}"
-echo -e "${C_CYAN}(Verás texto de los procesos de C++ en pantalla, es normal)${C_NC}"
 sleep 2
 
 mkdir -p build
 cd build
-cmake .. -DBUILD_NOTHING_BY_DEFAULT=1 -DBUILD_UDPGW=1
+# Forzamos la política mínima directamente en el comando como lo pide la terminal de Ubuntu
+cmake .. -DBUILD_NOTHING_BY_DEFAULT=1 -DBUILD_UDPGW=1 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 make
 make install
 
@@ -101,10 +101,10 @@ systemctl start badvpn-7200 badvpn-7300
 sleep 2
 
 # Verificación de estado final en vivo
-ESTADO_7200=$(systemctl is-active badvpn-7200)
-ESTADO_7300=$(systemctl is-active badvpn-7300)
+ESTADO_7200=\$(systemctl is-active badvpn-7200)
+ESTADO_7300=\$(systemctl is-active badvpn-7300)
 
-if [ "$ESTADO_7200" = "active" ] && [ "$ESTADO_7300" = "active" ]; then
+if [ "\$ESTADO_7200" = "active" ] && [ "\$ESTADO_7300" = "active" ]; then
     echo -e "\n${C_CYAN}================================================${C_NC}"
     echo -e "${C_GREEN} [✔] INSTALACIÓN EXITOSA. BADVPN ESTÁ ACTIVO.${C_NC}"
     echo -e "     - Puerto 7200: ACTIVO"

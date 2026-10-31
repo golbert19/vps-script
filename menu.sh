@@ -25,13 +25,15 @@ BG_RED='\033[41;1;37m'
 # SISTEMA DE VERSIONES AUTOMÁTICAS (CORREGIDO)
 # ---------------------------------------------------------
 LOCAL_VERSION="1.1"
-[ -f /etc/vps-manager/version ] && LOCAL_VERSION=$(cat /etc/vps-manager/version) || echo "$LOCAL_VERSION" > /etc/vps-manager/version
+[ -f /etc/vps-manager/version ] && LOCAL_VERSION=$(cat /etc/vps-manager/version) \vert{}\vert{} echo "$LOCAL_VERSION" > /etc/vps-manager/version
 
 # Consulta a GitHub (Máximo 2 segundos para no demorar la carga del menú)
 REMOTE_VERSION=$(curl -sS --max-time 2 https://raw.githubusercontent.com/golbert19/vps-script/main/version 2>/dev/null)
 
 UPDATE_AVAILABLE=0
+# Validar que la respuesta de GitHub no esté vacía y no sea un error 404
 if [[ -n "$REMOTE_VERSION" ]] && [[ ! "$REMOTE_VERSION" =~ "404" ]] && [[ ! "$REMOTE_VERSION" =~ "Not Found" ]]; then
+    # Limpiar espacios o saltos de línea invisibles para comparar correctamente
     REMOTE_VERSION=$(echo "$REMOTE_VERSION" | tr -d '\n' | tr -d '\r' | tr -d ' ')
     LOCAL_VERSION=$(echo "$LOCAL_VERSION" | tr -d '\n' | tr -d '\r' | tr -d ' ')
     
@@ -64,12 +66,12 @@ while true; do
     total_ram=$(free -m | awk 'NR==2 {print $2}')
     used_ram=$(free -m | awk 'NR==2 {print $3}')
     ram_usage=$((used_ram * 100 / total_ram))
-    ram_bar=$(draw_bar $ram_usage)
+    ram_bar=$(draw_bar$ram_usage)
 
     cpu_usage_raw=$(grep 'cpu ' /proc/stat | awk '{usage=($2+$4)*100/($2+$4+$5)} END {print usage}')
-    cpu_usage=$(printf "%.2f" "$cpu_usage_raw")
+    cpu_usage=$(printf "\%.2f" "$cpu_usage_raw")
     cpu_usage_int=${cpu_usage_raw%.*}
-    cpu_bar=$(draw_bar $cpu_usage_int)
+    cpu_bar=$(draw_bar$cpu_usage_int)
 
     total_users=$(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | wc -l)
     online_users=$(ps -ef | grep -E 'sshd|dropbear' | grep -v root | grep -v grep | wc -l)
@@ -95,8 +97,9 @@ while true; do
     echo -e " 🌟 ${C_YELLOW}GOLBERT VPS PREMIUM - V5.0 LTS PANEL${C_NC} 🌟"
     echo -e "${C_CYAN}================================================${C_NC}"
     
+    # Notificación visual dinámica de la versión
     if [ "$UPDATE_AVAILABLE" -eq 1 ]; then
-        echo -e " ${C_GREEN}Key: Verified [ Golbert VPS ] (v${LOCAL_VERSION})${C_NC} | ${BG_RED} ¡NUEVA v${REMOTE_VERSION} DISPONIBLE! ${C_NC}"
+        echo -e " ${C_GREEN}Key: Verified [ Golbert VPS ] (v${LOCAL_VERSION})${C_NC} \vert{}${BG_RED} ¡NUEVA v${REMOTE_VERSION} DISPONIBLE!${C_NC}"
     else
         echo -e " ${C_GREEN}Key: Verified [ Golbert VPS ] (v${LOCAL_VERSION})${C_NC}"
     fi
@@ -106,12 +109,12 @@ while true; do
     echo -e " ⚙️ Kernel   : $kernel_ver"
     echo -e " 🌐 IP       : $IP"
     echo -e " 🎯 Domain   : $domain_name"
-    echo -e " 🧠 CPU Usage: ${C_GREEN}${cpu_bar}${C_NC} $cpu_usage%"
-    echo -e " ⚡ RAM Usage: ${C_GREEN}${ram_bar}${C_NC} $ram_usage% (${used_ram} / ${total_ram} MB)"
-    echo -e " 👥 Users    : $total_users Creados | $online_users En Línea"
+    echo -e " 🧠 CPU Usage: ${C_GREEN}${cpu_bar}${C_NC}$cpu_usage%"
+    echo -e " ⚡ RAM Usage: ${C_GREEN}${ram_bar}${C_NC}$ram_usage% (${used_ram} /${total_ram} MB)"
+    echo -e " 👥 Users    : $total_users Creados \vert{}$online_users En Línea"
     echo -e "${C_CYAN}================================================${C_NC}"
-    echo -e " SSH : $s_ssh     NGINX : $s_nginx     XRAY : $s_xray"
-    echo -e " STUNNEL : $s_stunnel SSH-WS : $s_ws    HCR : $s_hcr"
+    echo -e " SSH : $s_ssh     NGINX : $s_nginx     XRAY :$s_xray"
+    echo -e " STUNNEL : $s_stunnel SSH-WS : $s_ws    HCR :$s_hcr"
     echo -e "${C_CYAN}================================================${C_NC}"
     
     if [ "$UPDATE_AVAILABLE" -eq 1 ]; then
@@ -141,33 +144,29 @@ while true; do
     
     case $opcion in
         # ================= GESTIÓN DE CUENTAS =================
-        # Opción 1 RESTAURADA exactamente a su original
+        # Opciones 1 y 3 100% restauradas a su estado original
         1) [ -f /etc/vps-manager/core/user.sh ] && bash /etc/vps-manager/core/user.sh || echo -e "\n${C_RED}Módulo no encontrado. Forzando descarga...${C_NC}" ; sleep 2 ;;
         
-        # Opción 2 con el nuevo submenú de Xray
-        2)
-            while true; do
-                clear
-                echo -e "${C_CYAN}================================================${C_NC}"
-                echo -e " ⚡  GESTIÓN DE CUENTAS XRAY (VMESS/VLESS/TROJAN)"
-                echo -e "${C_CYAN}================================================${C_NC}"
-                echo -e " 1. 👤 Gestión de Cuentas VMess"
-                echo -e " 2. 👤 Gestión de Cuentas VLESS"
-                echo -e " 3. 👤 Gestión de Cuentas Trojan"
-                echo -e " 0. 🚪 VOLVER al Menú Principal"
-                echo -e "${C_CYAN}================================================${C_NC}"
-                read -p "Selecciona una opción: " xray_op
-                case $xray_op in
-                    1) [ -f /etc/vps-manager/core/vmess.sh ] && bash /etc/vps-manager/core/vmess.sh || { echo -e "${C_RED}Módulo VMess no encontrado${C_NC}"; sleep 2; } ;;
-                    2) [ -f /etc/vps-manager/core/vless.sh ] && bash /etc/vps-manager/core/vless.sh || { echo -e "${C_RED}Módulo VLESS no encontrado${C_NC}"; sleep 2; } ;;
-                    3) [ -f /etc/vps-manager/core/trojan.sh ] && bash /etc/vps-manager/core/trojan.sh || { echo -e "${C_RED}Módulo Trojan no encontrado${C_NC}"; sleep 2; } ;;
-                    0) break ;;
-                    *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
-                esac
-            done
+        2) 
+            clear
+            echo -e "${C_CYAN}================================================${C_NC}"
+            echo -e " ⚡  GESTIÓN DE CUENTAS XRAY (VMESS/VLESS/TROJAN)"
+            echo -e "${C_CYAN}================================================${C_NC}"
+            echo -e " 1. 👤 Gestión de Cuentas VMess"
+            echo -e " 2. 👤 Gestión de Cuentas VLESS"
+            echo -e " 3. 👤 Gestión de Cuentas Trojan"
+            echo -e " 0. 🚪 VOLVER al Menú Principal"
+            echo -e "${C_CYAN}================================================${C_NC}"
+            read -p "Selecciona una opción: " xray_op
+            case $xray_op in
+                1) bash /etc/vps-manager/core/vmess.sh ;;
+                2) bash /etc/vps-manager/core/vless.sh ;;
+                3) bash /etc/vps-manager/core/trojan.sh ;;
+                0) ;;
+                *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
+            esac
             ;;
-            
-        # Opción 3 RESTAURADA exactamente a su original
+
         3) [ -f /etc/vps-manager/core/bot.sh ] && bash /etc/vps-manager/core/bot.sh || echo "Módulo no encontrado" ; sleep 2 ;;
         
         # ================= HERRAMIENTAS Y SISTEMA =================
@@ -235,59 +234,5 @@ while true; do
             while true; do
                 clear
                 echo -e "${C_CYAN}================================================${C_NC}"
-                echo -e " 🌐  DOMAIN, WEB PANEL & BOT CONFIG"
-                echo -e "${C_CYAN}================================================${C_NC}"
-                echo -e " 1. 🌐 Domain Manager & SSL Certificates"
-                echo -e " 2. 🌐 Generate Web Panel (Dashboard UI)"
-                echo -e " 3. 🤖 Link Telegram Bot"
-                echo -e " 4. 🎨 Configure HTML Welcome Banner"
-                echo -e " 0. 🚪 VOLVER al Menú Principal"
-                echo -e "${C_CYAN}================================================${C_NC}"
-                read -p "Selecciona una opción: " web_op
-                case $web_op in
-                    1) bash /etc/vps-manager/core/domain.sh ;; 2) bash /etc/vps-manager/core/webpanel.sh ;;
-                    3) bash /etc/vps-manager/core/bot.sh ;; 4) bash /etc/vps-manager/core/banner.sh ;;
-                    0) break ;; *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
-                esac
-            done
-            ;;
-        7)
-            while true; do
-                clear
-                echo -e "${C_CYAN}================================================${C_NC}"
-                echo -e " 🔄  PANEL SETTINGS & UPDATES"
-                echo -e "${C_CYAN}================================================${C_NC}"
-                echo -e " 1. 🔄 Update Panel (From GitHub)"
-                echo -e " 2. 🌍 Change Language (ES/EN/PT)"
-                echo -e " 3. 🐘 Instalar PHP 8.5.12 (VPS)"
-                echo -e " 0. 🚪 VOLVER al Menú Principal"
-                echo -e "${C_CYAN}================================================${C_NC}"
-                read -p "Selecciona una opción: " set_op
-                case $set_op in
-                    1) bash /etc/vps-manager/core/update.sh ;;
-                    2)
-                        echo -e "\n1. 🇪🇸 Español | 2. 🇺🇸 English | 3. 🇧🇷 Português"
-                        read -p "Opción: " lang_op
-                        [ "$lang_op" = "1" ] && echo "es" > /etc/vps-manager/lang.txt
-                        [ "$lang_op" = "2" ] && echo "en" > /etc/vps-manager/lang.txt
-                        [ "$lang_op" = "3" ] && echo "pt" > /etc/vps-manager/lang.txt
-                        echo -e "${C_GREEN}[✔] Idioma actualizado.${C_NC}"; sleep 1; break
-                        ;;
-                    3) bash /etc/vps-manager/core/php.sh ;;
-                    0) break ;; *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
-                esac
-            done
-            ;;
-        99)
-            if [ "$UPDATE_AVAILABLE" -eq 1 ]; then
-                bash /etc/vps-manager/core/update.sh
-                exit 0
-            else
-                echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1
-            fi
-            ;;
-        88) read -p "¿Desinstalar script? (s/n): " des; [ "$des" = "s" ] && exit 0 ;;
-        0) clear ; exit 0 ;;
-        *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
-    esac
-done
+                echo
+                

@@ -1,14 +1,45 @@
 #!/bin/bash
 # ==========================================
-# Instalador HCR Plain - Parámetros Originales Eproxy
+# Gestor HCR Plain - Instalación y Desinstalación
 # ==========================================
 C_ORANGE='\033[38;5;214m'; C_BLUE='\033[1;34m'; C_CYAN='\033[1;36m'; C_GREEN='\033[1;32m'; C_RED='\033[1;31m'; C_NC='\033[0m'
 DEFAULT_PORT=8880
 
 clear
 echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
-echo -e "               ${C_BLUE}INSTALACIÓN DE HCR PLAIN${C_NC}"
+echo -e "               ${C_BLUE}GESTOR DE HCR PLAIN${C_NC}"
 echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+echo -e " ${C_CYAN}1.${C_NC} Instalar / Cambiar Puerto HCR"
+echo -e " ${C_RED}2.${C_NC} Desinstalar y Liberar Puerto"
+echo -e " ${C_CYAN}0.${C_NC} Volver al Menú Principal"
+echo -e "${C_ORANGE}------------------------------------------------------${C_NC}"
+read -p " Selecciona una opción: " opcion
+
+case $opcion in
+    2)
+        echo -e "\n${C_ORANGE}Desinstalando HCR y liberando puerto...${C_NC}"
+        systemctl stop hcr > /dev/null 2>&1
+        systemctl disable hcr > /dev/null 2>&1
+        rm -f /etc/systemd/system/hcr.service
+        rm -rf /etc/vps-manager/hcr
+        systemctl daemon-reload
+        echo -e " ${C_GREEN}✅ HCR desinstalado correctamente.${C_NC}"
+        read -p " Presiona Enter para volver..."
+        exit 0
+        ;;
+    0)
+        exit 0
+        ;;
+    1)
+        echo -e "\n${C_CYAN}Iniciando instalación...${C_NC}"
+        ;;
+    *)
+        echo -e " ${C_RED}[!] Opción inválida.${C_NC}"
+        sleep 2
+        exit 1
+        ;;
+esac
+
 mkdir -p /etc/vps-manager/hcr
 systemctl stop hcr > /dev/null 2>&1
 
@@ -37,7 +68,6 @@ After=network.target
 Type=exec
 User=root
 WorkingDirectory=/etc/vps-manager/hcr
-# Se utilizan los parámetros exactos extraídos del instalador original de Eproxy
 ExecStart=/etc/vps-manager/hcr/hcr-server --listen :$FINAL_PORT --target 127.0.0.1:22 --transport plain --max-download-frame 6144 --download-poll-timeout 8s
 Restart=always
 RestartSec=3

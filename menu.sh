@@ -145,7 +145,27 @@ while true; do
     case $opcion in
         # ================= GESTIÓN DE CUENTAS =================
         1) [ -f /etc/vps-manager/core/user.sh ] && bash /etc/vps-manager/core/user.sh || echo -e "\n${C_RED}Módulo no encontrado. Forzando descarga...${C_NC}" ; sleep 2 ;;
-        2) [ -f /etc/vps-manager/core/xray_manager.sh ] && bash /etc/vps-manager/core/xray_manager.sh || echo "Módulo V2Ray/Xray no encontrado" ; sleep 2 ;;
+        2)
+            while true; do
+                clear
+                echo -e "${C_CYAN}================================================${C_NC}"
+                echo -e " ⚡  GESTIÓN DE CUENTAS XRAY (VMESS/VLESS/TROJAN)"
+                echo -e "${C_CYAN}================================================${C_NC}"
+                echo -e " 1. 👤 Gestión de Cuentas VMess"
+                echo -e " 2. 👤 Gestión de Cuentas VLESS"
+                echo -e " 3. 👤 Gestión de Cuentas Trojan"
+                echo -e " 0. 🚪 VOLVER al Menú Principal"
+                echo -e "${C_CYAN}================================================${C_NC}"
+                read -p "Selecciona una opción: " xray_op
+                case $xray_op in
+                    1) [ -f /etc/vps-manager/core/vmess.sh ] && bash /etc/vps-manager/core/vmess.sh || echo -e "${C_RED}Módulo VMess no encontrado${C_NC}" ; sleep 2 ;;
+                    2) [ -f /etc/vps-manager/core/vless.sh ] && bash /etc/vps-manager/core/vless.sh || echo -e "${C_RED}Módulo VLESS no encontrado${C_NC}" ; sleep 2 ;;
+                    3) [ -f /etc/vps-manager/core/trojan.sh ] && bash /etc/vps-manager/core/trojan.sh || echo -e "${C_RED}Módulo Trojan no encontrado${C_NC}" ; sleep 2 ;;
+                    0) break ;;
+                    *) echo -e "${C_RED}Opción inválida.${C_NC}" ; sleep 1 ;;
+                esac
+            done
+            ;;
         3) [ -f /etc/vps-manager/core/bot.sh ] && bash /etc/vps-manager/core/bot.sh || echo "Módulo no encontrado" ; sleep 2 ;;
         
         # ================= HERRAMIENTAS Y SISTEMA =================
